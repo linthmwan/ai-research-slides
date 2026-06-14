@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ERNIE-Image Technical Report · 每日 AI Research 2026-06-14</title>
+<title>MiniMax Sparse Attention — AI Research Daily 2026-06-14</title>
 <style>
 :root{
   --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
@@ -117,233 +117,229 @@ table.bench .best{color:var(--teal);font-weight:800;}
 <div class="deck" id="deck">
   <section class="slide cover active">
     <div class="slide__inner">
-      <div class="kicker">每日 AI Research · 週日 · 公司技術報告</div>
-      <h1 class="title">ERNIE-Image：用<b>資料挖掘與監督品質</b>挑戰「模型尺寸 scaling law」</h1>
-      <div class="authors">Jiaxiang Liu, Zhida Feng, Pengyu Zou, Zhenyu Qian, Tianrui Zhu 等 · <b>Baidu ERNIE Team</b></div>
-      <div class="meta-row"><span class="badge tier">arXiv 2605.25347v1</span><span class="badge">Baidu · Technical Report</span><span class="badge date">Announced 2026-05-25</span></div>
-      <p class="lead">8B 開源 single-stream DiT 文生圖模型，不靠堆參數、改靠資料管線與對齊品質，逼近 Nano Banana 2.0 / Seedream 等閉源 SOTA。</p>
-      <figure class="full" style="margin-top:0.6rem"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1 (p.2)：ERNIE-Image 生成展示 — 寫實人像、產品攝影、複雜場景</figcaption></figure>
-      <div class="cite">來源：<a href='https://arxiv.org/abs/2605.25347'>arxiv.org/abs/2605.25347</a> · ERNIE-Image Technical Report</div>
+      <div class="kicker">AI Research Daily · 2026-06-14 (週日) · 公司技術報告</div>
+      <h1 class="title">MiniMax Sparse Attention</h1>
+      <div class="authors">Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, et al. · <b>MiniMax</b> · Peking University · NVIDIA · Zhejiang University · HUST</div>
+      <div class="meta-row"><span class="badge tier">Company Tech Report</span><span class="badge">arXiv:2606.13392</span><span class="badge date">Announced 2026-06-11</span></div>
+      <div class="sub">在 GQA 上做 blockwise 稀疏注意力：每個 group 各自選 Top-k 個 KV block，1M context 下 attention FLOPs 降 <b>28.4×</b>，能力與 full attention 打平。</div>
     </div>
   </section>
 
   <section class="slide statement">
     <div class="slide__inner">
-      <div class="kicker">今日主題 · TL;DR</div>
-      <p class="big">與其把 T2I 模型<b>越堆越大</b>，ERNIE-Image 證明：<b>更深的資料挖掘 + 更高的監督品質</b>，能讓 8B 模型在指令跟隨、文字渲染、美學生成上逼近頂級閉源系統。</p>
-      <div class="takeaway">GenEval 0.89（全表最高）· LongText-Bench 0.973（開源第一、反超 Nano Banana）· 人類偏好開源第一、整體第二 — 全部用 8B 參數達成，並開源權重 + 美學模型 + ERIA-1K benchmark。</div>
+      <div class="kicker">TL;DR</div>
+      <p class="big">一個極輕量 <b>Index Branch</b> 對 KV block 打分、每個 GQA group 各自選 Top-k；<b>Main Branch</b> 只對選中 block 做精確 softmax。109B MoE 上與 full-attn 打平，1M context FLOPs 降 <b>28.4×</b>、prefill <b>14.2×</b>、decode <b>7.6×</b>。</p>
+      <div class="sub">設計哲學 = Occam's razor：大量 ablation 後只留必要組件，可 from-scratch 訓練、也可從既有 GQA checkpoint near-lossless 轉換。</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">問題背景 · §1 Introduction</div>
-      <h2 class="head">閉源壟斷下，開源的兩條路都有缺陷</h2>
-      <div class="two-col"><div><div class="sub"><b>路線 A — 堆參數</b></div><ul class="bullets"><li>代表：Qwen-Image、HunyuanImage</li><li>邊際報酬遞減、算力門檻高</li><li>限制社群普及與可近用性</li></ul></div><div><div class="sub"><b>路線 B — 小而精</b></div><ul class="bullets"><li>代表：6B Z-Image</li><li>社群認可、輕量易用</li><li>但<b>複雜指令跟隨</b>與<b>中文字渲染</b>明顯受限</li></ul></div></div>
-      <div class="takeaway">ERNIE-Image 的定位：open-source × powerful × easy-to-use 三者兼得，補齊開源最缺的 complex instruction following / text rendering / aesthetic generation。</div>
+      <div class="kicker">問題背景</div>
+      <h2 class="head">Ultra-long context 撞上 O(N²) 的牆</h2>
+      <ul class="bullets"><li>Agentic workflow、repo-scale code、persistent memory 要 attend 數十萬~百萬 token，softmax attention 的 <b>O(N²)</b> 在部署規模不可行。</li><li><b>Hybrid / linear / SSM（Mamba）</b>：換掉部分 exact-softmax 能力，長程精確檢索受限。</li><li><b>Fixed-pattern（local window / global token / sink）</b>：content-agnostic，選擇與內容無關。</li><li><b>Inference-time sparsification（H2O / SnapKV / Quest / MInference / InfLLM）</b>：繼承 full-attn 訓練成本，至少一個 inference 階段仍接近 dense。</li></ul>
+      <div class="cite">§1 Introduction · §6 Related Works p.13</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">核心貢獻 · 三大支柱</div>
-      <h2 class="head">把標題拆成三個命題：資料、監督、美學</h2>
-      <ol class="numbered"><li><b>Data-centric pre-training</b>：bottom-up 資料建構（10K 細粒度分類 + caption + 美學評分 + 階層採樣），取代盲目擴參數</li><li><b>Supervision-quality post-training</b>：SFT（prompt 多樣化）→ Stabilized DPO（anchor loss 防 reward hacking）→ MT-DMD（多老師蒸餾防能力漂移）</li><li><b>Aesthetics as infrastructure</b>：自建工業級 ERNIE-Image-Aes 美學模型 + ERIA-1K benchmark，美學評分回頭驅動資料清洗</li></ol>
-      <p class="note">關鍵 insight：在訓練<b>早期就注入「詳細圖像描述」</b>，不只強化複雜指令跟隨，還大幅豐富 world knowledge → 因此不刻意合成領域資料，改用更精準的標註策略挖掘海量但低品質的圖庫。</p>
+      <div class="kicker">定位</div>
+      <h2 class="head">Natively-trained sparse 的鄰居，與 MSA 的兩軸差異</h2>
+      <ul class="bullets"><li><b>NSA</b>：三條並行分支（compressed / selected / sliding window），較重。</li><li><b>MoBA</b>：GQA 上用很大的 KV block、block-averaged key 打分，indexer 只靠 LM gradient 訓。</li><li><b>DSA</b>：建在 MLA(MQA mode) 上，token-level 選擇、所有 head 共用單一 Top-k。</li><li><b>MSA</b>：<b>per-GQA-group Top-k 共享 + block-level 選擇</b>兩軸一起取 — 兼顧 multi-group block-granular retrieval 與 contiguous KV reads。</li></ul>
+      <div class="cite">§6 Related Works p.13</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">方法 · 架構 · §1 p.2</div>
-      <h2 class="head">8B Single-Stream DiT，刻意選小型 text encoder</h2>
-      <div class="two-col"><div><ul class="bullets"><li><b>Latent Diffusion Model</b>，single-stream DiT，<b>8B 參數</b></li><li><b>VAE：FLUX.2 VAE</b>（強開源 latent space）</li><li><b>Text encoder：Ministral-3 (3B)</b> — 刻意選小型，降記憶體 + 降使用門檻</li></ul></div><div><div class="sub"><b>衍生模型家族</b></div><ul class="bullets"><li>ERNIE-Image-Turbo（8-NFE 快速生成）</li><li>Prompt Enhancer（3B 輕量）</li><li>ERNIE-Image-Aes（工業級美學模型）</li></ul></div></div>
-      <div class="takeaway">實驗證實：即使 text encoder 只有 3B，仍能撐住長而複雜的指令輸入 — 能力來自資料與訓練，而非編碼器規模。</div>
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">MSA：minimal · scalable · accelerated</h2>
+      <ol class="numbered"><li>提出 MSA — 建在 GQA 上的 blockwise sparse attention，支援 from-scratch 訓練與從 GQA checkpoint <b>near-lossless 轉換</b>。</li><li>Co-design 訓練 + 推論 kernel，把理論 FLOP 節省化為真實 wall-clock 加速（exp-free TopK、KV-outer sparse attention）。</li><li>在 <b>109B MoE + native multimodal</b> 上做大量 ablation，跨 scale 與 modality 解剖 MSA 行為，得出最小必要設計。</li></ol>
+      <div class="cite">§1 Introduction · §2 Contributions</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">方法 · 預訓練 · §2.1 p.3</div>
-      <h2 class="head">Bottom-up 資料管線：對海量原始圖庫逐步施加結構</h2>
-      <ol class="numbered"><li><b>Fine-grained categorization</b>：分類模型把每張圖歸入 <b>10,000 個細粒度視覺類別</b> → 保住 long-tail 概念、避免主流類別淹沒分佈</li><li><b>Caption enrichment</b>：VLM 為全部圖生 caption，<b>特別強調忠實辨識並描述圖中文字</b>（slides / 圖表 / 海報 / UI / 文件）— 文字漏標會嚴重削弱 image-text alignment</li><li><b>Aesthetic scoring</b>：用 ERNIE-Image-Aes 給全部圖打美學分，作為大規模過濾/採樣的統一品質訊號（學習式品質估計 &gt; 啟發式規則）</li><li><b>Hierarchical sampling</b>：兩階層採樣（見下頁）</li></ol>
-      <p class="note">核心對比：不從預定資料分層 resample（top-down），而是 bottom-up 從原始分佈逐步建構結構。</p>
+      <div class="kicker">方法總覽</div>
+      <h2 class="head">雙分支架構：Index 選 block，Main 只算選中的</h2>
+      <figure class="full"><img src="figures/figure1_arch.jpg" alt="MSA dual-branch architecture: Index Branch scores KV blocks, Main Branch does sparse attention"><figcaption>Figure 1 | Index Branch（綠，左）對 KV block 打分→Block Max Pooling→Top-k Index；Main Branch（藍，右）只對選中 block 做 sparse attention。右側為每個 GQA group 各自的 attention mask。來源 p.1</figcaption></figure>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">方法 · 預訓練採樣 · §2.1 p.3</div>
-      <h2 class="head">兩階層採樣 + 三階段解析度課程</h2>
-      <div class="two-col"><div><div class="sub"><b>Hierarchical sampling</b></div><ul class="bullets"><li><b>inter-category</b>：採樣權重 = 語料規模 + 整體美學品質 → 高頻類別不獨大、高品質類別分到更多機率質量</li><li><b>intra-category</b>：類別內按美學分採樣，高品質實例曝光更頻繁</li></ul></div><div><div class="sub"><b>漸進解析度課程</b></div><div class="formula">256&times;256 &nbsp;&rarr;&nbsp; 512&times;512 &nbsp;&rarr;&nbsp; 1024&times;1024</div><ul class="bullets"><li>全程訓練多種 aspect ratio（不限正方形）</li><li>早期低解析優化效率 + 後期保留高解析靈活構圖</li></ul></div></div>
-      <div class="takeaway">美學評分是貫穿全管線的「統一品質訊號」：既決定類別間機率質量，也決定類別內曝光頻率。</div>
+      <div class="kicker">方法 · 命題 1 / 4</div>
+      <h2 class="head">Index Branch：token 打分 → block max-pool → Top-k</h2>
+      <div class="formula">M<sup>idx,(r)</sup><sub>i,b</sub> = max<sub>j∈B_b, j≤i</sub> ( Q<sup>idx,(r)</sup><sub>i</sub> · K<sup>idx</sup><sub>j</sub> ) / √d<sub>idx</sub></div>
+      <div class="formula">I<sup>(r)</sup><sub>i</sub> = TopK<sub>b</sub>( M<sup>idx,(r)</sup><sub>i,·</sub> , k )　（local block 永遠納入）</div>
+      <ul class="bullets"><li>每個 GQA group 一個 index query head、所有 group 共享一個 index key head — 只多 <b>兩個投影矩陣</b> W<sub>q</sub><sup>idx</sup>, W<sub>k</sub><sup>idx</sup>。</li><li>先算 token-level score，再 <b>block max-pool</b> 聚合到 block 層級，每 query+group 取 Top-k block。</li><li>per-query 成本從 O(N) 降到 <b>O(k·B<sub>k</sub>)，固定不隨序列長度增長</b>。</li></ul>
+      <div class="takeaway">Main Branch 只對選中 block 內 causally-visible token 做標準 scaled-dot-product softmax。</div>
+      <div class="cite">§3.1 Architecture p.4 (Eq. 6–8)</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">後訓練 A · SFT · §2.2.1 p.4</div>
-      <h2 class="head">SFT 反向操作：top-down 策劃高一致性資料</h2>
-      <div class="two-col"><div><div class="sub"><b>領域優先策劃</b></div><ul class="bullets"><li>與預訓練 bottom-up <b>相反</b>：先定優先領域再策劃資料</li><li>優先領域：poster design、game screenshots、portrait / object photography、anime-style 等高需求類別</li><li>VLM 生 caption：內容、場景佈局、物件屬性、可見文字的結構化監督</li></ul></div><div><div class="sub"><b>Prompt 多樣化（關鍵）</b></div><ul class="bullets"><li>用更大的 VLM（<b>K2.5</b>）把 caption 改寫 + 降採樣成多樣 prompt</li><li>同一張圖 → 短關鍵詞 / 自然語言 / 指令式 / 詳細構圖式等多形式</li><li>縮小「合成 caption ↔ 真實使用者 prompting」落差</li></ul></div></div>
-      <div class="takeaway">目的：提升對異質使用者輸入的 robustness — 真實使用者不會像訓練 caption 那樣下 prompt。</div>
+      <div class="kicker">方法 · 命題 2 / 4</div>
+      <h2 class="head">訓練：KL alignment + 三道穩定機制</h2>
+      <div class="formula">L<sub>KL</sub> = (1 / N·H<sub>kv</sub>) Σ<sub>i,r</sub> D<sub>KL</sub>( stopgrad(P<sup>(r)</sup><sub>i,·</sub>) ∥ P<sup>idx,(r)</sup><sub>i,·</sub> )　·　L = L<sub>LM</sub> + λ Σ<sub>layers</sub> L<sub>KL</sub></div>
+      <ul class="bullets"><li>Top-k 不可微 → LM loss 訓不動 index 投影。用 <b>KL loss</b> 把 Index 分佈對齊 Main Branch teacher（只在選中 token 上算）。</li><li><b>Gradient Detach</b>：對 Index 輸入 stop-gradient，KL 只更新 W<sub>q</sub><sup>idx</sup>/W<sub>k</sub><sup>idx</sup>、不流回 backbone。</li><li><b>Indexer Warmup</b>：前期兩分支都跑 full attention、只用 KL 訓新投影，warmup 後才切 sparse。</li><li><b>Local Block</b>：每個 query 的 local block 永遠被選，保留 immediate neighbourhood、防退化選擇。</li></ul>
+      <div class="cite">§3.2 Training p.5 · Algorithm 1 p.6</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">後訓練 B · Stabilized DPO · §2.2.2 p.5-6</div>
-      <h2 class="head">在 DiT 上解掉 DPO 的 reward hacking</h2>
-      <ul class="bullets"><li>在 Flow Matching 框架下，DPO 從 <b>velocity-field 觀點</b>重構：以預測 velocity v<sub>θ</sub> 的 L2 重建誤差定義 implicit reward</li><li><b>核心問題</b>：naive DPO 利用 L2 loss「無上界」特性，瘋狂放大 rejected 樣本誤差 → representation collapse</li></ul>
-      <div class="formula">L<sub>DPO</sub> = &minus;𝔼[ log σ( &minus;β ( Diff<sub>policy</sub> &minus; Diff<sub>ref</sub> ) ) ] &nbsp;&nbsp;<span style='color:#5b616e'>（式2）</span></div>
-      <div class="formula">L<sub>total</sub> = L<sub>DPO</sub> + λ<sub>win</sub>·𝔼[ℓ<sub>policy</sub><sup>win</sup>] + λ<sub>lose</sub>·𝔼[ℓ<sub>policy</sub><sup>lose</sup>], &nbsp; ℓ = ‖ v<sub>θ</sub>(x<sub>t</sub>,h,t) &minus; v<sub>t</sub> ‖₂² &nbsp;<span style='color:#5b616e'>（式3）</span></div>
-      <p class="note"><b>Anchor Losses</b> 把模型基本生成能力「錨定」住防止崩塌。超參：β = 0.05、λ<sub>win</sub> = 0.35、λ<sub>lose</sub> = 0.15。</p>
-    </div>
-  </section>
-
-  <section class="slide statement">
-    <div class="slide__inner">
-      <div class="kicker">後訓練 B · 機制觀察</div>
-      <p class="big">當 base 模型與 reward 模型<b>都夠強</b>時，只需<b>極少 DPO steps</b> 就能對齊到位 — 而越少步、越能最小化 reward hacking 的暴露窗口。</p>
-      <div class="takeaway">啟發：DPO 的穩定性不只靠 loss 設計，也靠「強 base + 強 reward + 短訓練」三者共振。anchor loss 是兜底，不是主力。</div>
+      <div class="kicker">方法 · 命題 3 / 4</div>
+      <h2 class="head">計算複雜度：固定預算讓 gap 隨 N 拉開</h2>
+      <div class="formula">F<sub>GQA</sub>(N) = 2·H<sub>q</sub>·d<sub>h</sub>·N²</div>
+      <div class="formula">F<sub>MSA</sub>(N) = H<sub>kv</sub>·d<sub>idx</sub>·N²　+　4·H<sub>q</sub>·d<sub>h</sub>·N·k·B<sub>k</sub></div>
+      <ul class="bullets"><li>第一項 = Index Branch（輕量打分），第二項 = Main Branch（<b>固定 KV 預算 k·B<sub>k</sub></b>，與 N 線性）。</li><li>當 k·B<sub>k</sub> ≪ N 且 H<sub>kv</sub>·d<sub>idx</sub> ≪ H<sub>q</sub>·d<sub>h</sub>，FLOPs gap 隨 N 持續拉開。</li><li>部署設定 B<sub>k</sub>=128, k=16 → 每 query 只 attend <b>k·B<sub>k</sub> = 2,048 token</b>。</li></ul>
+      <div class="takeaway">dense 隨整個序列成長，MSA 把主注意力預算鎖死 → context 越長、相對省越多。</div>
+      <div class="cite">§3.3 Complexity Analysis p.6</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">後訓練 C · MT-DMD 少步蒸餾 · §2.2.3 p.6-7</div>
-      <h2 class="head">多老師蒸餾：解掉單老師的 Capability Drift</h2>
-      <ul class="bullets"><li><b>背景演進</b>：DMD → DMD2（score model 更新 5 次才更新 generator 1 次）→ DMDR（RL + dynamic guidance + step-aware LoRA scaling）</li><li><b>單老師痛點 Capability Drift</b>：處理高度異質資料時，單一 teacher 即使有 dynamic LoRA + reward，也難在所有語意域給一致最優監督（清晰排版 vs 風格化美學互相拉扯）</li><li><b>解法 MT-DMD</b>：編排「專家老師委員會」ℰ = {E₁,…,E<sub>K</sub>}，各自專精不同域：Text-Rendering Expert（排版）/ Digital Art Expert（風格化）/ Spatial Layout Expert（宏觀構圖）</li></ul>
-      <div class="takeaway">把多步 diffusion 蒸餾成 8-NFE 的 ERNIE-Image-Turbo，同時保住跨域能力，不被單一 oracle 的瓶頸限制。</div>
+      <div class="kicker">方法 · 命題 4 / 4</div>
+      <h2 class="head">Kernel co-design：把理論稀疏變真加速</h2>
+      <div class="two-col"><div><div class="sub"><b>Exp-free TopK</b></div><ul class="bullets"><li>softmax 保序 → 選 Top-k 不需 max/exp/sum，直接拿 raw score 排序。</li><li>warp 32 lane 各維護 k-element min-heap、shared-memory 無 bank conflict。</li></ul></div><div><div class="sub"><b>KV-outer iteration</b></div><ul class="bullets"><li>比較 Q-outer (FLOPs/IO≈G) vs KV-outer (≈⅔·B<sub>k</sub>)；因 ⅔·B<sub>k</sub> ≫ G，選 KV-outer + Q gather 最大化 arithmetic intensity。</li><li>two-phase forward + query concatenation 填滿 tensor core。</li></ul></div></div>
+      <div class="scorebox"><span class="score score--hi">TopK 5.1× vs torch.topk</span><span class="score score--hi">3.7× vs TileLang radix</span></div>
+      <div class="cite">§4 Kernel Design p.6–8 · Table 1 p.7 (128K, k=16)</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">後訓練 C · 機制皇冠頁 · §2.2.3 p.7</div>
-      <h2 class="head">Dynamic Routing Manifold：樣本域 × timestep 的多工</h2>
-      <ul class="bullets"><li>把「樣本域 + diffusion timestep」當成統一高維 multiplexing 空間 W，動態路由到對的專家</li><li><b>非對稱梯度拓撲</b>：同一訓練實例內，DM 懲罰查 Digital Art Expert 顧全域風格一致，CA 約束同時查 Text-Rendering Expert 顧局部拼字/結構</li><li><b>沿 diffusion 軌跡無縫 expert handoff</b>：高噪聲階段用 Spatial Layout 專家立宏觀構圖；低噪聲階段交棒給高頻渲染專家（寫實光照 / 材質紋理）</li></ul>
-      <div class="takeaway">路由不是「一張圖配一個老師」，而是「在去噪軌跡的不同階段、不同子目標上分別調用最合適的專家」— 消除單 oracle 的能力天花板。</div>
+      <div class="kicker">實驗 · 設定</div>
+      <h2 class="head">109B MoE，兩條訓練路線在同一 3T budget 對打</h2>
+      <div class="two-col"><div><div class="sub"><b>模型</b></div><ul class="bullets"><li>109B MoE（<b>6B activated/token</b>），41 層（3 dense + 38 MoE），128 routed + 1 shared expert、top-4。</li><li>64 query / 4 KV heads、head dim 128、RoPE dim 64；B<sub>k</sub>=128, k=16 → 2,048 token/query。</li><li>Native multimodal（text + image/video）。</li></ul></div><div><div class="sub"><b>兩條路線</b></div><ul class="bullets"><li><b>MSA-PT</b>：from scratch，40B indexer warmup 後全程 sparse。</li><li><b>MSA-CPT</b>：從 2.6T full-attn checkpoint 接 400B token（40B warmup + sparse CPT）。</li><li>baseline = 同架構 <b>Full-Attention GQA</b>，matched checkpoint。</li></ul></div></div>
+      <div class="takeaway">Figure 2：MSA-PT 與 Full 的 LM loss / grad-norm 曲線全程幾乎重疊 — 大規模 native sparse 訓練和 dense 一樣穩。</div>
+      <div class="cite">§5.1 Setup · §5.2 Training Dynamics p.9–10</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">美學基礎設施 · ERNIE-Image-Aes · §3 p.8-10</div>
-      <h2 class="head">自建工業級美學模型，因現成預測器有系統性偏誤</h2>
-      <div class="two-col"><div><div class="sub"><b>現成模型的偏誤</b></div><ul class="bullets"><li>LAION-Aes：對 AI 生成 / 動漫 / 隨手拍給<b>過高分</b></li><li>ArtiMuse / UniPercept：偏好黑白照、對日常活動快照（公園素人合照）誤判高分</li></ul></div><div><div class="sub"><b>標註方法</b></div><ul class="bullets"><li>採 <b>pairwise comparison</b>（兩兩比較）而非 absolute Likert → 規避 score drift</li><li>用 Swiss-system tournament 做局部二元判斷，更穩定可複現</li><li>標註者須先過 aesthetic calibration 測驗；每人獨立完成整個 tournament，標籤在 dataset 層級聚合</li></ul></div></div>
-      <p class="note">模型從 <b>ArtiMuse（8B VLM）</b> 初始化，在內部標註資料微調；訓練資料沿「美學品質先驗 × 內容類別」兩軸保證多樣性。</p>
+      <div class="kicker">實驗 · 主結果</div>
+      <h2 class="head">與 Full 打平，MSA-PT 在 retrieval / 多模態反超</h2>
+      <table class="bench"><thead><tr><th>Benchmark</th><th class="num">Full</th><th class="num">MSA-PT</th><th class="num">MSA-CPT</th></tr></thead><tbody><tr class="win"><td>MMLU</td><td class="num">67.0</td><td class="num best">67.2</td><td class="num">66.8</td></tr><tr class="win"><td>GSM8K</td><td class="num">76.2</td><td class="num best">77.7</td><td class="num">73.7</td></tr><tr class="win"><td>HumanEval</td><td class="num">61.0</td><td class="num best">64.0</td><td class="num">57.9</td></tr><tr class="win"><td>RULER-8K</td><td class="num">79.8</td><td class="num best">84.2</td><td class="num">77.2</td></tr><tr class="win"><td>VisualWebBench</td><td class="num">55.6</td><td class="num best">68.4</td><td class="num">59.4</td></tr><tr class="win"><td>EgoSchema</td><td class="num">29.6</td><td class="num best">37.6</td><td class="num">25.8</td></tr><tr class="win"><td>VideoMME</td><td class="num">41.11</td><td class="num best">45.48</td><td class="num">39.65</td></tr></tbody></table>
+      <p class="note">MSA-PT 在 math / image / video / long-context retrieval 多數 benchmark <b>反而超越 dense baseline</b>（EgoSchema +8.0、VisualWebBench +12.8）；MSA-CPT 較保守、貼近原 checkpoint。</p>
+      <div class="cite">Table 2 p.11（3T budget，越高越好）</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">美學 benchmark · ERIA-1K · §3.2 Table 2 p.10</div>
-      <h2 class="head">ERIA-1K：按真實世界分佈校準的美學 benchmark</h2>
-      <div class="two-col"><div><ul class="bullets"><li>1,000 張、6 類別，比例按<b>真實世界分佈</b>校準（攝影佔最大宗 ~49%），而非過度代表專業攝影</li><li>標註者來自中央美院、四川美院、中國傳媒大學等專業背景，全數通過 calibration</li></ul></div><div><table class="bench"><thead><tr><th>美學模型</th><th class="num">SRCC</th><th class="num">PLCC</th></tr></thead><tbody><tr class="win"><td><b>ERNIE-Image-Aes</b></td><td class="num best">0.7445</td><td class="num best">0.7598</td></tr><tr><td>UniPercept</td><td class="num">0.4533</td><td class="num">0.4748</td></tr><tr><td>ArtiMuse</td><td class="num">0.4277</td><td class="num">0.4704</td></tr><tr><td>LAION-AES</td><td class="num">0.2944</td><td class="num">0.3138</td></tr></tbody></table></div></div>
-      <div class="takeaway">ERNIE-Image-Aes 大幅領先：SRCC 0.7445 vs 次優 UniPercept 0.4533 — 與人類美學判斷的相關性接近翻倍。</div>
+      <div class="kicker">實驗 · 長程 + 效率</div>
+      <h2 class="head">128K 仍貼住 Full，1M context FLOPs 降 28.4×</h2>
+      <div class="two-col"><div><div class="sub"><b>Long-context（MSA-CPT +140B）</b></div><ul class="bullets"><li>HELMET-128K Overall <b>45.93</b>（Δ −0.60 vs Full）。</li><li>RULER-128K Overall <b>72.12</b>（Δ +0.12）。</li><li>每 query 只 attend k·B<sub>k</sub> = 2,048 token 的極緊預算下仍貼住 Full。</li></ul></div><div><div class="sub"><b>效率 @ 1M context（64q/4kv head, H800）</b></div><div class="scorebox"><span class="score score--hi">FLOPs 28.4×</span><span class="score score--hi">Prefill 14.2×</span><span class="score score--hi">Decode 7.6×</span></div><ul class="bullets"><li>runtime 加速 < FLOPs 降幅（index 構建 / top-k / reverse-index / gather / load-balance 開銷），但隨 context 拉長持續擴大。</li></ul></div></div>
+      <figure class="full"><img src="figures/figure4_p12.jpg" alt="Efficiency comparison GQA vs MSA: per-token FLOPs, prefill and decode latency"><figcaption>Figure 4 | GQA vs MSA 的 per-token attention FLOPs（左）與 prefill / decode latency（中、右），context 越長加速越大。來源 p.12</figcaption></figure>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">實驗 · 人類偏好盲測 · §4.2 Table 3 p.8</div>
-      <h2 class="head">8B 模型拿下「整體第二、開源第一」</h2>
-      <table class="bench"><thead><tr><th>模型</th><th>類型</th><th class="num">Total HP</th></tr></thead><tbody><tr><td>Nano Banana 2.0</td><td>閉源</td><td class="num best">5.39</td></tr><tr class="win"><td><b>ERNIE-Image</b></td><td><b>開源</b></td><td class="num best">5.07</td></tr><tr><td>Seedream 5.0</td><td>閉源</td><td class="num">5.03</td></tr><tr><td>Wan2.7-Image</td><td>開源</td><td class="num">4.96</td></tr><tr><td>Qwen-Image-2512</td><td>開源</td><td class="num">4.78</td></tr><tr><td>ERNIE-Image-Turbo</td><td>開源</td><td class="num">4.65</td></tr><tr><td>Z-Image-Turbo</td><td>開源</td><td class="num">4.56</td></tr></tbody></table>
-      <p class="note">in-house 測試集（涵蓋攝影 / 廣告海報 / 平面設計），7 維度盲測 pass/fail 算 pass rate。僅 8B 參數就超越更大的 Qwen-Image 系列、逼近最新商用閉源。</p>
+      <div class="kicker">訓練動態</div>
+      <h2 class="head">Warmup 給乾淨轉換，CPT indexer 全程對齊</h2>
+      <figure class="full"><img src="figures/figure3_p10.jpg" alt="Sparse continued-pretraining dynamics: KL loss and selection recall"><figcaption>Figure 3 | (a) MSA-CPT 的平均 KL loss：indexer warmup（實線）快速壓低 KL，切 sparse CPT（虛線）後維持低位。(b) block recall 與 score recall 全程維持高位 → 可靠回收重要 block、且選中 block 佔 Main Branch 多數注意力質量。來源 p.10</figcaption></figure>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">實驗 · 人類偏好分維度 · §4.2</div>
-      <h2 class="head">分維度拆解（ERNIE-Image vs 閉源 Nano Banana）</h2>
-      <table class="bench"><thead><tr><th>維度</th><th class="num">ERNIE-Image</th><th class="num">Nano Banana 2.0</th></tr></thead><tbody><tr><td>Knowledge</td><td class="num best">95.24</td><td class="num">—</td></tr><tr><td>World</td><td class="num">94.05</td><td class="num best">98.51</td></tr><tr><td>Physics</td><td class="num">92.56</td><td class="num">—</td></tr><tr><td>Spatial</td><td class="num">89.88</td><td class="num best">95.54</td></tr><tr><td>Style</td><td class="num">84.82</td><td class="num">—</td></tr><tr><td>Aesthetic</td><td class="num">83.04</td><td class="num">—</td></tr><tr><td>Creativity</td><td class="num">62.80</td><td class="num">—</td></tr></tbody></table>
-      <div class="takeaway">ERNIE 在 Knowledge / Physics 等知識密集維度極強，與閉源差距主要落在 World / Spatial — 與「早期注入詳細描述豐富 world knowledge」的設計目標一致。</div>
+      <div class="kicker">機制分析 · 皇冠頁</div>
+      <h2 class="head">為什麼 MSA 能把「稀疏」訓到不掉能力</h2>
+      <div class="takeaway">Top-k 不可微 → 純 LM gradient 給不了 indexer 有用信號。MSA 用 <b>Main Branch 的注意力分佈當 teacher</b>，靠 KL 教 indexer「哪些 block 在語意上該選」。</div>
+      <ul class="bullets"><li><b>KL teacher 對齊：</b>只在選中 token 上算 KL，把 Index 分佈 P<sub>idx</sub> 拉向 Main Branch 的 P，indexer 學到的是「有意義的檢索」而非隨機。</li><li><b>Recall 全程高位（Figure 3b）：</b><b>block recall</b>（選中重要 block 比例）+ <b>score recall</b>（選中 block 佔 Main Branch 注意力質量比例）在整段 CPT 維持高位 → 可靠回收重要 block、且選中即抓住多數注意力質量。</li><li><b>表徵自適應：</b>native sparse pretraining（MSA-PT）讓模型表徵主動適應稀疏 pattern，多個 retrieval / 多模態 benchmark 反超 dense。</li></ul>
+      <div class="cite">§3.2 · §5.2 · Figure 3 p.10</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">實驗 · GenEval · §4.3 Table 4 p.11</div>
-      <h2 class="head">GenEval Overall 0.89 — 全表最高</h2>
-      <table class="bench"><thead><tr><th>模型</th><th class="num">Overall</th><th class="num">Position</th><th class="num">Attr. Bind</th></tr></thead><tbody><tr class="win"><td><b>ERNIE-Image (w/o PE)</b></td><td class="num best">0.89</td><td class="num best">0.86</td><td class="num">0.79</td></tr><tr><td>Qwen-Image</td><td class="num">0.87</td><td class="num">—</td><td class="num">—</td></tr><tr><td>FLUX.2-klein-9B</td><td class="num">0.85</td><td class="num">—</td><td class="num">—</td></tr><tr><td>Seedream 3.0</td><td class="num">0.84</td><td class="num">—</td><td class="num">—</td></tr><tr><td>GPT Image 1</td><td class="num">0.84</td><td class="num">—</td><td class="num">—</td></tr></tbody></table>
-      <p class="note">細項亮點：Single Object 1.00、Two Object 0.96、Position <b>0.86</b>（遠超多數）。Position 是 GenEval 最難項，ERNIE 在此特別突出，呼應其 Spatial Layout 專家設計。</p>
+      <div class="kicker">消融 1 / 2 · 三道「必要」機制</div>
+      <h2 class="head">缺一不可：gradient 來源、detach、warmup</h2>
+      <ul class="bullets"><li><b>B.2 Index gradient 來源（Fig.7）：</b>LM-only → 短文好但 long-context retrieval 差（top-k 無直接壓力）；KL-only → retrieval 好但短文退；<b>LM+KL → 兩軸最佳平衡</b>。</li><li><b>B.3 把 KL 限制在 Index Branch（Fig.8/9）：</b>不 detach → 大 KL 係數下 gradient spike 傳進 backbone、幾百步內 LM loss 發散。根因是 <b>self-distillation</b>：backbone 靠「簡化自己的注意力分佈」來降 KL，而非改進 indexer。detach 後同係數穩定、短文退化消失。</li><li><b>B.4 Indexer warmup（Fig.10/11）：</b>訓練最早期 Main Branch 注意力 entropy 急降（平滑→尖銳），稀疏選擇此時極脆。step-0 開 top-k → indexer 追快速移動目標、自身選擇近乎隨機 → 爛選擇把 Main Branch 導向無資訊 token。短 full-attn warmup 給乾淨初始化。</li></ul>
+      <div class="takeaway">三者都是「讓不可微的稀疏選擇能穩定學起來」的支架，不是性能裝飾。</div>
+      <div class="cite">§B.2–B.4 p.24–26（Fig.7–11）</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">實驗 · 文字渲染 & 綜合 · §4.3 Table 5-7 p.12-13</div>
-      <h2 class="head">LongText-Bench 0.973、OneIG 開源第一</h2>
-      <div class="two-col"><div><div class="sub"><b>LongText-Bench（EN/ZH/Overall）</b></div><ul class="bullets"><li>ERNIE-Image (w/ PE)：0.980 / 0.966 / <b>0.973</b></li><li>開源第一，<b>反超閉源 Nano Banana 2.0（0.965）</b></li><li>超越 GLM-Image 0.966、Qwen-Image-2512 0.960、Z-Image 0.936</li><li>跨語言 gap 極窄（EN 0.980 vs ZH 0.966）→ 中英雙語字元級渲染穩健</li></ul></div><div><div class="sub"><b>OneIG-EN / OneIG-ZH（Overall）</b></div><ul class="bullets"><li>OneIG-EN：<b>0.575</b>（開源第一），逼近 Nano Banana 0.578 / Seedream 4.5 0.576</li><li>OneIG-EN 細項：Alignment 0.891（並列最高）、Text 0.979、<b>Reasoning 0.357（全表最高）</b></li><li>OneIG-ZH：<b>0.554</b>，逼近 Nano Banana 0.567；Alignment 0.842（w/o PE 最高）</li></ul></div></div>
-      <div class="takeaway">在「長文字渲染」與「推理性對齊」兩個最吃指令理解的維度，ERNIE-Image 是開源天花板，且在 LongText 上實際反超商用 Nano Banana。</div>
+      <div class="kicker">消融 2 / 2 · Occam's razor：拿掉什麼還能 work</div>
+      <h2 class="head">最終 recipe 只強制「incomplete self block」，其餘交給模型自學</h2>
+      <ul class="bullets"><li><b>B.5 可學 attention sink（Fig.12/13）：</b>GPT-OSS 式可學 sink logit 只吸走部分 sink 質量、無法消除 first-token sink，下游 PPL 無一致改善 → <b>不納入 recipe</b>。</li><li><b>B.6 動態 vs sliding window（Fig.14）：</b>FLOP-matched sliding-window（固定 first block + local window）在同預算下 PPL 全程高於 MSA → <b>content-dependent 動態選擇勝過 position-fixed</b>。</li><li><b>C.1 Block size（Table 4）：</b>32 / 64 / 128 對品質影響有限 → 用大 block（128）換 kernel 效率。</li><li><b>C.2 強制 sink & local（Table 5）：</b>拿掉強制選 first block + fixed local window 後，模型<b>仍自發學出 sink 與 local 結構</b>，reasoning / code / PPL / retrieval 幾乎不變。</li><li><b>C.3 Index value head（Table 6）：</b>有 warmup 後拿掉 value head 無系統性退化 → 它只是「早期額外訓練信號」、非收斂期必要容量。inference 時 top-k 只需 block-wise max of Q<sub>idx</sub>·K<sub>idx</sub><sup>T</sup>，<b>完全避開 value aggregation 與 exp</b>。</li></ul>
+      <div class="cite">§B.5–B.6 p.27–28 · §C.1–C.3 Table 4/5/6 p.29–30</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">定性分析 · 複雜指令 · §4.4 Fig 9 p.19</div>
-      <h2 class="head">九宮格角色貼圖：ERNIE 全對，他模型出錯</h2>
-      <figure class="full" style="max-height:52vh"><img src="figures/figure9_p19.jpg" alt=""><figcaption>Figure 9 (p.19)：複雜指令下 ERNIE-Image vs SOTA — 各格角色姿勢 / 服裝 / 文字皆需正確</figcaption></figure>
-      <ul class="bullets"><li><b>ERNIE-Image</b>：九宮格姿勢 / 服裝 / 文字全部正確</li><li><b>Nano Banana</b>：把「bye bye!」誤 render 成「bye!」；<b>Seedream 5.0</b>：把「scissors hand」誤解成「holding scissors」；<b>Z-Image</b>：大致失敗</li></ul>
+      <div class="kicker">與 SOTA 對比</div>
+      <h2 class="head">MSA 在「選擇粒度 × Top-k 共享」兩軸的差異化</h2>
+      <table class="bench"><thead><tr><th>Method</th><th>選擇粒度</th><th>Top-k 共享</th><th>一句話定位</th></tr></thead><tbody><tr><td>NSA</td><td>block × 3 branches</td><td>—</td><td>compressed + selected + SWA 三分支並行，最重</td></tr><tr><td>MoBA</td><td>大 KV block</td><td>per-group</td><td>indexer 只靠 LM gradient、block-averaged key 打分</td></tr><tr><td>DSA</td><td>token-level</td><td>全 head 共用單一 Top-k</td><td>建在 MLA (MQA mode) 上</td></tr><tr class="win"><td class="best">MSA</td><td class="best">block</td><td class="best">per-GQA-group 各自</td><td class="best">KL-aligned + detach + warmup，最小必要組件</td></tr></tbody></table>
+      <p class="note">MSA 同時取 <b>per-GQA-group Top-k 共享</b>（multi-group block-granular retrieval）與 <b>block-level 選擇</b>（contiguous KV reads，kernel 友善）—— 這兩軸一起取是它與前述方法的核心區別。</p>
+      <div class="cite">§6 Related Works p.13</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">定性分析 · 人像 & 中文渲染 · §4.4 Fig 7/10 p.17,20</div>
-      <h2 class="head">自然人像細節 + 高難度中文字渲染</h2>
-      <div class="two-col"><div><figure class="full" style="max-height:50vh"><img src="figures/figure7_p17.jpg" alt=""><figcaption>Figure 7 (p.17)：人像對比</figcaption></figure></div><div><figure class="full" style="max-height:50vh"><img src="figures/figure10_p20.jpg" alt=""><figcaption>Figure 10 (p.20)：中文字渲染對比</figcaption></figure></div></div>
-      <ul class="bullets"><li><b>Portrait</b>：ERNIE 捕捉「playful and adorable expression」，保留酒窩 / 膚質 / 下巴皺褶；Nano Banana 與 Seedream 雖語意一致但 polished yet less natural</li><li><b>Chinese text</b>：中文字因結構複雜是 T2I 老難題，ERNIE 準確渲染指定中文；他模型常出 artifacts / 錯字需多次重試</li></ul>
-    </div>
-  </section>
-
-  <section class="slide statement">
-    <div class="slide__inner">
-      <div class="kicker">局限與誠實標註</div>
-      <p class="big">與閉源最強者的差距仍落在 <b>World / Spatial / Creativity</b> 維度（Creativity 僅 62.80）；且作為技術報告，部分訓練細節（資料規模、完整超參）未完全公開。</p>
-      <div class="takeaway">誠實定位：ERNIE-Image 是「開源第一、整體第二」，不是全面超越閉源 — 它的貢獻是證明 8B + 資料/監督工程能逼近商用，而非宣稱登頂。</div>
+      <div class="kicker">局限性 · 作者自承</div>
+      <h2 class="head">殘留 retrieval gap、runtime 達不到理論、CPT 較保守</h2>
+      <ul class="bullets"><li><b>Long-context retrieval 殘留 gap：</b>RULER-128K 的 CWE/FWE Δ−1.35、Rerank/RAG Δ−2.10 仍落後 Full；作者認為需更長 sparse 訓練 / 更大 inference 選擇預算 / 更豐富的 indexer scoring 來補。</li><li><b>Runtime < 理論 FLOPs 降幅：</b>index 構建、top-k、reverse-index、gather、load-balance 開銷 + 不規則 memory access，讓 7.6×~28.4× 的理論值在 wall-clock 上打折（但隨 context 拉長持續擴大）。</li><li><b>MSA-CPT 較保守：</b>部分 benchmark 反低於 dense（HumanEval 57.9 vs 61.0、EgoSchema 25.8 vs 29.6）—— 從既有 dense checkpoint 轉換時要接受這個取捨。</li><li><b>Outlook：</b>把 selector-only 設計延伸到 <b>RL post-training / agentic deployment</b> 仍是 future work。</li></ul>
+      <div class="cite">§5.3 · Outlook §7 p.13</div>
     </div>
   </section>
 
   <section class="slide">
     <div class="slide__inner">
-      <div class="kicker">個人解讀 · 對圖像 / 多模態工程師的啟發</div>
-      <h2 class="head">五個可複製到日常工作的 takeaway</h2>
-      <ol class="numbered"><li><b>資料管線 &gt; 參數量</b>：bottom-up 細分類（10K 類）+ 學習式美學評分 + 階層採樣，是可複製的資料品質工程，比盲目擴模型更划算</li><li><b>caption 要忠實標出圖中文字</b>：文字漏標直接削弱 alignment — 做 text rendering 必備的標註紀律</li><li><b>DPO 上 DiT 要防 reward hacking</b>：anchor loss 錨定基本能力（β=0.05, λ<sub>win</sub>=0.35, λ<sub>lose</sub>=0.15 可直接參考）</li><li><b>少步蒸餾用多老師</b>：按「域 + timestep」routing 勝單老師，避免 capability drift</li><li><b>美學評分用 pairwise + calibration 篩選標註者</b>，比 Likert 絕對分穩定 → 自建品質訊號可回頭驅動資料清洗</li></ol>
+      <div class="kicker">個人解讀 · 實際應用場景</div>
+      <h2 class="head">從 GQA checkpoint near-lossless 轉換，是最被低估的賣點</h2>
+      <ul class="bullets"><li><b>不必從頭訓：</b>MSA-CPT 證明既有 GQA dense 模型可用 ~400B token（含 40B warmup）轉成 sparse，而非重訓 3T —— 對「手上已有 dense backbone」的團隊是低成本長 context 升級路徑。</li><li><b>固定注意力預算 = 可預測的部署成本：</b>每 query 永遠只 attend k·B<sub>k</sub>=2,048 token，無論 context 1K 或 1M，KV 計算上限鎖死 → latency / 顯存可預估，利於排程與 SLA。</li><li><b>Kernel 才是真價值：</b>exp-free TopK（5.1× vs torch.topk）+ KV-outer 把理論稀疏變真加速 —— 提醒「sparse attention 的成敗在 kernel 工程，不只在演算法」。</li></ul>
+      <div class="takeaway">演算法極簡（Occam's razor）+ kernel co-design，比堆三條並行分支更務實。</div>
+      <div class="cite">§3.2 · §4 · §5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">對圖像 / 多模態工程師的啟發</div>
+      <h2 class="head">稀疏注意力對 native multimodal 不只無損，反而加分</h2>
+      <ul class="bullets"><li><b>多模態反超尤其明顯：</b>MSA-PT 在 VisualWebBench +12.8、EgoSchema +8.0、VideoMME +4.37 全面超越 dense baseline —— 對長 visual / video token 序列，<b>content-dependent 稀疏選擇等於一種隱式的視覺 token 篩選</b>，丟掉無資訊 patch 反而更乾淨。</li><li><b>長 visual context 的 FLOPs 結構性省：</b>高解析影像 / 多幀影片動輒數萬~數十萬 token，O(N²) 是 VLM 部署痛點；MSA 的固定預算讓「餵更高解析 / 更多幀」的邊際成本可控。</li><li><b>KL-teacher 思路可借鏡：</b>用「精確分支當 teacher 教稀疏分支選什麼」的範式，可遷移到 image patch pruning / token merging 的可學選擇器設計。</li><li><b>block-level 動態選擇 > position-fixed：</b>B.6 證明動態選擇贏固定 window —— 視覺任務的 ROI 本就 content-dependent，固定 pattern（如純 local window）會系統性丟關鍵區域。</li></ul>
+      <div class="cite">Table 2 p.11 · §B.6 p.28</div>
     </div>
   </section>
 
   <section class="slide slide--cover slide--end">
     <div class="slide__inner slide__inner--center">
-      <h2 class="end__title">資料與監督的勝利，不是參數的勝利</h2>
-      <p class="end__sub">ERNIE-Image 用 8B 開源模型，靠 bottom-up 資料挖掘、stabilized DPO、MT-DMD 多老師蒸餾與自建美學基礎設施，逼近 Nano Banana 2.0 / Seedream — 並開源權重、Turbo、Prompt Enhancer、美學模型與 ERIA-1K benchmark。</p>
-      <div class="end__next">明日預告（週一 · LLM 主題）：<b>大型語言模型的架構、訓練與對齊</b></div>
+      <h2 class="end__title">MSA：把「稀疏」訓到不掉能力的最小必要設計</h2>
+      <p class="end__sub">Index Branch 打分 + per-group Top-k + KL-aligned indexer + kernel co-design。1M context FLOPs 降 28.4×、與 full-attn 打平、多模態反超。<b>Occam's razor 勝過堆組件。</b></p>
+      <div class="end__next">明日預告（週一 · LLM）：架構 / 訓練 / 對齊 最新一篇頂會 accepted 深讀</div>
     </div>
   </section>
 
   <section class="slide slide--appendix">
     <div class="slide__inner">
-      <div class="kicker">附錄 · 螢光筆精華 (1/3) · 核心論點</div>
-      <h2 class="head">挑戰 model-size scaling law</h2>
-      <div class="hl"><p class="hl__en">We <b>challenge the scaling law of model size</b> and show that further mining pre-training data can push beyond the limits of conventional understanding. By <b>introducing more complex and detailed instructions at an early stage</b>, the model naturally develops precise instruction following and strong text rendering.</p><p class="hl__zh">我們<b>挑戰模型尺寸的 scaling law</b>，證明更深入挖掘預訓練資料能突破傳統認知的極限。透過<b>在訓練早期就引入更複雜、更詳細的指令</b>，模型自然湧現出精準的指令跟隨與強大的文字渲染能力。<span class="hl__src">§5 Conclusion p.22</span></p></div>
+      <div class="kicker">附錄 · 螢光筆精華 1 / 2</div>
+      <h2 class="head">本質貢獻 & self-distillation 失效模式</h2>
+      <div class="hl"><p class="hl__en">A lightweight Index Branch scores key–value blocks and independently selects a Top-k subset for <b>each GQA group</b>, enabling group-specific sparse retrieval while maintaining efficient block-level execution; the Main Branch then performs exact block-sparse attention over only the selected blocks.</p><p class="hl__zh">輕量 Index Branch 對 KV block 打分、為<b>每個 GQA group</b> 獨立選 Top-k 子集，達成 group-specific 稀疏檢索同時維持 block 層級高效執行；Main Branch 隨後只對選中 block 做精確 block-sparse 注意力。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">We attribute this regression to a <b>self-distillation effect</b>: the backbone can lower the KL loss by simplifying the Main Branch attention distribution, rather than by improving the Index Branch.</p><p class="hl__zh">我們把這種退化歸因於 <b>self-distillation 效應</b>——backbone 可以靠簡化 Main Branch 注意力分佈來降低 KL loss，而不是靠改進 Index Branch。（這正是為何 KL gradient 必須 detach、限制在 Index Branch 內）<span class="hl__src">§B.3 p.25</span></p></div>
     </div>
   </section>
 
   <section class="slide slide--appendix">
     <div class="slide__inner">
-      <div class="kicker">附錄 · 螢光筆精華 (2/3) · 資料管線</div>
-      <h2 class="head">Bottom-up 資料建構 + 10,000 細粒度類別</h2>
-      <div class="hl"><p class="hl__en">We adopt a <b>bottom-up data construction and sampling strategy</b>. Unlike top-down resampling pipelines that operate on predefined data strata, our pipeline <b>starts from a massive raw image corpus</b>. We first train an image categorization model to assign each image into one of <b>10,000 fine-grained visual categories</b> … serving as the basis for data balancing in subsequent stages.</p><p class="hl__zh">我們採用<b>由下而上（bottom-up）的資料建構與採樣策略</b>。不同於在預定資料分層上操作的 top-down resampling 管線，我們的管線<b>從海量原始圖庫出發</b>。首先訓練一個分類模型，把每張圖歸入 <b>10,000 個細粒度視覺類別</b>之一……作為後續階段資料平衡的基礎。<span class="hl__src">§2.1 Pre-training p.3</span></p></div>
-    </div>
-  </section>
-
-  <section class="slide slide--appendix">
-    <div class="slide__inner">
-      <div class="kicker">附錄 · 螢光筆精華 (3/3) · DPO 穩定化</div>
-      <h2 class="head">Reward hacking 與 Anchor Losses</h2>
-      <div class="hl"><p class="hl__en">A significant challenge in applying naive DPO to DiT models is <b>reward hacking</b>, where the model exploits the <b>unbounded nature of L2 loss</b> by excessively increasing the error scale of rejected samples. This often leads to <b>representation collapse</b>. To mitigate this, we introduce <b>Anchor Losses</b> as a regularization mechanism to ground the model's fundamental generative capability.</p><p class="hl__zh">在 DiT 模型上套用 naive DPO 的一大挑戰是 <b>reward hacking</b>：模型利用 <b>L2 loss 無上界的特性</b>，過度放大被拒樣本的誤差規模，常導致<b>表徵崩塌（representation collapse）</b>。為緩解此問題，我們引入 <b>Anchor Losses</b> 作為正則化機制，把模型的基本生成能力「錨定」住。<span class="hl__src">§2.2.2 Stabilized DPO p.5-6</span></p></div>
-      <div class="cite">超參：β = 0.05 · λ<sub>win</sub> = 0.35 · λ<sub>lose</sub> = 0.15 &nbsp;|&nbsp; 來源：<a href='https://arxiv.org/abs/2605.25347'>arXiv 2605.25347</a></div>
+      <div class="kicker">附錄 · 螢光筆精華 2 / 2</div>
+      <h2 class="head">Warmup 動機 · KV-outer 選擇 · prior 不需硬編</h2>
+      <div class="hl"><p class="hl__en">If top-k selection is enabled from step zero, the Index Branch must track a <b>rapidly moving target</b> while its own selections are still nearly random. Poor early selections then route the Main Branch to uninformative tokens.</p><p class="hl__zh">若從第零步就開 top-k 選擇，Index Branch 必須追蹤一個<b>快速移動的目標</b>、而它自己的選擇還近乎隨機；早期的爛選擇於是把 Main Branch 導向無資訊的 token。<span class="hl__src">§B.4 p.26</span></p></div>
+      <div class="hl"><p class="hl__en">Since <b>⅔·B<sub>k</sub> ≫ G</b> in practice, we choose KV-outer iteration with Q gather to maximize arithmetic intensity.</p><p class="hl__zh">因實務上 <b>⅔·B<sub>k</sub> 遠大於 G</b>，我們選擇 KV-outer 迭代搭配 Q gather 以最大化算術強度。<span class="hl__src">§4.2 p.7–8</span></p></div>
+      <div class="hl"><p class="hl__en">When the forced selection of the first block and the fixed local window are removed, the trained model <b>still exhibits both structures</b>: attention concentrates on the sequence prefix when useful, and nearby tokens remain frequently selected.</p><p class="hl__zh">當移除對 first block 與固定 local window 的強制選擇後，訓練好的模型<b>仍展現這兩種結構</b>——有用時注意力會集中在序列前綴、鄰近 token 也仍頻繁被選。（故最終 recipe 不硬編這些 prior）<span class="hl__src">§C.2 p.29</span></p></div>
     </div>
   </section>
 </div><!-- /.deck -->
