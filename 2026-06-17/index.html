@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STARFlow-V：用 Normalizing Flow 端到端做影片生成 · 每日 AI 研究 2026-06-17</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">每日 AI 研究 · 週三 · 影片生成 / 時序模型</div>
+      <h1 class="title">STARFlow-V：用 Normalizing Flow 端到端做影片生成</h1>
+      <div class="authors">Jiatao Gu · Ying Shen · Tianrong Chen · Laurent Dinh · Yuyang Wang · Miguel Ángel Bautista · David Berthelot · Josh Susskind · Shuangfei Zhai —— <b>Apple</b></div>
+      <div class="meta-row"><span class="badge tier">CVPR 2026 · Accepted</span><span class="badge">arXiv 2511.20462v2 · cs.CV</span><span class="badge date">Announced 2025-11-27</span></div>
+      <div class="sub">第一個達到高品質自回歸文生影片的 <b>Normalizing Flow</b> 模型——挑戰 diffusion 在影片領域近乎壟斷的地位。Code: github.com/apple/ml-starflow</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把可逆、likelihood-based 的 NF 重新帶回影片：一個可逆主幹原生支援 T2V / I2V / V2V，靠 <b>global–local 架構</b>、<b>flow-score matching</b>、<b>block-wise Jacobi 推論</b>（~15× 加速）三招，在 <b>unimodal latent</b> 上做時序推理，結構性繞開 AR diffusion 的 exposure-bias 累積誤差。</p>
+      <div class="cite">Abstract, p1；Intro p1–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 前人缺陷</div>
+      <h2 class="head">Diffusion 的非因果、非端到端，傷害了 AR 影片生成</h2>
+      <ul class="bullets"><li><b>非端到端訓練</b>：diffusion 對 frame 注入隨機等級的噪聲、學單步 denoiser，每次更新只監督一個噪聲等級 → 成本高，對影片尤甚。</li><li><b>本質非因果</b>：denoising 過程中未來 frame 會反過來影響較早的 frame，對串流 / 互動式使用不自然。</li><li><b>Exposure bias</b>：AR diffusion 變體加 frame-wise 噪聲排程，但訓練吃 ground-truth context、推論吃自己不完美的預測 → train–test 落差<b>隨時間累積</b>，長 horizon 品質崩壞。</li></ul>
+      <div class="cite">§2.1–2.2, p3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">前提 · 為什麼選 NF</div>
+      <h2 class="head">Normalizing Flow 是天生合適的工具</h2>
+      <div class="formula">L = E[ log p₀(f<sub>θ</sub>(x)) + log|det J<sub>fθ</sub>(x)| ]　　取樣 = 一次反演 x = f<sub>θ</sub>⁻¹(z)，無需迭代去噪</div>
+      <ul class="bullets"><li>NF 學一個可逆雙射 f<sub>θ</sub>: x→z，用<b>精確最大似然</b>（change-of-variables）訓練；取樣只需一次反演，沒有迭代 denoising。</li><li>STARFlow（Gu et al. 2025，影像）已證明 Transformer 參數化的<b>自回歸 flow</b> 在 text-to-image 上可與 SOTA diffusion 競爭——STARFlow-V 把它延伸到影片，是 VideoFlow（2019，低解析、領域受限）以來第一個。</li><li>每個 AF block：z = [x − μ<sub>θ</sub>(x⊙m)] / σ<sub>θ</sub>(x⊙m)，配 causal mask m；T≥3 個 block 交替 L→R / R→L 即可做通用密度建模。</li></ul>
+      <div class="cite">§2.2, Eq 2.1–2.2, p4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻 · 總覽</div>
+      <h2 class="head">四個關鍵創新</h2>
+      <ol class="numbered"><li><b>Global–Local 架構</b>：deep flow 因果地傳播全域時序、local flow 限制在 frame 內 → 同時拿到可逆性、因果性、端到端 MLE 與可串流。</li><li><b>Flow-Score Matching (FSM)</b>：訓練一個輕量<b>因果</b> neural denoiser 去回歸模型自身的 score，壓掉高頻 speckle 又不破壞因果性。</li><li><b>Block-wise Jacobi 推論</b>：把 AF 反演重寫成不動點系統、塊內並行塊間串行，配 video-aware 暖啟動 → <b>~15× 降延遲</b>。</li><li><b>一個主幹三種任務</b>：靠可逆性，同一主幹不改架構即原生支援 T2V / I2V / V2V。</li></ol>
+      <div class="cite">§3.1–3.4, p5–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · CROWN 流程圖</div>
+      <h2 class="head">STARFlow-V 全流程：global–local 架構 + FSM 聯合訓練</h2>
+      <figure class="full"><img src="figures/figure2_p6.jpg" alt="STARFlow-V pipeline: global-local architecture and flow-score matching joint training"><figcaption>Figure 2：deep flow f_D 因果傳播全域時序、shallow flow f_S 在 frame 內精煉；FSM 的因果 denoiser s_ϕ 透過快取 f_θ 反傳梯度作為 target 聯合訓練。（§3, p6）</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">🔑 皇冠機制 · 貢獻 1</div>
+      <h2 class="head">Global–Local 架構：在 latent 上做時序，而非在 pixel 上</h2>
+      <div class="formula">p<sub>θ</sub>(x) = ∏<sub>n=1..N</sub> p<sub>D</sub>(u<sub>n</sub> | u<sub>&lt;n</sub>) · |det J<sub>fS</sub>(x<sub>n</sub>)|　，　u<sub>n</sub> = f<sub>S</sub>(x<sub>n</sub>)</div>
+      <ul class="bullets"><li>Deep–shallow 分解 f<sub>θ</sub> = f<sub>D</sub> ∘ f<sub>S</sub>。<b>天真移植會非因果</b>，因為 f<sub>S</sub> 會把資訊從未來 frame 傳回過去。</li><li>修正：把 f<sub>S</sub> 限制在<b>每個 frame 內</b>運作；只有 deep flow f<sub>D</sub> 因果地傳播全域時序脈絡。</li><li>改寫成 frame 上的 AR 分解後，pD 成為 latent 空間裡的<b>高斯 next-token 預測</b>——把影片變成「連續語言模型」。</li></ul>
+      <div class="takeaway">關鍵洞見：在 <b>unimodal 的 latent u</b> 上做時序推理，而非多模態的 pixel——這正是它能撐到 30s 的結構性原因。</div>
+      <div class="cite">§3.1, Eq 3.2, p5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻 1 · 四個好處</div>
+      <h2 class="head">Global–Local 一次給齊四個性質</h2>
+      <div class="two-col"><div><p class="col-hint">表達力 & 穩健性</p><ul class="bullets"><li><b>(a) 通用性</b>：local stack f<sub>S</sub> 仍實現 per-pixel 無限高斯混合，表達力不損。</li><li><b>(b) 穩健性</b>：取樣只條件在先前生成的 <b>latent（非 pixel）</b>上 → data-space 誤差不傳播，緩解 AR diffusion 的累積誤差；可逆 u↔x 避免資訊損失。</li></ul></div><div><p class="col-hint">訓練 & 串流</p><ul class="bullets"><li><b>(c) 端到端訓練</b>：整個模型是一個 NF，用精確 MLE 訓練，無 per-step denoising 排程 / 代理損失 → train–test 落差更小。</li><li><b>(d) 可串流</b>：f<sub>D</sub>⁻¹ 因果地逐 token/frame 取樣 u<sub>n</sub>，f<sub>S</sub>⁻¹ 各 frame 獨立解碼 → 後面的 frame 無法影響前面的。</li></ul></div></div>
+      <div class="cite">§3.1, p6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 貢獻 2</div>
+      <h2 class="head">Flow-Score Matching：因果地去掉 NF 的訓練噪聲</h2>
+      <div class="formula">L<sub>denoise</sub>(ϕ) = E‖ s<sub>ϕ</sub>(x̃) − σ∇<sub>x̃</sub> log p<sub>θ</sub>(x̃) ‖²　，　x̃ = x + ε，ε~N(0,σ²I)</div>
+      <ul class="bullets"><li>NF 訓練需注入小噪聲（σ-smoothed 密度 q<sub>σ</sub>）以穩定（TARFlow），所以輸出<b>略帶噪</b>、需要一個 denoiser。</li><li>兩個失敗選項：<b>(a) Decoder fine-tuning</b> 在 3D causal VAE 上失敗、丟失時序一致性；<b>(b) Score-based denoising</b>（Tweedie）有兩問題——噪聲梯度造成大動作區<b>亮點 speckle</b>、且 score 本質<b>全域非因果</b>（依賴未來 frame），破壞可串流。</li><li><b>FSM 解法</b>：訓練輕量因果 denoiser s<sub>ϕ</sub> 回歸模型的 score。NN 平滑壓掉高頻 speckle；因果性<b>烤進 s<sub>ϕ</sub></b>（一 frame look-ahead、全域因果、單步延遲）。</li></ul>
+      <div class="takeaway">嚴格因果（≤n）反而失敗——時序差分對判斷去噪方向至關重要。靠快取 f<sub>θ</sub> 反傳梯度當 target，<b>聯合訓練、開銷極小</b>。</div>
+      <div class="cite">§3.2, Eq 3.3–3.4, p6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 貢獻 3</div>
+      <h2 class="head">Block-wise Jacobi：把 AR 反演從 >30 分鐘壓到實用</h2>
+      <div class="formula">x = μ<sub>θ</sub>(x⊙m) + σ<sub>θ</sub>(x⊙m)·z　（不動點系統，三角結構保證收斂）　殘差判停：‖x⁽ᵏ⁺¹⁾−x⁽ᵏ⁾‖² / ‖x⁽ᵏ⁺¹⁾‖² &lt; τ，τ=0.001</div>
+      <ul class="bullets"><li>天真 AR 取樣慢到離譜：5s 480p@16fps 影片用 3B 模型要 <b>&gt;30 分鐘</b>，遠非即時。</li><li>把 AF 反演重寫成不動點系統、用並行 Jacobi 迭代解；把 token 切成大小 B 的 block：<b>塊間串行、塊內並行</b>，已完成的 block 快取為 KV context。</li><li><b>Video-aware 初始化</b>：用前一個<b>已收斂</b>的 frame x⁽ᵏ⁾<sub>n</sub> 暖啟動下一 frame；時序連貫提供有效暖啟。預設非對稱 block size：首 frame 64、之後 512。</li></ul>
+      <div class="takeaway">結果：<b>≈15× 降推論延遲</b>且維持保真。另加 pipelined decoding：f<sub>D</sub> 連續跑、f<sub>S</sub> 執行緒並行消化/精煉/去噪，延遲由 deep block f<sub>D</sub> 主導。</div>
+      <div class="cite">§3.3, Eq 3.5, p7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 貢獻 3 · 速度</div>
+      <h2 class="head">速度 vs block size：並行度與收斂迭代的權衡</h2>
+      <figure class="full"><img src="figures/figure4_p9.jpg" alt="Comparison between speed and block size in block-wise Jacobi iteration"><figcaption>Figure 4：runtime 隨 block 增大先降（塊內並行更多）再升（過大則內層迭代變多才收斂）；video-aware 初始化對首 frame 後的大 block 助益最大。（§3.3/§4.4, p9–10）</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻 4 · 一個主幹三種任務</div>
+      <h2 class="head">可逆性帶來的多功能：不改架構，只換 conditioning</h2>
+      <figure class="full"><img src="figures/figure1_p2.jpg" alt="Samples from STARFlow-V across T2V, I2V, V2V; red boxes mark conditioning"><figcaption>Figure 1：同一主幹跨 T2V / I2V / V2V 的取樣（紅框 = conditioning 訊號）。（§1, p2）</figcaption></figure>
+      <ul class="bullets"><li><b>I2V</b>：把首個觀測 frame 正向 flow-encode 種入 KV cache，再生成其餘——無需獨立 encoder。</li><li><b>V2V</b>：把所有來源 frame flow-encode 填 KV，在任務線索（in/outpaint mask、編輯文字、相機/姿態）下 roll out；未編輯區直接複製、只合成編輯處。</li><li><b>超出訓練長度</b>：fD 內滑動視窗（chunk-to-chunk），重跑最後 Δ 重疊 latent 重建 KV；訓練時隨機丟首 frame 模擬 restart → 串流。</li></ul>
+      <div class="cite">§3.4, p8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · VBench 總分</div>
+      <h2 class="head">Table 1 — T2V on VBench：NF 首度進入同一檔次</h2>
+      <table class="bench"><thead><tr><th>Class</th><th>Model</th><th class="num">VBench Total</th></tr></thead><tbody><tr><td>Closed</td><td>Veo3</td><td class="num">85.06</td></tr><tr><td>Closed</td><td>Gen-3</td><td class="num">82.32</td></tr><tr><td>Diffusion</td><td>Wan2.1-T2V</td><td class="num">83.69</td></tr><tr><td>Diffusion</td><td>HunyuanVideo</td><td class="num">83.24</td></tr><tr><td>Diffusion</td><td>CogVideoX</td><td class="num">80.91</td></tr><tr><td>AR-diffusion</td><td>Emu3</td><td class="num">80.96</td></tr><tr><td>AR-diffusion</td><td>NOVA</td><td class="num">80.12</td></tr><tr><td>AR-diffusion</td><td>MAGI-1-distill</td><td class="num">77.92</td></tr><tr class="win"><td><b>NF</b></td><td><b>STARFlow-V</b></td><td class="num">78.67</td></tr><tr class="win"><td><b>NF</b></td><td><b>STARFlow-V† (Rewriter)</b></td><td class="num best">79.70</td></tr></tbody></table>
+      <p class="note">尚未超越最強 diffusion，但已落在近期 causal/AR-diffusion baseline 同一區間，大幅收斂歷史上的 NF–diffusion 落差。非因果變體(79.22) ≈ 因果(79.70) → 強制因果在感知品質上幾乎零成本。</p>
+      <div class="cite">§4.2, Table 1, p7,9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 長 horizon money shot</div>
+      <h2 class="head">對比 baseline：5s 與 30s 長序列穩定度</h2>
+      <figure class="full"><img src="figures/figure3_p8.jpg" alt="STARFlow-V vs baselines on autoregressive generation, 5s and 30s long-horizon"><figcaption>Figure 3：NOVA 模糊、丟失身份；WAN-Causal 出現 artifact / 色偏；STARFlow-V 保持銳利與時序一致，並<b>撐到 30s（訓練 horizon 5s 的 6 倍）</b>仍連貫。（§4.3, p9–10）</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 真正的勝點</div>
+      <h2 class="head">Table 3 — 對 AR diffusion 的公平對比（全面勝出）</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Semantic</th><th class="num">Aesthetic</th><th class="num">Spatial</th></tr></thead><tbody><tr><td>NOVA AR†</td><td class="num">75.31</td><td class="num">77.46</td><td class="num">66.70</td><td class="num">56.04</td><td class="num">66.07</td></tr><tr><td>WAN 2.1-Causal FT†</td><td class="num">74.96</td><td class="num">77.41</td><td class="num">65.15</td><td class="num">56.04</td><td class="num">53.25</td></tr><tr class="win"><td><b>STARFlow-V† (Ours)</b></td><td class="num best">79.70</td><td class="num best">80.76</td><td class="num best">75.43</td><td class="num best">59.73</td><td class="num best">76.08</td></tr></tbody></table>
+      <div class="takeaway">在<b>所有維度全面勝過</b> AR diffusion baseline（總分 +4.4 over NOVA AR）；Semantic +8.7、Spatial +10。這才是 STARFlow-V 的真正定位——不是打 closed-source，是打同一推論範式（因果 AR）的對手。</div>
+      <div class="cite">Appendix C.1, Table 3, p19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · denoiser 選擇</div>
+      <h2 class="head">FSM 在三種 denoiser 中勝出</h2>
+      <div class="two-col" style="align-items:center"><div><table class="bench"><thead><tr><th>Method</th><th class="num">PSNR↑</th><th class="num">SSIM↑</th></tr></thead><tbody><tr><td>No noise (upper bound)</td><td class="num">32.22</td><td class="num">0.8907</td></tr><tr><td>Decoder fine-tuning</td><td class="num">23.95</td><td class="num">0.6403</td></tr><tr><td>Score-based (TARFlow)</td><td class="num">22.05</td><td class="num">0.6490</td></tr><tr class="win"><td><b>Flow-score matching (ours)</b></td><td class="num best">26.69</td><td class="num best">0.7601</td></tr></tbody></table></div><div><figure class="full"><img src="figures/figure5_p10.jpg" alt="Ablation study for the choice of denoiser"><figcaption>Figure 5：denoiser ablation（§4.4, p10）</figcaption></figure></div></div>
+      <p class="note">1000 段大動作影片的 VAE 重建：FSM 明顯優於兩個替代方案。Decoder fine-tuning → frame jitter；score-based → 大動作區亮點 speckle。</p>
+      <div class="cite">§4.4, Fig 5, p10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">🔑 機制詮釋 · 為什麼 work</div>
+      <p class="big">因為時序推理發生在 <b>unimodal 的 latent</b>，而非多模態 pixel：每一步是高斯 next-token 預測、條件在<b>先前生成的 latent</b> 而非 pixel——data-space 誤差無從傳播，結構性繞開 AR diffusion 的 exposure-bias 累積。這正是它撐到 30s 而 baseline 崩壞的真因。</p>
+      <div class="cite">§3.1(b) + §4.3；綜合機制讀解</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限 · 誠實面對</div>
+      <h2 class="head">三個現實限制與展望</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>(1) 延遲</b>：即便 ~15× 加速，在 commodity GPU 上仍<b>遠非即時</b>。</li><li><b>(2) 資料品質與 scaling</b>：受限於資料集噪聲/偏差；當前 curation 下<b>未觀察到乾淨的 scaling law</b>。</li><li><b>(3) 非物理生成</b>：仍有許多不合理輸出——章魚穿過玻璃罐壁、岩石在落地山羊腳下憑空出現。</li></ul><div class="takeaway">未來：更快的取樣排程、蒸餾/剪枝成精簡 student、針對大動作與物理場景的主動資料選取。</div></div><div><figure class="full"><img src="figures/figure6_p11.jpg" alt="Failure cases of generation from STARFlow-V (non-physical)"><figcaption>Figure 6：失敗案例（非物理生成）。（§5, p10–11）</figcaption></figure></div></div>
+      <div class="cite">§5, p10–11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 · 影像工程師視角</div>
+      <h2 class="head">這是一場範式賭注，不是排行榜冠軍</h2>
+      <ul class="bullets"><li>用幾個 VBench 點數，換 diffusion 難以乾淨提供的性質：<b>精確 likelihood、端到端 MLE、真正的因果串流</b>，以及一個兼任自身 encoder（I2V/V2V）的<b>可逆主幹</b>。</li><li>Global–local（latent AR + frame 內 local refinement）是關鍵洞見：在 unimodal latent 上做時序推理，<b>結構性</b>避開困擾 AR diffusion 的 exposure-bias 累積。</li><li>對做 world model / 互動式影片的人：「<b>可逆 + 因果 + 精確似然</b>」是一個有意義地不同的工具箱——值得納入長序列、可控、串流生成的設計考量。</li></ul>
+      <div class="takeaway">Setup 備忘：70M text-video（Panda-70M HQ + in-house）+ 400M text-image；WAN2.2 的 3D Causal VAE（×16 空間/×4 時序/48-ch latent）；7B 參數；96× H100。</div>
+      <div class="cite">§4.1, p8；Appendix B.2, p17；個人 takeaway</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 中英對照重點</div>
+      <h2 class="head">關鍵原文摘錄（一）：global–local 的因果修正</h2>
+      <div class="hl"><p class="hl__en">A naïve port of the deep–shallow flow is non-causal, because the shallow flow f<sub>S</sub> propagates information from future frames to past ones. We restrict f<sub>S</sub> to operate <b>within each frame</b>; only the deep flow f<sub>D</sub> propagates global temporal context causally.</p><p class="hl__zh">深淺 flow 的天真移植是非因果的，因為 shallow flow f<sub>S</sub> 會把資訊從未來 frame 傳到過去。我們把 f<sub>S</sub> 限制在<b>每個 frame 內</b>運作；只有 deep flow f<sub>D</sub> 因果地傳播全域時序脈絡。<span class="hl__src">§3.1, p5–6</span></p></div>
+      <div class="hl"><p class="hl__en">Sampling conditions on previously generated <b>latents, not pixels</b>, so data-space errors do not propagate — this mitigates the compounding error of autoregressive diffusion.</p><p class="hl__zh">取樣條件在先前生成的 <b>latent 而非 pixel</b>，因此 data-space 誤差不會傳播——這緩解了自回歸 diffusion 的累積誤差。<span class="hl__src">§3.1(b), p6</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 中英對照重點</div>
+      <h2 class="head">關鍵原文摘錄（二）：FSM 與快速推論</h2>
+      <div class="hl"><p class="hl__en">We train a lightweight causal neural denoiser s<sub>ϕ</sub> to regress the model's score. The smoothness of the network suppresses high-frequency speckle, while causality is <b>baked into</b> s<sub>ϕ</sub> with a one-frame look-ahead, keeping the system globally causal at one-step latency.</p><p class="hl__zh">我們訓練一個輕量因果 neural denoiser s<sub>ϕ</sub> 去回歸模型的 score。網路的平滑性壓掉高頻 speckle，而因果性被<b>烤進</b> s<sub>ϕ</sub>（一 frame look-ahead），讓系統在單步延遲下保持全域因果。<span class="hl__src">§3.2, p6–7</span></p></div>
+      <div class="hl"><p class="hl__en">We recast the autoregressive flow inversion as a fixed-point system solved by parallel Jacobi iteration: <b>sequential across blocks, parallel within</b>. Combined with video-aware initialization, this yields roughly 15× lower inference latency.</p><p class="hl__zh">我們把自回歸 flow 反演重寫成不動點系統，用並行 Jacobi 迭代求解：<b>塊間串行、塊內並行</b>。結合 video-aware 初始化，得到約 15× 更低的推論延遲。<span class="hl__src">§3.3, p7</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 更多取樣</div>
+      <h2 class="head">額外生成樣本：T2V 與 I2V</h2>
+      <div class="two-col"><div><figure class="full"><img src="figures/figure7_p19.jpg" alt="Generated T2V samples from STARFlow-V"><figcaption>Figure 7：文字 prompt 的 T2V 取樣（Appendix, p19）</figcaption></figure></div><div><figure class="full"><img src="figures/figure8_p20.jpg" alt="Generated I2V samples given the first frame"><figcaption>Figure 8：給定首 frame 的 I2V 取樣（Appendix, p20）</figcaption></figure></div></div>
+      <div class="cite">Appendix C, p19–20</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">可逆 + 因果 + 精確似然：影片生成的另一條路</h2>
+      <p class="end__sub">STARFlow-V（Apple, CVPR 2026）證明 NF 能在影片站上與 AR diffusion 同檯，並在因果長序列上反超。明日預告：週四 · 計算加速（Attention / Kernel / 硬體）。</p>
+      <div class="end__next">arXiv 2511.20462v2 · github.com/apple/ml-starflow</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
