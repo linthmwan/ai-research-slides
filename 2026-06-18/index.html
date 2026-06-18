@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PULSE · Training Acceleration for Large Diffusion Models</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · 週四：計算加速 / Distributed Training</div>
+      <h1 class="title">PULSE: Training Acceleration for Large Diffusion Models with Automatic Pipeline Parallelism</h1>
+      <div class="authors">Boran Sun*, Guoyong Jiang*, Lin Zhang, Chen Chen, Yuechen Tao, Zhishu Che, Jieling Yu, Shan Chang, Huaxi Gu, Fangming Liu, Bo Li</div>
+      <div class="meta-row"><span class="badge tier">ICDCS 2026 accepted</span><span class="badge date">arXiv 2606.19163 · announced 2026-06-17</span><span class="badge">Diffusion training systems</span></div>
+      <div class="sub">把 UNet-style skip connections 從 pipeline parallelism 的負擔，變成 placement / scheduling 的顯式約束。</div>
+      <div class="cite">Source: arXiv:2606.19163 · §I p.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">PULSE 的本質不是「更聰明地傳 skip」，而是 <b>讓大型 skip activation 不必跨 device 傳</b>。</p>
+      <p class="lead">它把 skip-connected encoder/decoder layers colocate 到同一 device，用 local buffer 保存 activation，再用 wave schedule 與 PP/DP tuner 把吞吐補回來。</p>
+      <div class="scorebox"><span class="score score--hi">up to 2.3x throughput</span><span class="score score--hi">up to 89% comm reduction</span><span class="score">V100 + Ascend 910A</span></div>
+      <div class="cite">Abstract p.1; Conclusion p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem · diffusion 不是 decoder-only transformer</div>
+      <h2 class="head">UNet 的長 skip connection 讓 1F1B 的 sequential assumption 破功</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Diffusion / image-video backbones 常採 encoder-decoder + symmetric skip，用來保留 high-resolution detail。</li><li>Pipeline parallelism 假設 activation 只傳到相鄰 stage；UNet skip 會跨多個 stage。</li><li>Forward 傳 activation，backward 還要傳 gradient activation，P2P traffic 被放大。</li></ul></div><div><figure class="full" style="margin-top:12px"><img src="figures/figure1_p1.jpg" alt="latent diffusion architecture"><figcaption>Fig.1：latent diffusion / UNet-style encoder-decoder 及 symmetric skip connections。</figcaption></figure></div></div>
+      <div class="cite">§I–II p.1–3; Fig.1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Why this matters</div>
+      <p class="big">在 naive PP 中，skip traffic 佔 inter-device communication 的 <b>85.5%–95.0%</b>。</p>
+      <p class="lead">這代表 bottleneck 不是抽象的「pipeline bubble」而已，而是 diffusion architecture 本身造成的 activation movement。</p>
+      <div class="scorebox"><span class="score score--hi">85.5%–95.0% skip traffic</span><span class="score score--lo">~30% ZeRO-3 time in comm</span></div>
+      <div class="cite">Fig.2–3 / §II-B–C p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Baseline failure mode</div>
+      <h2 class="head">Sequential block-wise partition 會把一條 skip 變成多跳傳輸</h2>
+      <div class="two-col"><div><ul class="bullets"><li>1F1B 將 encoder / decoder blocks 依序切到 devices。</li><li>一個早期 encoder activation 要跨多個 pipeline boundary 才能抵達 decoder。</li><li>形式化簡化下，traffic 隨 K 與 D 線性放大：((K+4)D/4 - 1)a。</li></ul></div><div><figure class="full" style="margin-top:12px"><img src="figures/figure4_p3.jpg" alt="inter-device communication under 1F1B"><figcaption>Fig.4：相同顏色為同 device；跨色 skip 需要 forward/backward 額外通信。</figcaption></figure></div></div>
+      <div class="cite">§II-C p.3; Fig.4 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core idea</div>
+      <h2 class="head">Skip locality：把 skip pair colocate，同 device 讀寫 local buffer</h2>
+      <div class="two-col"><div><ol class="numbered"><li><b>Partition</b>：對 symmetric encoder-decoder pairs 加 colocation constraint。</li><li><b>Buffer</b>：forward 將 skip activation 存本地，backward 本地取回。</li><li><b>Schedule</b>：用 wave-like execution 恢復 overlap，避免 colocate 後空轉。</li><li><b>Tune</b>：在 PP degree、DP replicas、microbatch size 間找最大 throughput。</li></ol></div><div><figure class="full" style="margin-top:12px"><img src="figures/figure5_p4.jpg" alt="PULSE system overview"><figcaption>Fig.5：PULSE = skip-aware partition + schedule synthesizer + hybrid tuner。</figcaption></figure></div></div>
+      <div class="cite">§III p.4; Fig.5 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 1 · partition objective</div>
+      <h2 class="head">Balance stage runtime，但禁止破壞 skip symmetry</h2>
+      <div class="formula">min max<sub>m</sub>( T<sub>f</sub><sup>S_m</sup> + λ · M<sub>a</sub><sup>S_m</sup> / B<sub>inter</sub> )</div>
+      <ul class="bullets"><li>每個 operation 是 atomic unit；若 skip connects operation i 與 j，stage q 必須和 stage p-q+1 mirror。</li><li>λ 將 activation P2P cost 納入 stage bottleneck；B<sub>inter</sub> 取 scale-out bandwidth 的 worst case。</li><li>目標不是最少 stages，而是在 feasible colocation 下最小化 slowest stage。</li></ul>
+      <div class="cite">Eq.1 / §IV-B p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 1 · dynamic programming</div>
+      <h2 class="head">Bidirectional DP 同時從 encoder prefix 與 decoder suffix 長出 partitions</h2>
+      <div class="two-col"><div><ul class="bullets"><li>dp(i,j,k)：用 k 個 partitions 覆蓋 prefix {l1...li} 與 suffix {lj...lop} 的最佳 bottleneck。</li><li>transition 同時選 left segment L(i',i) 與 right segment R(j,j')。</li><li>penalty c=∞ if any skip constraint is violated；直接把非法切法剪掉。</li></ul></div><div><div class="formula">dp(i,j,k)=min max{ dp(i',j',k-2), L(i',i), R(j,j'), c(i',i,j,j') }</div><div class="takeaway">Implementation 把 naive O(pn<sup>4</sup>) 降到 O(pn<sup>3</sup>)，可部署到 hundreds of layers。</div></div></div>
+      <div class="cite">Eq.2–5 / Algorithm 1 / §IV-B p.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Partition effect</div>
+      <h2 class="head">SDv2 的 block runtime heavy-tail，讓 balanced partition 很有價值</h2>
+      <div class="two-col"><div><figure class="full" style="margin-top:12px"><img src="figures/figure6_p5.jpg" alt="SDv2 block runtime imbalance"><figcaption>Fig.6：SDv2 block forward time heavy-tail；max stage 可遠高於 average。</figcaption></figure></div><div><figure class="full" style="margin-top:12px"><img src="figures/figure7_p6.jpg" alt="optimized partition comparison"><figcaption>Fig.7：balanced partition vs block-wise；SDv2 forward bottleneck 最多降 51.2%。</figcaption></figure></div></div>
+      <div class="takeaway">對 uniform transformer-like blocks，partition gain 會小；對 UNet down/up sampling 造成的 heterogeneity，gain 才會放大。</div>
+      <div class="cite">Fig.6–7 / §IV p.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 2 · scheduler</div>
+      <h2 class="head">Collocation 後，不能假裝仍是普通 1F1B</h2>
+      <ul class="bullets"><li>ILP variable x<sub>s,m,d,t</sub> assigns stage s / microbatch m to device d / time t。</li><li>Constraints：unique assignment、device exclusivity、fixed stage-device mapping、collocation equality、sequential order、monotonic microbatch order。</li><li>Objective：minimize T<sub>max</sub>；secondary heuristic anchors first stage to device 0 and improves locality/readability。</li></ul>
+      <div class="formula">x<sub>s,m,d,t</sub> ∈ {0,1}; device<sub>s1</sub> = device<sub>s2</sub> for every collocated pair (s1,s2) ∈ C</div>
+      <div class="cite">Eq.6–13 / §V-A p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 2 · wave schedule</div>
+      <h2 class="head">S=D 時退化成 1F1B；S=2D 時形成 mirrored wave</h2>
+      <div class="two-col"><div><figure class="full" style="margin-top:12px"><img src="figures/figure8_p6.jpg" alt="1F1B schedule"><figcaption>Fig.8：classic 1F1B schedule；stage count equals device count。</figcaption></figure></div><div><figure class="full" style="margin-top:12px"><img src="figures/figure9_p7.jpg" alt="PULSE wave schedule"><figcaption>Fig.9：wave schedule；symmetric stages colocated, forward/backward staggered。</figcaption></figure></div></div>
+      <div class="takeaway">ILP 只在 small-scale offline 找 pattern，之後當 static template 複製到 larger deployment；不進 runtime critical path。</div>
+      <div class="cite">§V-B p.6–7; Fig.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 3 · hybrid PP/DP tuner</div>
+      <h2 class="head">最優點在 memory、microbatch、P2P traffic 的交界，不是 PP 越大越好</h2>
+      <div class="formula">T<sub>sample</sub> = T<sub>sched</sub> / ( b · P · G ),  subject to M<sub>peak</sub> &lt; M<sub>limit</sub></div>
+      <ul class="bullets"><li>PULSE with PP degree P has 2P pipeline stages；peak memory 出現在 P 與 P+1 collocated stages。</li><li>T<sub>sched</sub> 包含 slowest stage forward time、P2P communication、DP AllReduce。</li><li>Enumerate N=P·G and feasible b∈{1,2,4,...}，選 per-sample time 最低者。</li></ul>
+      <div class="cite">Eq.14–17 / §VI p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation setup</div>
+      <h2 class="head">兩種 cluster，三類 diffusion backbone，對上 PP 與 ZeRO baselines</h2>
+      <table class="bench" style="margin-top:10px"><thead><tr><th>Axis</th><th>Details</th></tr></thead><tbody><tr><td>Hardware</td><td>2× V100 nodes: 16 GPUs, 32GB, 300GB/s intra-node, 10GB/s inter-node</td></tr><tr><td>Hardware</td><td>8× Ascend 910A nodes: 64 NPUs, 32GB, 30GB/s intra-node, 19GB/s inter-node</td></tr><tr><td>Models</td><td>UViT, Stable Diffusion v2, Hunyuan-DiT; scaled by blocks / hidden size</td></tr><tr><td>Baselines</td><td>Hanayo, Megatron 1F1B, DeepSpeed ZeRO-2</td></tr><tr><td>Measurement</td><td>Throughput excludes VAE encoding / text embedding preprocessing</td></tr></tbody></table>
+      <div class="cite">§VII p.8; Table II p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main results</div>
+      <h2 class="head">PULSE wins most when bandwidth is tight and skip traffic dominates</h2>
+      <div class="two-col"><div><figure class="full" style="margin-top:12px"><img src="figures/figure10_p9.jpg" alt="main throughput results"><figcaption>Fig.10：V100 與 Ascend 910A 上的 throughput 對比。</figcaption></figure></div><div><ul class="bullets"><li>V100 / SDv2 4.6B：274.6 samples/s，約 140% faster than Megatron 1F1B。</li><li>Ascend 910A：paper reports 2.87x acceleration over 1F1B and 2.31x over ZeRO-2。</li><li>Fig.10 caption summary：up to 2.3x vs PP baselines and 1.3x vs ZeRO-2 baseline。</li></ul></div></div>
+      <div class="cite">Fig.10 / §VII-A p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Benchmark table · V100 throughput</div>
+      <h2 class="head">SDv2 是 PULSE 最乾淨的展示案例：大模型 + UNet imbalance + skip traffic</h2>
+      <table class="bench" style="margin-top:10px"><thead><tr><th>Model / baseline</th><th class="num">PULSE</th><th class="num">Hanayo</th><th class="num">1F1B</th><th class="num">ZeRO-2</th><th>Reading</th></tr></thead><tbody><tr class="win"><td>UViT 2.7B</td><td class="num best">141.5</td><td class="num">62.8</td><td class="num">79.7</td><td class="num">128.1</td><td>PULSE leads; ZeRO-2 still competitive</td></tr><tr class="win"><td>SDv2 4.6B</td><td class="num best">274.6</td><td class="num">127.6</td><td class="num">114.8</td><td class="num">245.5</td><td>140% over 1F1B; ~10% over ZeRO-2</td></tr><tr class="win"><td>Hunyuan-DiT 3B</td><td class="num best">13.8</td><td class="num">6.2</td><td class="num">8.6</td><td class="num">11.9</td><td>Low-batch high-res regime still benefits</td></tr></tbody></table>
+      <div class="cite">Fig.10(a) / §VII-A p.8–9; unit = samples/s</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Communication volume</div>
+      <h2 class="head">Table III 直接顯示：PULSE 消掉的是 MB/sample 級的 activation movement</h2>
+      <table class="bench" style="margin-top:10px"><thead><tr><th>Method</th><th class="num">UViT V100</th><th class="num">SDv2 V100</th><th class="num">Hunyuan V100</th><th class="num">Hunyuan 910A</th></tr></thead><tbody><tr class="win"><td>PULSE</td><td class="num best">24.19</td><td class="num best">6.71</td><td class="num best">95.29</td><td class="num best">95.29</td></tr><tr><td>Hanayo</td><td class="num">294.28</td><td class="num">117.56</td><td class="num">2885.57</td><td class="num">4385.47</td></tr><tr><td>1F1B</td><td class="num">102.80</td><td class="num">61.05</td><td class="num">916.64</td><td class="num">916.64</td></tr><tr><td>ZeRO-2</td><td class="num">318.08</td><td class="num">276.48</td><td class="num">2981.18</td><td class="num">4385.47</td></tr></tbody></table>
+      <div class="cite">Table III p.8; unit = MB per sample</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism 皇冠頁</div>
+      <p class="big">PULSE 的增益來自一個很乾淨的因果鏈：<b>skip locality → less P2P traffic → larger feasible throughput</b>。</p>
+      <p class="lead">它不是單靠 scheduler 把 bubble 填滿；真正的主因是把 long skip activation 從 network path 移到 local buffer path。</p>
+      <div class="scorebox"><span class="score score--hi">Fig.3: 85.5%–95.0% skip traffic</span><span class="score score--hi">Fig.11: up to 90% comm-time cut</span></div>
+      <div class="cite">Fig.3 p.3; Fig.11 / §VII-A p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scalability</div>
+      <h2 class="head">固定硬體預算下，skip-aware PP 讓更大的 diffusion model 可以訓練</h2>
+      <ul class="bullets"><li>2-node V100 model scaling：PULSE outperforms Hanayo and Megatron across model sizes。</li><li>UViT 6.0B：PULSE reports 57.1% throughput improvement。</li><li>SDv2 7.2B：PULSE enables training while other methods are out of memory。</li></ul>
+      <div class="takeaway">對 image/video 生成工程師來說，這一頁的訊號是「同一批 GPU 能不能把更大的 denoiser 跑起來」。</div>
+      <div class="cite">Fig.12 / §VII-B p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation 1 · partitioning</div>
+      <h2 class="head">Dynamic partition 不是普遍魔法；它吃的是 architecture heterogeneity</h2>
+      <div class="two-col"><div><ul class="bullets"><li>SDv2：encoder/decoder down/up-sampling 導致 stage imbalance，dynamic partition 最多 +85.5% throughput (2.5B)。</li><li>UViT / Hunyuan-DiT：blocks 更 uniform，gain 只有 1–2%。</li><li>因此 partitioner 的價值是「修 UNet 非均質 runtime」，不是單純重新排序。</li></ul></div><div><div class="takeaway">若你的 diffusion backbone 越接近純 transformer stack，PULSE 的 main gain 會更偏向 skip locality / hybrid tuner，而非 DP partition。</div></div></div>
+      <div class="cite">Fig.13 / §VII-C p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation 2 · hybrid parallelism</div>
+      <h2 class="head">PP degree 有 sweet spot：SDv2 P=4 變快，P=8 反而被 communication 吃掉</h2>
+      <div class="two-col"><div><figure class="full" style="margin-top:12px"><img src="figures/figure14_p10.jpg" alt="hybrid parallelism ablation"><figcaption>Fig.14：不同 PP degree 的 throughput 與 comm volume。</figcaption></figure></div><div><ul class="bullets"><li>SDv2 1.7B：P=2 只能 microbatch 16；P=4 允許 microbatch 32，throughput 186.2 → 257.0 samples/s。</li><li>P=8：inter-stage communication 過多，performance drops。</li><li>SDv2 comm volume：0.77MB at P=2 → 4.84MB at P=8；Hunyuan：13.6MB → 95.3MB。</li></ul></div></div>
+      <div class="cite">Fig.14 / §VII-C p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">這篇方法很漂亮，但適用範圍其實相當明確</h2>
+      <ul class="bullets"><li>Primary target：encoder-decoder architectures with structured skip symmetry。</li><li>Irregular / partial skip patterns 可能只能 selective collocation；其他 edges 仍需要 runtime communication。</li><li>ILP schedule 是 offline small-scale pattern discovery，不是 full-scale exact solve。</li><li>TP 未納入 search space；作者認為 TP 可在每個 PULSE stage 內組合，但 TP+PP co-optimization 留到 future work。</li></ul>
+      <div class="cite">§V-B p.7; §VIII p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">工程解讀</div>
+      <h2 class="head">如果你在訓練 image/video diffusion，這篇最值得帶走的不是「又一個 PP scheduler」</h2>
+      <ol class="numbered"><li>先 profile：skip activation 是否真的是 communication 主體；若不是，PULSE 不是第一優先。</li><li>把 model graph 中高體積 skip pairs 標成 placement constraints，而不是讓 runtime 每次傳。</li><li>用 memory model 找 PP/DP/microbatch sweet spot；別把 PP degree 推到最大。</li><li>對 SDv2-like heterogeneous UNet，stage balancing 很重要；對 DiT-like uniform stack，別高估 partitioner gain。</li></ol>
+      <div class="cite">Synthesis from §II–VIII; all quantitative claims cited in prior slides</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · 原文螢光筆 1</div>
+      <div class="hl"><p class="hl__en">“skip connections account for the vast majority of inter-device communication, exceeding 85.5%-90% in UViT and SDv2 models and dominating bandwidth”</p><p class="hl__zh">在 diffusion PP 裡，長 skip connection 不是小雜訊，而是跨 device communication 的主體。<span class="hl__src"> §II-C p.3</span></p></div>
+      <div class="cite">Original quote from §II-C p.3</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · 原文螢光筆 2</div>
+      <div class="hl"><p class="hl__en">“skip activations are stored locally during the forward pass, and these values are retrieved for gradient computation in the backward pass.”</p><p class="hl__zh">PULSE 的核心動作是 colocate + local buffer，而不是刪除 skip 或改模型語義。<span class="hl__src"> §III p.4</span></p></div>
+      <div class="cite">Original quote from §III p.4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · 原文螢光筆 3</div>
+      <div class="hl"><p class="hl__en">“With P = 4, the reduced per-stage memory footprint permits a larger microbatch size of 32, resulting in a significant throughput boost from 186.2 to 257.0 samples/sec.”</p><p class="hl__zh">hybrid tuning 的重點不是最大 PP degree，而是在 memory、microbatch、P2P traffic 之間找局部最優。<span class="hl__src"> §VII-C p.9–10</span></p></div>
+      <div class="cite">Original quote from §VII-C p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow: 模型壓縮 / 效率</h2>
+      <p class="end__sub">今天的結論很簡單，也有點殘酷：如果 traffic 是架構造成的，就不要只靠 runtime scheduler 補救。先把 placement 問題說清楚。</p>
+      <div class="end__next">Next rotation · 量化、蒸餾、pruning、efficient inference</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
