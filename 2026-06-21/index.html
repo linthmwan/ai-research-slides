@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TimesFM: decoder-only foundation model for time-series forecasting</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Sunday GitHub Trending x ICML 2024</div>
+      <h1 class="title">TimesFM: decoder-only foundation model for time-series forecasting</h1>
+      <div class="authors">Abhimanyu Das, Weihao Kong, Rajat Sen, Yichen Zhou - Google Research</div>
+      <div class="meta-row"><span class="badge tier">Repo: google-research/timesfm</span><span class="badge tier">ICML 2024 paper</span><span class="badge date">Captured 2026-06-21</span></div>
+      <p class="lead">今天選題走週日 repo/report 路線：TimesFM 不是單純熱門套件，而是有 peer-reviewed paper、open checkpoints、2026 repo updates 的 forecasting foundation model。</p>
+      <div class="cite">Sources: GitHub Trending scrape 2026-06-21; README lines 6-19; arXiv:2310.10688v4 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把 time-series patch 當作 token，用 <b>decoder-only</b> Transformer 做 zero-shot forecasting。</p>
+      <p class="lead">200M parameters + O(100B) real/synthetic timepoints，讓單一模型在 Monash / Darts / ETT 上接近或超過 per-dataset supervised baselines。</p>
+      <div class="cite">Abstract p.1 lines 14-21; Intro p.2 lines 53-67; Conclusion p.9 lines 503-507</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why this repo today</div>
+      <h2 class="head">Trending 訊號只是入口，研究紮實度才是選題理由</h2>
+      <ul class="bullets"><li>GitHub daily trending Python #2 at capture: <b>24,551 stars</b>, 2,328 forks, 433 stars today。</li><li>README 直接連到 ICML 2024 paper、Hugging Face checkpoints、Google Research blog。</li><li>2026 repo updates 包含 PyPI 2.0.0、LoRA fine-tuning examples、AGENTS.md / SKILL.md、unit tests。</li><li>TimesFM 2.5 將 context 從 2048 拉到 <b>16k</b>，並加入 up to 1k horizon quantile forecast head。</li></ul>
+      <div class="cite">trending_discovery.md; README lines 6-15, 26-66</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Forecasting 想要 foundation model，但 time series 比 text 更不規整</h2>
+      <ul class="bullets"><li>傳統 ARIMA / ETS 或 supervised neural forecaster 多半要針對每個 dataset 訓練或調參。</li><li>Time series 沒有固定 vocabulary / grammar；context length、horizon、granularity 也都會變。</li><li>公開 pretraining corpus 不像 text 那麼自然大量可得，還要覆蓋 hourly / daily / weekly / monthly 等週期。</li><li>目標不是「更大的 GPT 拿來猜數列」，而是從 time-series-only corpus 學到可遷移 temporal patterns。</li></ul>
+      <div class="cite">Introduction p.1 lines 24-46; Related Work p.2 lines 81-96</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core design</div>
+      <h2 class="head">TimesFM 的兩個支點：資料多樣性 + decoder-only patch objective</h2>
+      <ol class="numbered"><li><b>Large-scale corpus</b>: Google Trends、Wiki Pageviews、public forecasting datasets、synthetic generators。</li><li><b>Patch tokens</b>: 把連續數值切成 patch，經 residual block 轉成 Transformer token。</li><li><b>Causal next-patch training</b>: 像 LLM 一樣平行訓練所有 prefix 的下一段預測。</li><li><b>Longer output patch</b>: h > p，減少 long horizon autoregressive steps。</li></ol>
+      <div class="cite">Intro p.2 lines 53-60; Model Architecture p.3-5 lines 115-231</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture figure</div>
+      <h2 class="head">Figure-first: decoder-only 不是口號，是訓練訊號的形狀</h2>
+      <figure class="full"><img src="figures/figure1_p4.jpg" alt="figure"><figcaption>Figure 1: input patches -> residual embedding + positional encoding -> causal Transformer -> output residual block forecasts next window. Source: Fig.1 p.4.</figcaption></figure>
+      <ul class="bullets"><li>每個 output token 只 attend 到過去 patch；因此不同 prefix length 的 forecasts 可在同一 batch 內訓練。</li><li>SA = causal self-attention；FFN = transformer feed-forward network。</li></ul>
+      <div class="cite">Figure 1 p.4; §4 p.3-4 lines 153-197</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Patch as token</div>
+      <h2 class="head">數值 patch 進入 Transformer 之前，先被 residual block 嵌入</h2>
+      <div class="formula">t<sub>j</sub> = InputResidualBlock(y~<sub>j</sub> * (1 - m~<sub>j</sub>)) + PE<sub>j</sub></div>
+      <ul class="bullets"><li>p = input_patch_len；第 j 個 patch 是 y<sub>p(j-1)+1 : pj</sub>。</li><li>mask m 讓 padding / missing prefix 不被注意力誤讀。</li><li>200M base: 20 layers, model_dim 1280, 16 heads, p=32, output_patch_len=128。</li></ul>
+      <div class="cite">§4 p.3-4 lines 153-197; Table 6 p.16 lines 1530-1553</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Key deviation from LLMs</div>
+      <p class="big">Forecasting 不該一格一格吐；TimesFM 讓 output patch 比 input patch 更長。</p>
+      <p class="lead">p=32, h=128 時，256-step horizon 只需 2 次 autoregressive generation；若 h=p=32，則要 8 次。</p>
+      <div class="cite">§4 p.3 lines 131-145; inference p.5 lines 227-231</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Variable context</div>
+      <h2 class="head">Random prefix masking 讓模型看過所有 context length</h2>
+      <ul class="bullets"><li>每條 time series sample 一個 r in [0, p-1]，把第一個 patch 的前 r 點 mask 掉。</li><li>若 max context=512, p=32, r=4，第一個 output 其實是在 28 個有效點後做 forecast。</li><li>對所有 r 重複後，模型覆蓋 1 到 max context 的所有有效長度，而不必枚舉所有 window。</li></ul>
+      <div class="takeaway">這是 TimesFM 比一般 encoder-decoder transfer 更適合 zero-shot variable-context 的機制之一。</div>
+      <div class="cite">§4 Training p.5 lines 218-226; A.4 p.14 lines 916-930</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Pretraining corpus</div>
+      <h2 class="head">資料不是只求大，而是要補 granularity 覆蓋</h2>
+      <table class="bench"><thead><tr><th>Source</th><th class="num">Scale</th><th>Why it matters</th></tr></thead><tbody><tr><td>Wiki Pageviews</td><td class="num">~300B timepoints</td><td>large public behavioral seasonality</td></tr><tr><td>Google Trends</td><td class="num">~0.5B timepoints</td><td>query interest across hourly/daily/weekly/monthly</td></tr><tr class="win"><td>Synthetic</td><td class="num">3M x 2048 = 6.144B</td><td class="best">fills underrepresented periods/trends</td></tr><tr><td>Public datasets</td><td>M4, Electricity, Traffic, Weather...</td><td>benchmark-like real-world shapes</td></tr></tbody></table>
+      <div class="cite">§5 p.5 lines 240-266; Table 1 p.6 lines 274-353</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Repo state</div>
+      <h2 class="head">TimesFM 2.5 把 paper prototype 推向可用模型線</h2>
+      <div class="scorebox"><span class="score score--hi">200M params</span><span class="score score--hi">16k context</span><span class="score score--hi">1k horizon quantiles</span><span class="score">+30M head</span></div>
+      <ul class="bullets"><li>TimesFM 2.5 uses 200M parameters, down from 500M in 2.0。</li><li>支持 up to 16k context length，從 2048 拉長。</li><li>可用 optional 30M quantile head 做 continuous quantile forecast up to 1k horizon。</li><li>Repo also adds Flax inference, XReg covariate support, LoRA fine-tuning examples, unit tests。</li></ul>
+      <div class="cite">README lines 47-66; README lines 26-44</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation setup</div>
+      <h2 class="head">三組 zero-shot benchmark，測的是跨 domain / granularity 泛化</h2>
+      <ul class="bullets"><li><b>Monash</b>: 18 filtered datasets after excluding missing values; minutes to years, finance/demand/weather/traffic domains。</li><li><b>Darts</b>: 8 univariate datasets with seasonalities and additive/multiplicative trends。</li><li><b>Informer / ETT</b>: ETTh1, ETTh2, ETTm1, ETTm2; horizons 96 and 192; context length 512。</li><li>Baselines include statistical, supervised deep, PatchTST, and zero-shot llmtime。</li></ul>
+      <div class="cite">§6.1 p.6-7 lines 366-428; A.5.3 p.16 lines 1443-1449</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result figure</div>
+      <h2 class="head">Zero-shot TimesFM 落在最強 cluster，而不是只贏弱 baseline</h2>
+      <figure class="full"><img src="figures/figure2_p6.jpg" alt="figure"><figcaption>Figure 2: average performance on Monash, Darts, and ETT; lower is better; error bars are one standard error. Source: Fig.2 p.6.</figcaption></figure>
+      <div class="cite">Fig.2 p.6 lines 357-365; §6.1 p.7 lines 397-427</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Benchmark table</div>
+      <h2 class="head">關鍵數字：TimesFM 的 zero-shot 排名靠近 supervised SOTA</h2>
+      <table class="bench"><thead><tr><th>Benchmark</th><th class="num">TimesFM</th><th>Key comparison</th><th>Source</th></tr></thead><tbody><tr class="win"><td>Monash scaled MAE GM</td><td class="num best">0.6846</td><td>best listed in Table 4; >25% better than llmtime in text</td><td>Tab.4 p.15</td></tr><tr><td>Darts scaled MAE GM</td><td class="num">0.5767</td><td>within significance of llmtime 0.4882 / ARIMA 0.5219</td><td>Tab.3 p.14</td></tr><tr class="win"><td>ETT avg MAE</td><td class="num best">0.36</td><td>close to PatchTST 0.37 and PatchTST(ZS) 0.35</td><td>Tab.5 p.16</td></tr><tr><td>ETTh1 10% FT avg</td><td class="num">0.426</td><td>better than GPT4TS(FT) 0.525</td><td>Tab.2 p.14</td></tr></tbody></table>
+      <div class="cite">Spec exp table; raw Table 3/4/5 and Table 2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ETT close-up</div>
+      <h2 class="head">在長 horizon ETT 上，TimesFM 幾乎追平 PatchTST 系列</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Avg MAE</th><th>Role</th></tr></thead><tbody><tr class="win"><td>PatchTST(ZS)</td><td class="num best">0.35</td><td>pretrained zero-shot PatchTST variant</td></tr><tr class="win"><td>TimesFM(ZS)</td><td class="num best">0.36</td><td>decoder-only zero-shot</td></tr><tr><td>PatchTST</td><td class="num">0.37</td><td>supervised long-horizon baseline</td></tr><tr><td>llmtime(ZS)</td><td class="num">0.45</td><td>LLM prompting baseline</td></tr><tr><td>FEDFormer / AutoFormer</td><td class="num">0.53</td><td>supervised baselines</td></tr><tr><td>Informer</td><td class="num">0.99</td><td>older long-horizon baseline</td></tr></tbody></table>
+      <div class="cite">Table 5 p.16 lines 1450-1529</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fine-tuning</div>
+      <h2 class="head">小資料 fine-tune: time-series pretraining 比 GPT2 backbone 更對題</h2>
+      <table class="bench"><thead><tr><th>Dataset avg</th><th class="num">TimesFM(FT)</th><th class="num">GPT4TS(FT)</th><th>Paper claim</th></tr></thead><tbody><tr class="win"><td>ETTh1</td><td class="num best">0.426</td><td class="num">0.525</td><td>18% better</td></tr><tr class="win"><td>ETTh2</td><td class="num best">0.410</td><td class="num">0.421</td><td>3% better</td></tr><tr class="win"><td>ETTm1</td><td class="num best">0.388</td><td class="num">0.441</td><td>12% better</td></tr><tr class="win"><td>ETTm2</td><td class="num best">0.334</td><td class="num">0.335</td><td>roughly tied</td></tr></tbody></table>
+      <div class="cite">A.3 p.14 lines 731-741; Table 2 p.14 lines 742-915</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablations</div>
+      <h2 class="head">Figure 3 是這篇最有價值的機制頁：scale、patch、synthetic data 都被拆開</h2>
+      <figure class="full"><img src="figures/figure3_p8.jpg" alt="figure"><figcaption>Figure 3: ablations for FLOPs/model scale, output patch length, input patch length, and synthetic data. Marked clean=false by extractor due body_x2, but selected as mechanism evidence.</figcaption></figure>
+      <div class="cite">Figure 3 p.8; §6.2 p.8-9 lines 459-499</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">TimesFM work 的真正原因：不是「Transformer 魔法」，而是 <b>patch geometry</b> 讓任意 horizon/context 可以被同一 objective 覆蓋。</p>
+      <ul class="bullets"><li>output_patch_len 變長 -> 512-step forecast 的平均 MAE 隨 h=8..128 單調下降。</li><li>input_patch_len p=16/32 最佳；p=32 幾乎比 p=16 快兩倍，品質/速度折衷更合理。</li><li>synthetic data 補足稀有 granularity，尤其改善 15-min ETTm 與 Monash underrepresented periods。</li></ul>
+      <div class="cite">§6.2 p.8-9 lines 466-499</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Synthetic data</div>
+      <h2 class="head">合成資料的角色：補真實 corpus 沒有的週期結構</h2>
+      <ul class="bullets"><li>Generator 包含 piece-wise linear trend、ARMA(p,q)、sine/cosine seasonal patterns。</li><li>每條 synthetic series 長度 2048，隨機啟用/停用 components 並加權相加。</li><li>作者指出 no-synthetic 模型在 Monash 與 15-min ETTm 掉分，但 hourly ETTh 幾乎不變。</li><li>這暗示 synthetic data 補的是 granularity coverage，不只是 data volume。</li></ul>
+      <div class="cite">A.8 p.17 lines 1598-1610; §6.2 p.9 lines 491-499</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Forecast examples</div>
+      <h2 class="head">視覺例子顯示 TimesFM 能抓 trend + seasonality，但不代表可免審核</h2>
+      <div class="two-col"><div><figure class="full"><img src="figures/figure5_p18.jpg" alt="figure"><figcaption>Synthetic curves: TimesFM captures interpretable trend/seasonality components. Source: Fig.5 p.18.</figcaption></figure></div><div><figure class="full"><img src="figures/figure6_p18.jpg" alt="figure"><figcaption>Darts/Monash examples: AirPassengers amplitude growth and traffic peaks under outliers. Source: Fig.6 p.18.</figcaption></figure></div></div>
+      <div class="cite">A.9 p.17 lines 1611-1624</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">Paper 自承的未解題：probabilistic、covariates、interpretability</h2>
+      <ul class="bullets"><li>Probabilistic forecasting 可用 quantile / likelihood heads，但 paper 主體只做 point forecasting。</li><li>Covariates 沒有進 pretraining；作者只提出 residual regression 或 fine-tuning-time covariate inputs。</li><li>Deep foundation forecaster 的 interpretability 弱於 ARIMA/ETS；lag attribution 只能部分補。</li><li>Critical use cases 應 human-in-the-loop 或大量 testing/fine-tuning，作者也提醒可能 fail / hallucinate。</li></ul>
+      <div class="cite">A.1 p.13 lines 671-699; Impact Statement p.9 lines 529-531</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h2 class="head">如果把 TimesFM 放進產品，最先要想清楚三件事</h2>
+      <ol class="numbered"><li><b>Granularity routing</b>: hourly/daily/monthly context 長度不同，不能只套一個 max_context。</li><li><b>Exogenous variables</b>: 目前 repo 有 XReg covariate support，但 paper 本體沒有解決 universal covariate representation。</li><li><b>Uncertainty UX</b>: TimesFM 2.5 quantile head 很重要，因為 point forecast 在供應鏈/財務場景很容易給過度確定感。</li></ol>
+      <div class="takeaway">對圖像/影片工程師的類比：這像把 temporal patch tokenization + autoregressive chunk decoding 搬到純數值時序。</div>
+      <div class="cite">README lines 42-66; A.1 p.13 lines 676-686</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 1</div>
+      <h2 class="head">原始問題意識</h2>
+      <div class="hl"><p class="hl__en">Can large pretrained models trained on massive amounts of time-series data learn temporal patterns that can be useful for time-series forecasting on previously unseen datasets?</p><p class="hl__zh">作者把問題定成：大量時間序列預訓練是否能學到可泛化到未見資料集的時間模式。<span class="hl__src">Introduction p.1 lines 37-40</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 2</div>
+      <h2 class="head">真正的貢獻配方</h2>
+      <div class="hl"><p class="hl__en">The key elements of our foundation model are twofold: 1) a large-scale time-series corpus ... and 2) a decoder style attention architecture with input patching.</p><p class="hl__zh">貢獻不是單純把 Transformer 套上去，而是資料規模/多樣性與 decoder-only patch architecture 的組合。<span class="hl__src">Introduction p.2 lines 53-60</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 3</div>
+      <h2 class="head">Synthetic data 的意義</h2>
+      <div class="hl"><p class="hl__en">We can see that there is a performance drop on Monash... for the 15min ETTm datasets the model with synthetic data performs quite a bit better.</p><p class="hl__zh">synthetic data 的價值不是湊數，而是補真實資料集中不足的 granularity / periodicity。<span class="hl__src">§6.2 p.9 lines 491-499</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">明日預告：LLM 架構 / 訓練 / 對齊</h2>
+      <p class="end__sub">今天的 repo route 收斂到 TimesFM：一個把「foundation model」概念搬進 forecasting 的乾淨案例。</p>
+      <div class="end__next">Next: 回到週一 LLM 主題，優先找 accepted paper。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
