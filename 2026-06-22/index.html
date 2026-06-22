@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>In-Place Test-Time Training</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · 2026-06-22 · LLM</div>
+      <h1 class="title">In-Place Test-Time Training</h1>
+      <p class="lead">把 MLP 的 <b>W<sub>down</sub></b> 變成推論時可更新的 fast weights，讓既有 LLM 不改架構也能做 test-time adaptation。</p>
+      <div class="authors">Guhao Feng, Shengjie Luo, Kai Hua, Ge Zhang, Di He, Wenhao Huang, Tianle Cai · ByteDance Seed / Peking University</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Oral</span><span class="badge">arXiv 2604.06169v1</span><span class="badge date">Announced 2026-04-08</span></div>
+      <div class="cite">來源: title page p.1; OpenReview decision Accept (Oral).</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Test-Time Training 不一定要重做架構；也可以把既有 MLP 投影矩陣原地變成動態記憶。</p>
+      <p class="lead">In-Place TTT 的關鍵不是「多一個 memory layer」，而是讓 pretrained LLM 內部最大、最常見的 MLP matrix 同時承擔 slow knowledge 與 fast context。</p>
+      <div class="cite">Abstract p.1; §3.1 p.4.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">靜態 LLM 的瓶頸：context 在變，但權重不會變</h2>
+      <ul class="bullets"><li><b>train-then-deploy</b> 讓模型推論時無法把 continuous stream 內化進權重。</li><li>In-context learning 只能把 past tokens 留在有限 window；attention 又有 quadratic complexity。</li><li>TTT 理念上可更新 fast weights，但過去方法對 LLM 有架構、效率、目標三重不相容。</li></ul>
+      <div class="takeaway">作者要解的是：如何讓 TTT 變成 pretrained LLM 可以接受的「增強模組」，而不是另一個要重訓的新架構。</div>
+      <div class="cite">Introduction p.1-2; Preliminary p.3.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Prior TTT barriers</div>
+      <h2 class="head">三個阻礙讓 TTT 很難直接進入 LLM ecosystem</h2>
+      <ol class="numbered"><li><b>Architectural compatibility:</b> 既有 TTT 常新增/替換 layer，pretrained checkpoint 難 warm-start。</li><li><b>Computational efficiency:</b> per-token fast-weight update 太 sequential，無法吃滿 GPU/TPU parallelism。</li><li><b>Objective mismatch:</b> reconstruction target 只記當前 token representation，不一定幫助 next-token prediction。</li></ol>
+      <div class="cite">Introduction p.2; Desiderata p.3.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core contribution</div>
+      <h2 class="head">一個「原地」設計同時避開三個坑</h2>
+      <div class="two-col"><div><ul class="bullets"><li>不替換 attention；保留原本 Transformer token mixer。</li><li>把 gated MLP 的 final projection <b>W<sub>down</sub></b> 作為 fast weights。</li><li>用 chunk-wise update 取代 token-by-token update。</li></ul></div><div><ul class="bullets"><li>把 target 改成帶 future-token signal 的 <b>LM-aligned objective</b>。</li><li>用 prefix scan 做 context-parallel computation。</li><li>OpenReview 最終為 <b>ICLR 2026 Oral</b>。</li></ul></div></div>
+      <div class="cite">§3.1-3.4 p.4-7; OpenReview reviewer JSON.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture</div>
+      <h2 class="head">Figure 1：In-Place TTT 的 apply-then-update loop</h2>
+      <figure class="full"><img src="figures/figure1_p6.jpg" alt="Overall framework of In-Place TTT"><figcaption>Figure 1: 每個 chunk 先用目前 Wdown apply，再用 Z 與 value target 更新 Wdown；Conv1D & projection 產生 LM-aligned target。</figcaption></figure>
+      <div class="cite">Figure 1 p.6; caption lines 315-318.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fast weights</div>
+      <h2 class="head">為什麼選 MLP 的 Wdown？</h2>
+      <div class="formula">O = (φ(HW<sub>gate</sub><sup>T</sup>) ⊙ (HW<sub>up</sub><sup>T</sup>)) W<sub>down</sub><sup>T</sup></div>
+      <ul class="bullets"><li><b>W<sub>up</sub></b> 與 <b>W<sub>gate</sub></b> 保持 frozen slow weights；只讓 <b>W<sub>down</sub></b> 在 test time 更新。</li><li>MLP 已被視為 key-value memory；作者把這個 slow memory 擴展成可吸收 transient context 的 fast memory。</li><li>這是 drop-in：不新增 randomly initialized layer，也不破壞 pretrained attention。</li></ul>
+      <div class="cite">§3.1 p.4.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Chunk-wise update</div>
+      <h2 class="head">把 sequential TTT 改成可平行的大 chunk 更新</h2>
+      <div class="formula">Apply: O[i] = Z[i](W<sub>down</sub><sup>(i)</sup>)<sup>T</sup><br>Update: W<sub>down</sub><sup>(i+1)</sup> = W<sub>down</sub><sup>(i)</sup> - η ∇<sub>W</sub>L(Z[i](W<sub>down</sub><sup>(i)</sup>)<sup>T</sup>, V[i])</div>
+      <ul class="bullets"><li>chunk size <b>C</b> 同時控制 fast-weight 更新顆粒度與硬體 parallelism。</li><li>因為 attention 沒被拿掉，TTT 不必承擔 primary token mixer；可以用較大 chunk。</li><li>Ablation: C=512 / C=1024 表現較佳，C=1024 兼具效率。</li></ul>
+      <div class="cite">§3.1 p.4-5; Fig.3 / §4.3 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LM-aligned objective</div>
+      <h2 class="head">從「重建現在」改成「預測未來」</h2>
+      <div class="formula">V_hat = Conv1D(X<sub>0</sub>) W<sub>target</sub><br>L(·,·) = -&lt;·,·&gt;<sub>F</sub><br>W<sub>down</sub><sup>(i)</sup> = W<sub>down</sub><sup>(i-1)</sup> + η V_hat[i]<sup>T</sup>Z[i]</div>
+      <ul class="bullets"><li>Conv1D 讓 target 帶 localized future-token information。</li><li>next-token target 可視為特殊情況：kernel 只指向下一個 token。</li><li>加性 update 形式使 prefix-scan context parallelism 成為可能。</li></ul>
+      <div class="cite">§3.2 p.5; Eq.(1).</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">這篇最重要的機制命題：fast weights 應該儲存「對未來 token 有用」的資訊，而不是複製現在。</p>
+      <p class="lead">在 induction-head setting 下，LM-aligned target 期望提高 correct next-token logit；reconstruction target 對 correct token 只有 negligible effect。</p>
+      <div class="cite">Theorem 1 §3.3 p.6.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Theorem intuition</div>
+      <h2 class="head">Logit-wise effect：LM target 直接推正確 next token</h2>
+      <div class="formula">Correct logit: E[Δl<sub>n</sub>[v*]] ≥ λ<sub>lr</sub> · c<sub>norm</sub><sup>2</sup> · c<sub>align</sub><br>Other logits: |E[Δl<sub>n</sub>[w]]| ≤ λ<sub>lr</sub> · ε · c<sub>align</sub></div>
+      <ul class="bullets"><li>若 key <b>k*</b> 在後文再出現，fast weights 應把它連到下一個 token <b>v*</b>。</li><li>LM-aligned target 用 <b>E<sub>x(t+1)</sub></b> 更新，因此 query reappears 時能推高 v*。</li><li>reconstruction target 用 current token embedding，只會記 k* 本身，對 v* 幫助不足。</li></ul>
+      <div class="cite">§3.3 p.5-6.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Context parallelism</div>
+      <h2 class="head">Prefix scan 讓 causal fast weights 可以平行算</h2>
+      <ol class="numbered"><li>所有 chunks 平行計算 activation <b>Z[i]</b> 與 update delta <b>ΔW<sub>down</sub><sup>(i)</sup></b>。</li><li>對 delta 做 prefix sum，取得每個 chunk 開始前應看到的 fast-weight state。</li><li>用該 state 平行計算每個 chunk 的 output；causal padding 與 document-boundary reset 防止 future / cross-document leakage。</li></ol>
+      <div class="takeaway">它不是「假裝平行」：作者明確聲稱數學上等價於 strict causal sequential process。</div>
+      <div class="cite">§3.4 p.6-7.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Drop-in results</div>
+      <h2 class="head">Qwen3-4B：長 context 越長，In-Place TTT 優勢越明顯</h2>
+      <table class="bench"><thead><tr><th>RULER length</th><th class="num">Baseline</th><th class="num">In-Place TTT</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>64k</td><td class="num">74.3</td><td class="num best">78.7</td><td class="num">+4.4</td></tr><tr class="win"><td>128k</td><td class="num">74.8</td><td class="num best">77.0</td><td class="num">+2.2</td></tr><tr class="win"><td>256k extrap.</td><td class="num">41.7</td><td class="num best">43.9</td><td class="num">+2.2</td></tr></tbody></table>
+      <p class="note">同一 continual training curriculum；變因是是否加入 In-Place TTT。</p>
+      <div class="cite">Table 1 p.7; §4.1 p.8.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Generality</div>
+      <h2 class="head">Reviewer 追問後，作者補了更多 model families</h2>
+      <table class="bench"><thead><tr><th>Base model</th><th>Context</th><th class="num">Baseline</th><th class="num">In-Place TTT</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>LLaMA-3.1-8B</td><td>64k</td><td class="num">81.6</td><td class="num best">83.7</td><td class="num">+2.1</td></tr><tr class="win"><td>Qwen3-14B</td><td>64k</td><td class="num">67.9</td><td class="num best">70.6</td><td class="num">+2.7</td></tr><tr class="win"><td>Qwen3-14B</td><td>64k+YaRN</td><td class="num">81.3</td><td class="num best">82.5</td><td class="num">+1.2</td></tr></tbody></table>
+      <div class="cite">Table 2 p.8; OpenReview rebuttal notes.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Perplexity</div>
+      <h2 class="head">From scratch：500M / 1.5B perplexity 曲線也支持 context utilization</h2>
+      <figure class="full"><img src="figures/figure2_p9.jpg" alt="Sliding window perplexity at varying context lengths"><figcaption>Figure 2: extracted text states In-Place TTT has lower sliding-window perplexity than SWA / GLA / DeltaNet / LaCT across 2k-32k; exact curve values are not tabulated.</figcaption></figure>
+      <div class="cite">Figure 2 p.9; §4.2 p.9.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">4B from-scratch</div>
+      <h2 class="head">4B 模型：長 context benchmark 提升幅度最大</h2>
+      <table class="bench"><thead><tr><th>Architecture</th><th>Metric</th><th class="num">Baseline</th><th class="num">I.P. TTT</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>Full Attention</td><td>RULER-16k</td><td class="num">6.58</td><td class="num best">19.99</td><td class="num">+13.41</td></tr><tr class="win"><td>SWA</td><td>RULER-8k</td><td class="num">9.91</td><td class="num best">26.80</td><td class="num">+16.89</td></tr><tr class="win"><td>Full Attention</td><td>RULER-8k</td><td class="num">38.09</td><td class="num best">43.82</td><td class="num">+5.73</td></tr></tbody></table>
+      <p class="note">4B models were trained for 120B tokens with 8k context length; common-sense metrics mostly also improve, but the clearest signal is long-context RULER.</p>
+      <div class="cite">Table 3 p.9; §4.2 p.9.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h2 class="head">三個設計選擇都不是裝飾</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>State size:</b> state 越大，performance 越好；支撐「MLP fast memory capacity」敘事。</li><li><b>Chunk size:</b> C=512 / 1024 較佳，C=1024 效率更好。</li></ul></div><div><ul class="bullets"><li><b>Conv1D:</b> 對 long context 特別重要。</li><li><b>W<sub>target</sub> projection:</b> 對 short context 重要；兩者合起來才完整。</li></ul></div></div>
+      <p class="note">Figure 3 clean=false（裁圖 manifest 有 body_x1 issue），本頁只引用 caption 與文字描述，不硬放圖。</p>
+      <div class="cite">Figure 3 / §4.3 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Efficiency</div>
+      <h2 class="head">效率圖：作者主張 practical overhead negligible</h2>
+      <figure class="full"><img src="figures/figure4_p10.jpg" alt="Efficiency analysis of In-Place TTT"><figcaption>Figure 4: compares prefill throughput and peak memory for 4B SWA / Full Attention at 8k, 32k, 128k. Raw text gives qualitative conclusion but not exact bar values.</figcaption></figure>
+      <div class="cite">Figure 4 / §4.3 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reviewer signal</div>
+      <h2 class="head">OpenReview 視角：強 novelty，但也逼出更紮實的 generality</h2>
+      <div class="scorebox"><span class="score">8</span><span class="score">8</span><span class="score score--hi">6→8</span><span class="score score--hi">Accept (Oral)</span></div>
+      <ul class="bullets"><li>主要稱讚：drop-in usability、repurposing projection matrices as fast weights、LM-aligned objective、context-parallel implementation。</li><li>主要質疑：Qwen3-4B 設定偏窄、Wdown 選擇是否 heuristic、notation/writing、chunk-wise related work 討論不足。</li><li>rebuttal 後補強：LLaMA-3.1-8B / Qwen3-14B 結果、alternative fast-weight choices、strict causal inference clarification。</li></ul>
+      <div class="cite">OpenReview reviewer JSON notes[2-3,12-14].</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">要小心讀的地方</h2>
+      <ul class="bullets"><li>雖然補了 8B / 14B，證據仍主要在 language-only、non-frontier scale；VLM / MoE / 更大模型還未充分驗證。</li><li>Wdown 選擇合理但未 exhaustive；attention output projection 或多矩陣組合可能是後續研究。</li><li>Figure 4 未在 raw text 中表列精確 TPS/GB，deck 不應自行讀圖估數。</li><li>TTT generation 的 causality 很敏感：實作必須正確處理 chunk boundary、causal padding、document reset。</li></ul>
+      <div class="cite">§3.4 p.7; §4.1-4.3 p.8-10; reviewer concerns.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering interpretation</div>
+      <h2 class="head">如果你在做 LLM systems，這篇的啟發是什麼？</h2>
+      <ol class="numbered"><li>把「動態記憶」放進既有大矩陣，比新增一個小 module 更容易保留 pretrained compatibility。</li><li>fast weights 的 objective 要對任務 aligned；對 LM 來說，記 current token 不如記 predictive signal。</li><li>chunk-wise + prefix scan 是這篇從想法走到可部署的關鍵；否則 TTT 會停在漂亮但慢的 online update。</li><li>長 context 不只靠 attention pattern；也可以讓模型把 context 壓進可更新參數。</li></ol>
+      <div class="cite">Author analysis based on §3-4; all numeric claims cited in previous slides.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix quote 1</div>
+      <h2 class="head">Drop-in design</h2>
+      <div class="hl"><p class="hl__en">“In-Place TTT treats the final projection matrix of the ubiquitous MLP blocks as its adaptable fast weights, enabling a ‘drop-in’ enhancement for LLMs without costly retraining from scratch.”</p><p class="hl__zh">In-Place TTT 把常見 MLP block 的最後投影矩陣當作可調 fast weights，因此可作為不需從頭訓練的 drop-in 增強。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="cite">Abstract p.1.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix quote 2</div>
+      <h2 class="head">Why LM-aligned objective matters</h2>
+      <div class="hl"><p class="hl__en">“The LM-Aligned target is guaranteed in expectation to increase the logit of the correct next token ... In contrast, the reconstruction target provides no such predictive benefit.”</p><p class="hl__zh">LM-aligned target 在期望上會提高正確 next token 的 logit；相反地，reconstruction target 沒有這種預測收益。<span class="hl__src">Theorem 1 discussion, §3.3 p.6</span></p></div>
+      <div class="cite">§3.3 p.6.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix quote 3</div>
+      <h2 class="head">Context-parallel but causal</h2>
+      <div class="hl"><p class="hl__en">“This design choice makes our method not only fast and scalable but also mathematically equivalent to a strictly causal sequential process, thanks to careful boundary and padding management.”</p><p class="hl__zh">透過 boundary 與 padding 管理，方法既快速可擴展，也在數學上等價於嚴格 causal 的 sequential process。<span class="hl__src">§3.4 p.7</span></p></div>
+      <div class="cite">§3.4 p.7.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Takeaway</h2>
+      <p class="end__sub">In-Place TTT 把 LLM 的 MLP 從靜態 feed-forward 模組，重新詮釋成可在推論時吸收 context 的高容量 fast memory。</p>
+      <div class="end__next">明日主題：圖像生成 / 理解（Diffusion, VLM, CLIP）</div>
+      <div class="cite">Deck generated from arXiv 2604.06169v1 + OpenReview dTWfCLSoyl.</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
