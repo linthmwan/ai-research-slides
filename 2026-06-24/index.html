@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SANA-Video: Efficient Video Generation with Block Linear Diffusion Transformer</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research - Video generation / temporal models</div>
+      <h1 class="title">SANA-Video:<br>Efficient Video Generation with Block Linear Diffusion Transformer</h1>
+      <div class="authors">Junsong Chen*, Yuyang Zhao*, Jincheng Yu*, Ruihang Chu, ... Song Han, Enze Xie<br>NVIDIA / HKU / MIT / THU / PKU / KAUST</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Oral</span><span class="badge">arXiv:2509.24695v2</span><span class="badge date">Published 2026-01-26</span></div>
+      <p class="lead">A system paper for making high-resolution and minute-length video generation practical: Linear DiT + constant-memory block KV cache + compressed VAE + deployment recipe.</p>
+      <div class="cite">Sources: arXiv:2509.24695v2; OpenReview forum mzAchylAtf; §1 p.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Video generation is no longer only a <b>quality scaling</b> problem; SANA-Video reframes it as a <b>memory-state engineering</b> problem.</p>
+      <p class="lead">The key move is to replace a length-growing attention cache with fixed sufficient statistics of linear attention, then build the whole training / VAE / quantization stack around that choice.</p>
+      <div class="scorebox"><span class="score score--hi">12 days x 64 H100</span><span class="score score--hi">36s 720p / 5s on H100</span><span class="score score--hi">7.2GB fixed VRAM</span></div>
+      <div class="cite">Abstract p.1; Fig.1 p.1; §3.3 p.5-7; Tab.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">The painful part of video DiT is token count, not parameter count alone</h2>
+      <ul class="bullets"><li>A single <b>5-second 720p</b> video with Wan 14B processes <b>over 75,000 tokens</b> and takes <b>32 minutes</b> on one H100.</li><li>Long video generation (>10s) is hard because full-sequence attention and ordinary KV cache both grow with the sequence.</li><li>Existing long-video models often cap cost using local/window attention, but then the model loses global context across distant blocks.</li><li>So the real question becomes: can a model keep global temporal memory while keeping memory fixed?</li></ul>
+      <div class="takeaway">The paper is strongest when read as a serving-aware video architecture, not merely another T2V benchmark entry.</div>
+      <div class="cite">§1 p.2; §3.3.2 p.6; §6.2 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core idea</div>
+      <h2 class="head">Three constraints define the design</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>High resolution</b>: 720 x 1280 x 81 frames creates a huge latent-token grid.</li><li><b>Long horizon</b>: minute-scale rollout needs past context without replaying all past tokens.</li><li><b>Deployability</b>: authors explicitly target H100 latency and RTX 5090 NVFP4 inference.</li></ul></div><div><div class="scorebox"><span class="score score--hi">O(N^2) -> O(N)</span><span class="score score--hi">O(ND) cache -> O(D^2)</span><span class="score score--hi">BF16 -> NVFP4</span></div><p class="note">These are system-level constraints; the novelty is in combining known pieces into an efficient video generator.</p></div></div>
+      <div class="cite">§1 p.2; §3.2 p.4-5; §3.3.1 p.5-6; §5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">What SANA-Video actually contributes</h2>
+      <ol class="numbered"><li><b>Linear Video DiT</b>: adapts SANA linear-attention image DiT to video with 3D RoPE and temporal Mix-FFN.</li><li><b>Constant-memory block KV cache</b>: caches cumulative linear-attention state and key sum, not every past token.</li><li><b>LongSANA training</b>: autoregressive block training plus monotonically increasing SNR sampler and improved self-forcing.</li><li><b>Compression + data recipe</b>: DCAE-V for 720p, staged training, motion/aesthetic/saturation filters, 5k human-preferred SFT clips.</li><li><b>Deployment path</b>: NVFP4 quantization on RTX 5090 with 2.4x latency speedup.</li></ol>
+      <div class="cite">§1 p.2; §3.1-3.5 p.4-8; §5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture</div>
+      <h2 class="head">The whole pipeline is built around Linear DiT and block-wise generation</h2>
+      <figure class="full"><img src="figures/figure2_p3.jpg" alt="Overview of SANA-Video architecture and block-wise autoregressive training"><figcaption>Fig.2: block-wise autoregressive training, AutoEncoder / Rewriter / Linear DiT pipeline, 3D RoPE and temporal convolution details.</figcaption></figure>
+      <div class="takeaway">This figure is the deck spine: pretrained T2I weights are kept useful, while small temporal modules and block cache add video / long-horizon behavior.</div>
+      <div class="cite">Fig.2 p.3; §3 p.3; §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training strategy</div>
+      <h2 class="head">They do not train video from scratch; they continue from a T2I model</h2>
+      <div class="two-col"><div><h2 class="head">3 stages</h2><ol class="numbered"><li><b>VAE adaptation</b>: adapt existing T2I model to video VAEs; 5-10k steps.</li><li><b>Continue pre-training</b>: initialize from SANA T2I; train coarse-to-fine from 192P/2.5s to 480P/5s.</li><li><b>AR block training</b>: unlock long video with block linear attention + self-forcing.</li></ol></div><div><h2 class="head">Why it matters</h2><ul class="bullets"><li>New temporal layers are zero-initialized with skip connections to avoid damaging image-pretrained weights.</li><li>Coarse-to-fine training lets the model learn motion cheaply before spending high-res data.</li><li>The final model is trained on <b>64 H100 GPUs for about 12 days</b>.</li></ul></div></div>
+      <div class="cite">§3.1 p.4; §4.1 p.8; App. B.1 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Linear Video DiT</div>
+      <h2 class="head">Linear attention alone is not enough; RoPE placement is a stability issue</h2>
+      <ul class="bullets"><li>SANA-Video uses ReLU-kernel linear attention to reduce the video attention bottleneck from quadratic to linear in token count.</li><li>RoPE is applied <b>after</b> ReLU: <code>RoPE(ReLU(x))</code>, preserving positional information instead of having ReLU filter it out.</li><li>But RoPE in the denominator can break the non-negative ReLU similarity property; the denominator therefore removes RoPE from Q/K to avoid zero denominators.</li><li>Fig.3 reports localized attention maps and a stable QK-sum training curve from this design.</li></ul>
+      <div class="formula">output_i = [RoPE(phi(Q_i)) * sum_j RoPE(phi(K_j))<sup>T</sup> V_j] / [phi(Q_i) * sum_j phi(K_j)<sup>T</sup>]</div>
+      <div class="cite">§3.2 p.4-5; Eq.2 p.5; Fig.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Temporal locality</div>
+      <h2 class="head">The temporal Mix-FFN is the small module that makes image weights speak video</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Linear attention is observed to be denser and less local than Wan2.1 softmax attention.</li><li>SANA image generation already uses Mix-FFN convolution for locality.</li><li>SANA-Video appends a temporal 1D convolution with a shortcut connection to aggregate local temporal features.</li></ul></div><div><div class="takeaway">This is a low-risk adaptation: it improves motion continuity while preserving the initialization path from the pretrained image model.</div><p class="note">Ablation: Fig.6(b) reports lower training loss with temporal conv; authors also tie it to improved motion performance.</p></div></div>
+      <div class="cite">§3.2 p.5; Fig.6(b) / §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LongSANA</div>
+      <h2 class="head">Block Linear Attention keeps global context without a growing KV cache</h2>
+      <figure class="full"><img src="figures/figure4_p6.jpg" alt="Block causal linear attention and causal Mix-FFN"><figcaption>Fig.4: block causal linear attention compared with vanilla/linear attention, plus block causal Mix-FFN cache.</figcaption></figure>
+      <div class="takeaway">For long video, this is the crown mechanism: keep sufficient statistics from all previous blocks, not a list of past tokens.</div>
+      <div class="cite">Fig.4 p.6; §3.3.1 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">The cache is not the past; the cache is a <b>compressed state of the past</b>.</p>
+      <p class="lead">Causal linear attention only needs cumulative attention state and cumulative key sum. That is why memory can stay O(D^2) while the generated video keeps access to global history.</p>
+      <div class="formula">S_j = phi(K_j)<sup>T</sup>V_j; cache = [sum_{j&lt;i} S_j, sum_{j&lt;i} phi(K_j)<sup>T</sup>] -> O(D<sup>2</sup>)</div>
+      <div class="cite">Eq.3 p.5; Tab.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost table</div>
+      <h2 class="head">Why the memory slope changes</h2>
+      <table class="bench"><thead><tr><th>attention type</th><th>memory</th><th>per-token compute</th><th>global context?</th></tr></thead><tbody><tr><td>Causal full</td><td class="num">O(N x D)</td><td class="num">O(N x D)</td><td>Yes</td></tr><tr><td>Causal local</td><td class="num">O(W x D)</td><td class="num">O(W x D)</td><td>Window only</td></tr><tr class="win"><td>Causal linear</td><td class="num best">O(D<sup>2</sup>)</td><td class="num best">O(D<sup>2</sup>)</td><td class="best">Yes</td></tr></tbody></table>
+      <ul class="bullets"><li>N = tokens / generated history length; W = local window; D = hidden dimension.</li><li>Full attention keeps global context but explodes with N; local attention is cheap but forgets outside the window.</li><li>Causal linear attention is the unusual point: fixed cache plus global accumulation.</li></ul>
+      <div class="cite">Tab.1 p.5; §3.3.1 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Autoregressive training</div>
+      <h2 class="head">The sampler is designed to match block-wise long-video inference</h2>
+      <div class="two-col"><div><h2 class="head">Monotonic SNR sampler</h2><ul class="bullets"><li>Randomly select one block and sample a timestep with the SNR sampler.</li><li>Propagate timesteps so later blocks have larger timesteps than earlier blocks.</li><li>This shrinks the sampling space and trains every block with sufficient information.</li></ul></div><div><h2 class="head">Improved self-forcing</h2><ul class="bullets"><li>Training with ground-truth conditions but inferring with generated conditions creates exposure bias.</li><li>Because LongSANA cache is constant-memory, self-generated rollouts can be much longer than local-window full attention permits.</li><li>Paper reports 4-step LongSANA generates 1-min 16 FPS 480P video in 35s on H100: 27 FPS.</li></ul></div></div>
+      <div class="cite">§3.3.2 p.6; §3.3.3 p.7; Fig.6(d) p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">VAE / compression</div>
+      <h2 class="head">DCAE-V trades reconstruction headroom for much fewer video tokens</h2>
+      <ul class="bullets"><li>For 720P, SANA-Video fine-tunes DCAE into <b>DCAE-V</b>: spatial downsampling F=32, temporal factor T=4, channels C=32.</li><li>The latent channel count matches the pretrained T2I latent channel count, making image-to-video adaptation easier.</li><li>The authors argue Wan2.2-VAE would require 192 latent dimensions for the same compression ratio, versus 32 for DCAE-V, which is difficult for a small diffusion model.</li></ul>
+      <table class="bench"><thead><tr><th>autoencoder</th><th class="num">ratio</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th></tr></thead><tbody><tr><td>Wan2.1-VAE</td><td class="num">16</td><td class="num">34.41</td><td class="num">0.95</td><td class="num">0.01</td></tr><tr><td>Wan2.2-VAE</td><td class="num">21</td><td class="num">35.61</td><td class="num">0.96</td><td class="num">0.01</td></tr><tr><td>LTX-VAE</td><td class="num">64</td><td class="num">32.26</td><td class="num">0.93</td><td class="num">0.04</td></tr><tr class="win"><td>DCAE-V</td><td class="num best">128</td><td class="num">33.25</td><td class="num">0.94</td><td class="num">0.03</td></tr></tbody></table>
+      <div class="cite">§3.4 p.7; Tab.3 p.7; App. C.1 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Data pipeline</div>
+      <h2 class="head">Data quality is treated as part of the efficiency recipe</h2>
+      <figure class="full"><img src="figures/figure5_p8.jpg" alt="Data filtering pipeline of SANA-Video"><figcaption>Fig.5: public/synthetic data -> scene cuts -> captioning -> motion/aesthetic/saturation filters -> pre-training / SFT.</figcaption></figure>
+      <ul class="bullets"><li>Motion: Unimatch optical flow + VMAF; the average optical-flow value is also injected into prompts as a motion score.</li><li>Aesthetics / saturation: DOVER and OpenCV HSV saturation remove low-quality or unnatural clips.</li><li>SFT: about <b>5,000</b> human-preferred videos balanced over motion categories and aesthetic styles.</li></ul>
+      <div class="cite">§3.5 p.8; App. D p.13-15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">720p result</div>
+      <h2 class="head">At 720p, SANA-Video is the latency outlier</h2>
+      <table class="bench"><thead><tr><th>model</th><th class="num">latency(s)</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>Wan-2.1-14B</td><td class="num">1897</td><td class="num">83.73</td><td class="num">85.77</td><td class="num">75.58</td></tr><tr><td>Wan-2.1-1.3B</td><td class="num">400</td><td class="num">83.38</td><td class="num">85.67</td><td class="num">74.22</td></tr><tr><td>Wan-2.2-5B</td><td class="num">116</td><td class="num">83.28</td><td class="num">85.03</td><td class="num">76.28</td></tr><tr class="win"><td>SANA-Video-2B</td><td class="num best">36</td><td class="num best">84.05</td><td class="num">84.63</td><td class="num best">81.73</td></tr></tbody></table>
+      <div class="takeaway">The quality score is not always highest, but Total and Semantic improve while latency drops from 116-1897s to 36s.</div>
+      <div class="cite">Tab.2 p.7; §3.4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">480p VBench</div>
+      <h2 class="head">T2V / I2V comparison: speed is the main win, semantic alignment is strong</h2>
+      <div class="two-col"><div><h2 class="head">Text-to-video</h2><table class="bench"><thead><tr><th>model</th><th class="num">latency</th><th class="num">Total</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>Open-Sora-2.0</td><td class="num">465</td><td class="num">84.34</td><td class="num">80.12</td></tr><tr><td>Wan2.1-14B</td><td class="num">484</td><td class="num">83.69</td><td class="num">76.11</td></tr><tr><td>Wan2.1-1.3B</td><td class="num">103</td><td class="num">83.31</td><td class="num">75.65</td></tr><tr class="win"><td>SANA-Video</td><td class="num best">60</td><td class="num">83.71</td><td class="num best">81.35</td></tr></tbody></table></div><div><h2 class="head">Image-to-video</h2><table class="bench"><thead><tr><th>model</th><th class="num">latency</th><th class="num">Total</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>HunyuanVideo-I2V</td><td class="num">210</td><td class="num">86.82</td><td class="num">95.10</td></tr><tr><td>Wan2.1-14B</td><td class="num">493</td><td class="num">86.86</td><td class="num">92.90</td></tr><tr class="win"><td>SANA-Video</td><td class="num best">60</td><td class="num best">88.02</td><td class="num best">96.40</td></tr></tbody></table></div></div>
+      <div class="cite">Tab.4 p.9; §4.2 p.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Long horizon</div>
+      <h2 class="head">The most distinctive chart: VRAM becomes flat over video length</h2>
+      <div class="scorebox"><span class="score score--hi">1s: 7.2GB</span><span class="score score--hi">10s: 7.2GB</span><span class="score score--hi">30s: 7.2GB</span><span class="score score--hi">60s: 7.2GB</span></div>
+      <ul class="bullets"><li>Fig.1(c) reports Block Linear Attention staying at 7.2GB VRAM from 1s to 60s at 480x832.</li><li>The causal full-attention baseline rises through 15GB, 26GB, 46GB, 76GB and eventually OOM in the same figure.</li><li>Tab.5: Long-video VBench Total 83.70, comparable to Self-Forcing 84.31 and above SkyReels-V2 82.67 / CausVid 81.20.</li></ul>
+      <table class="bench"><thead><tr><th>method</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>CausVid</td><td class="num">81.20</td><td class="num">84.05</td><td class="num">69.80</td></tr><tr><td>SkyReels-V2</td><td class="num">82.67</td><td class="num">84.70</td><td class="num">74.53</td></tr><tr><td>Self-Forcing</td><td class="num">84.31</td><td class="num">85.07</td><td class="num">81.28</td></tr><tr class="win"><td>SANA-Video</td><td class="num">83.70</td><td class="num">84.43</td><td class="num">80.78</td></tr></tbody></table>
+      <div class="cite">Fig.1(c) p.1; Tab.5 p.10; §4.3 p.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Deployment</div>
+      <h2 class="head">RTX 5090 NVFP4 makes the claim consumer-facing</h2>
+      <div class="two-col"><div><figure class="full"><img src="figures/figure7_p10.jpg" alt="BF16 vs NVFP4 latency on RTX 5090"><figcaption>Fig.7: BF16 vs NVFP4 50-step latency; extractor flagged this figure non-clean, but it is directly tied to deployment numbers.</figcaption></figure></div><div><div class="scorebox"><span class="score score--hi">480p: 120s -> 50s</span><span class="score score--hi">720p: 71s -> 29s</span><span class="score score--hi">2.4x speedup</span></div><ul class="bullets"><li>Quantizes QKV / output projections in self-attention, query/output projections in cross-attention, and 1x1 FFN convolutions.</li><li>Keeps normalization, temporal convolutions, and cross-attention KV projections at higher precision to protect quality.</li><li>Authors state quality is indistinguishable from BF16 baseline.</li></ul></div></div>
+      <div class="cite">§5 p.10; Fig.7 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablations</div>
+      <h2 class="head">The evidence is useful, but it is mostly loss / latency rather than full quality isolation</h2>
+      <ul class="bullets"><li>3D RoPE: lower training loss and more localized linear attention patterns in Fig.3 / Fig.6(a).</li><li>Temporal conv: lower training loss and improved motion performance per §4.3 and Fig.6(b).</li><li>Attention type: linear attention gains grow with resolution, reported as 2x at 480P and 4x at 720P.</li><li>Monotonic SNR sampler: Fig.6(d) shows better block consistency than random timestep sampling.</li></ul>
+      <div class="takeaway">The paper convinces as an efficient system; as a mechanism paper, it would be stronger with component-wise VBench / human preference ablations.</div>
+      <div class="cite">Fig.3 p.4; Fig.6 / §4.3 p.9; OpenReview reviews</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reviewer view</div>
+      <h2 class="head">Why did this become an ICLR Oral despite novelty concerns?</h2>
+      <div class="two-col"><div><h2 class="head">Initial concerns</h2><ul class="bullets"><li>Novelty: linear attention and block-wise processing adapt existing ideas.</li><li>Scaling: would a 5B Linear DiT close quality gaps, or hit an architecture bottleneck?</li><li>Ablation depth: loss curves do not fully validate generation quality.</li><li>VAE details / fine-detail artifacts and reproducibility before code/model release.</li></ul></div><div><h2 class="head">Meta-review resolution</h2><div class="scorebox"><span class="score score--lo">6</span><span class="score score--hi">8</span><span class="score score--hi">8</span><span class="score score--hi">8</span></div><ul class="bullets"><li>Area chair accepted the novelty as <b>system-level innovation</b>.</li><li>Rebuttal added training-longer/scaling arguments and quantitative ablations.</li><li>Community value of a trained, efficient open model was treated as significant.</li></ul></div></div>
+      <div class="cite">OpenReview decision / meta-review / official reviews</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">Where I would still be careful before adopting it</h2>
+      <ul class="bullets"><li><b>Quality gap</b>: 720p Quality 84.63 is below Wan-2.1-14B 85.77 and Wan-2.1-1.3B 85.67, even though Total/Semantic are strong.</li><li><b>Scene diversity in long clips</b>: a reviewer notes minute-scale samples can lock into one scenario with limited composition/action variation.</li><li><b>High compression risk</b>: DCAE-V robustness is promising, but high-frequency artifact analysis is not as detailed as the system result.</li><li><b>Scaling unknown</b>: no full answer yet on whether larger Linear DiT variants close the gap without sacrificing the efficiency story.</li></ul>
+      <div class="takeaway">Use SANA-Video as a strong efficiency baseline and architecture template; do not treat it as final proof that linear attention dominates quality scaling.</div>
+      <div class="cite">Tab.2 p.7; Tab.7 p.13; OpenReview reviews</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h2 class="head">What an image/video engineer can reuse immediately</h2>
+      <ol class="numbered"><li>When video tokens explode, optimize the <b>state representation</b> first; attention kernel choice changes the memory slope.</li><li>If adapting a T2I model to video, add temporal modules through zero-initialized residual/shortcut paths to preserve pretrained behavior.</li><li>For long generation, training-time conditioning must mimic inference-time generated context; self-forcing matters more once the cache can go long.</li><li>Treat VAE compression, motion filtering, caption detail, and quantization as one system; the paper’s speedups are not from attention alone.</li></ol>
+      <div class="cite">§3.1-3.5 p.4-8; §5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h2 class="head">The root bottleneck in the authors’ own words</h2>
+      <div class="hl"><p class="hl__en">"producing a single 5-second video at 720p resolution with a model like Wan 14B requires to process over 75,000 tokens, taking 32 minutes on a H100 GPU."</p><p class="hl__zh">5 秒 720p 已是 75k token 等級，一張 H100 要 32 分鐘；這是整篇 efficiency 敘事的起點。<span class="hl__src"> §1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">"we reduce the KV cache to a small and fixed memory, along with a fixed computational cost for each new token."</p><p class="hl__zh">長影片不是靠硬截斷，而是把 cache 壓成固定大小的線性注意力狀態。<span class="hl__src"> §1 p.2</span></p></div>
+      <div class="cite">Appendix highlights from spec</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix formula</div>
+      <h2 class="head">Block linear cache as sufficient statistics</h2>
+      <div class="formula">O_i = phi(Q_i) [sum_{j&lt;i} S_j + S_i] / phi(Q_i) [sum_{j&lt;i} phi(K_j)<sup>T</sup> + phi(K_i)<sup>T</sup>]</div>
+      <div class="formula">S_j = phi(K_j)<sup>T</sup>V_j; cache = [sum S_j, sum phi(K_j)<sup>T</sup>]</div>
+      <ul class="bullets"><li>The cache stores a D x D state and a D x 1 key-sum rather than N past K/V vectors.</li><li>This is why Tab.1 lists memory O(D<sup>2</sup>) for causal linear attention.</li><li>RoPE is omitted in Eq.3 for simplicity in the paper; RoPE handling is discussed separately in Eq.2.</li></ul>
+      <div class="cite">Eq.3 p.5; Tab.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix data recipe</div>
+      <h2 class="head">Motion score is both a filter and a control variable</h2>
+      <div class="two-col"><div><figure class="full"><img src="figures/figure11_p16.jpg" alt="Motion score influence in I2V"><figcaption>Fig.11: higher motion score can lead to larger motion in I2V generation.</figcaption></figure></div><div><ul class="bullets"><li>Motion quality uses Unimatch optical flow and VMAF.</li><li>Average optical flow is appended to text prompts as <code>Motion score: {unimatch value}</code>.</li><li>The paper explicitly filters out both too-fast and too-slow motion because either degrades training.</li></ul></div></div>
+      <div class="cite">App. D p.13-15; Fig.11 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix qualitative</div>
+      <h2 class="head">The I2V claim is semantic consistency plus moderate motion</h2>
+      <figure class="full"><img src="figures/figure10_p16.jpg" alt="I2V qualitative visualization"><figcaption>Fig.10: reference frame plus generated frames; authors claim consistent first-frame semantics and smooth temporal motion.</figcaption></figure>
+      <div class="cite">Fig.10 p.16; App. C.3 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">SANA-Video is a useful reminder:</h2>
+      <p class="end__sub">For video models, the cache design can be as decisive as the model size.</p>
+      <div class="end__next">Next rotation: Thursday - compute acceleration, attention kernels, hardware-aware inference.</div>
+      <div class="cite">Deck source: /Users/wanchanglin/projects/ai-research-slides-src/2026-06-24/</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
