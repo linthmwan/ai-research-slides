@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlashAttention-4: Algorithm and Kernel Pipelining Co-Design</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · Thu compute acceleration</div>
+      <h1 class="title">FlashAttention-4</h1>
+      <div class="sub">Algorithm and kernel pipelining co-design for asymmetric Blackwell scaling</div>
+      <div class="authors">Ted Zadouri · Markus Hoehnerbach · Jay Shah · Timmy Liu · Vijay Thakkar · Tri Dao</div>
+      <div class="meta-row"><span class="badge tier">MLSys 2026 paper index</span><span class="badge">arXiv:2603.05451v1</span><span class="badge date">Announced 2026-03-05</span></div>
+      <div class="cite">Source: arXiv p.1; MLSys 2026 papers page. Deck generated 2026-06-25 Asia/Taipei.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Blackwell made tensor cores too fast for the old bottleneck story.</p>
+      <p class="lead">FA4 is not just another attention kernel. It is a roofline response: shift work away from MUFU / SMEM bottlenecks, overlap softmax with async MMA, and exploit TMEM + 2-CTA MMA.</p>
+      <div class="cite">Abstract p.1; §1 p.2; §6 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why this paper today</div>
+      <h1 class="title">The useful question is no longer only: how fast is matmul?</h1>
+      <ul class="bullets"><li>B200 doubles BF16/FP16 tensor core throughput vs H100: <b>2.25 PFLOPS vs 1 PFLOPS</b>.</li><li>But MUFU exponential throughput and shared-memory bandwidth lag behind or stay flat.</li><li>The paper reports typical Blackwell attention bottlenecks where SMEM traffic and exp ops exceed MMA compute by <b>25-60%</b>.</li><li>So FA4 treats attention as a co-design problem across algorithm, kernel pipeline, memory hierarchy, and scheduling.</li></ul>
+      <div class="cite">§1 p.2 lines 68-80; §2.2 p.4 lines 190-208</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem framing</div>
+      <h1 class="title">Hopper-era FlashAttention assumptions do not transfer cleanly</h1>
+      <div class="two-col"><div><h2 class="head">Old success mode</h2><ul class="bullets"><li>Fuse attention to avoid global-memory materialization.</li><li>Tile Q/K/V so softmax can be computed online.</li><li>Exploit Hopper async execution and warp specialization.</li></ul></div><div><h2 class="head">Blackwell friction</h2><ul class="bullets"><li>Accumulator moves from registers to <b>TMEM</b>.</li><li>MMA tile grows to <b>128x128</b>.</li><li>Non-MMA work becomes visible after tensor-core scaling.</li><li>Hopper MMA instructions are not forward-compatible.</li></ul></div></div>
+      <div class="cite">§1 p.1-2; §2.2 p.3-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contribution map</div>
+      <h1 class="title">FA4 attacks four bottleneck classes</h1>
+      <ol class="numbered"><li>Pipeline: overlap larger-tile async MMA with softmax / memory movement.</li><li>Exp: partially emulate 2<sup>x</sup> via polynomial FMA/ALU path.</li><li>Online softmax: skip rescaling unless max shift exceeds tau.</li><li>Backward: use TMEM + 2-CTA MMA to lower SMEM traffic and halve dQ atomics.</li><li>Framework: write the kernel in CuTe-DSL / Python for fast JIT iteration.</li></ol>
+      <div class="cite">§1 p.2; §3.1-3.3; §4 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Roofline: forward</div>
+      <h1 class="title">Forward pass: exp can be as costly as MMA</h1>
+      <table class="bench"><thead><tr><th>Tile</th><th class="num">MMA cycles</th><th class="num">SMEM cycles</th><th class="num">Exp cycles</th></tr></thead><tbody><tr class="win"><td>128 x 128 x 128</td><td class="num best">1024</td><td class="num">768</td><td class="num best">1024</td></tr><tr class="win"><td>256 x 128 x 128</td><td class="num best">2048</td><td class="num">1536</td><td class="num best">2048</td></tr></tbody></table>
+      <div class="takeaway">If exp takes the same cycles as tensor-core work, hiding or rerouting softmax becomes first-order.</div>
+      <div class="cite">Table 1, §3.1.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Forward pipeline</div>
+      <h1 class="title">Ping-pong two tiles: while one MMA runs, the other softmaxes</h1>
+      <figure class="full"><img src="figures/figure1_p6.jpg" alt="FlashAttention-4 forward pipeline"><figcaption>Figure 1: forward pipeline with high/low Q tiles and TMEM-mediated overlap.</figcaption></figure>
+      <ul class="bullets"><li>Two softmax warpgroups process full rows and avoid inter-warp row-max shuffles.</li><li>A correction warpgroup handles output rescaling outside the critical path.</li><li>P / S partitioning in TMEM is chosen to start by computing two S tiles immediately.</li></ul>
+      <div class="cite">Fig.1 p.6; §3.1.2 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown · forward</div>
+      <p class="big">TMEM turns register pressure into pipeline room.</p>
+      <p class="lead">Hopper accumulators lived in registers; Blackwell accumulators live in tensor memory. FA4 spends that new memory level to decouple MMA, softmax, and correction work.</p>
+      <div class="cite">§2.2 p.3-4; §3.1.2 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Exp emulation</div>
+      <h1 class="title">Do not wait only for MUFU: split 2<sup>x</sup> across ALU/FMA</h1>
+      <div class="formula">2<sup>x</sup> = 2<sup>floor(x)</sup> · 2<sup>x - floor(x)</sup></div>
+      <ul class="bullets"><li>Integer part: manipulate IEEE-754 exponent bits.</li><li>Fractional part: polynomial approximation evaluated with FMA.</li><li>Only <b>10-25%</b> of entries are emulated, avoiding register spills from doing this everywhere.</li></ul>
+      <div class="cite">§3.1.3 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Numerics</div>
+      <h1 class="title">BF16 quantization hides low-degree polynomial error</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">FP32 max rel err</th><th class="num">BF16 max rel err</th><th class="num">BF16 mean rel err</th></tr></thead><tbody><tr class="win"><td>Hardware MUFU.EX2</td><td class="num best">1.41e-7</td><td class="num best">3.89e-3</td><td class="num best">1.41e-3</td></tr><tr><td>Degree 3 polynomial</td><td class="num">8.77e-5</td><td class="num">3.90e-3</td><td class="num">1.41e-3</td></tr><tr class="win"><td>Degree 5 polynomial</td><td class="num">1.44e-7</td><td class="num best">3.89e-3</td><td class="num best">1.41e-3</td></tr></tbody></table>
+      <div class="takeaway">The raw FP32 approximation differs, but after BF16 rounding the reported error is essentially at the quantization floor.</div>
+      <div class="cite">Table 2, §3.1.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Online softmax</div>
+      <h1 class="title">Conditional rescaling removes vector work without losing final correctness</h1>
+      <div class="formula">Rescale only if m<sub>j</sub> - m<sub>j-1</sub> &gt; tau, with tau = log<sub>2</sub>(256) = 8.0</div>
+      <ul class="bullets"><li>Standard online softmax rescales old output whenever the running max increases.</li><li>FA4 tolerates slack and records statistics, then renormalizes with the true final max and denominator.</li><li>Warp divergence is avoided by rescaling when any thread in the warp needs it.</li></ul>
+      <div class="cite">§3.1.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Backward graph</div>
+      <h1 class="title">Backward has five MMAs and a worse SMEM story</h1>
+      <figure class="full"><img src="figures/figure2_p10.jpg" alt="FA4 backward computation graph"><figcaption>Figure 2: backward graph and pipeline order across prologue, main loop, and tail.</figcaption></figure>
+      <ul class="bullets"><li>Backward recomputes S and computes gradients induced by QK and PV.</li><li>FA4 uses TMEM to fit overlapping accumulator regions, but not all five tiles at once.</li><li>The schedule hides softmax by overlapping with dQ/dK MMA from the previous iteration.</li></ul>
+      <div class="cite">Fig.2 p.10; §3.2.1-3.2.2 p.10-12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Roofline: backward</div>
+      <h1 class="title">2-CTA mode turns a 30% SMEM excess into about 5%</h1>
+      <table class="bench"><thead><tr><th>Resource</th><th class="num">1-CTA M=128</th><th class="num">2-CTA M=256</th></tr></thead><tbody><tr><td>MMA compute</td><td class="num">2560</td><td class="num">2560</td></tr><tr class="win"><td>SMEM operands</td><td class="num">2048</td><td class="num best">1536</td></tr><tr class="win"><td>dQ write + read</td><td class="num">1024</td><td class="num best">512</td></tr><tr class="win"><td>Total SMEM</td><td class="num">3328</td><td class="num best">2688</td></tr><tr><td>Exp unit</td><td class="num">1024</td><td class="num">1024</td></tr></tbody></table>
+      <div class="cite">Table 3, §3.2.1 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">2-CTA dQ</div>
+      <h1 class="title">Distributed shared memory repacks dS for paired MMA</h1>
+      <figure class="full"><img src="figures/figure3_p11.jpg" alt="2-CTA backward dQ step"><figcaption>Figure 3: CTA pair exchanges half of dS, then runs a doubled-reduction UMMA.</figcaption></figure>
+      <ul class="bullets"><li>Each CTA stages half of operand B and owns its accumulator slice.</li><li>For dQ, DSMEM exchange gives each CTA M/2 rows and the full 2N reduction.</li><li>Each CTA writes half of the dQ tile, halving global atomic reductions.</li></ul>
+      <div class="cite">Fig.3 p.11; §3.2.3 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scheduling</div>
+      <h1 class="title">Causal attention is triangular, so FIFO scheduling is the wrong instinct</h1>
+      <div class="two-col"><div><h2 class="head">Throughput path</h2><ul class="bullets"><li>Use <b>LPT</b>: longest-processing-time-first over tile order.</li><li>Keep batch outermost and swizzle heads to protect L2 locality.</li><li>Reported H200 gains: <b>4-8%</b> MHA, <b>7-14%</b> MQA 8.</li></ul></div><div><h2 class="head">Deterministic path</h2><ul class="bullets"><li>Semaphore locks serialize global reductions.</li><li>CTA swizzling reduces waiting.</li><li>For causal masking, SPT order avoids first-write stalls.</li></ul></div></div>
+      <div class="cite">§3.2.4 p.12-13; §3.3 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Framework</div>
+      <h1 class="title">CuTe-DSL makes kernel research iteration less punishing</h1>
+      <div class="scorebox"><span class="score">22x forward compile</span><span class="score">32x backward compile</span><span class="score">Python JIT</span></div>
+      <table class="bench"><thead><tr><th>Method</th><th>Forward</th><th>Backward</th></tr></thead><tbody><tr><td>FlashAttention-3</td><td>55s</td><td>45s</td></tr><tr class="win"><td>FlashAttention-4</td><td class="best">2.5s</td><td class="best">1.4s</td></tr><tr class="win"><td>Speedup</td><td class="best">22x</td><td class="best">32x</td></tr></tbody></table>
+      <div class="takeaway">The point is not abstraction instead of control; CuTe-DSL preserves low-level PTX escape hatches while shortening the compile loop.</div>
+      <div class="cite">Table 4, §4 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Benchmark setup</div>
+      <h1 class="title">Evaluation isolates attention throughput across sequence / head regimes</h1>
+      <ul class="bullets"><li>Baselines: PyTorch, FlashAttention-2, Triton B200-specific path, Gluon, and cuDNN.</li><li>Sequence lengths 1k to 32k; batch size chosen so total tokens = 32k.</li><li>Hidden dimension 2048; head dimensions 64, 128, plus DeepSeek-style (192 query, 128 KV).</li><li>Important caveat: main text emphasizes B200; appendix A.1 labels speed benchmark hardware as B100 180GB SXM6.</li></ul>
+      <div class="cite">§5 p.14-15; Appendix A.1 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Forward results</div>
+      <h1 class="title">FA4 leads at medium and long sequence lengths</h1>
+      <figure class="full"><img src="figures/figure4_p15.jpg" alt="Forward pass TFLOPS on B200"><figcaption>Figure 4: forward TFLOPS, head dimension 128, non-causal and causal.</figcaption></figure>
+      <ul class="bullets"><li>Reported <b>1.1-1.3x</b> over cuDNN 9.13.</li><li>Reported <b>2.1-2.7x</b> over Triton.</li><li>Peak reported throughput: <b>1613 TFLOPs/s</b>, about <b>71%</b> of theoretical B200 max.</li></ul>
+      <div class="cite">Fig.4 p.15; §5 p.14-15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Forward results · DeepSeek-style head shape</div>
+      <h1 class="title">The paper also checks asymmetric Q/KV head dimensions</h1>
+      <figure class="full"><img src="figures/figure5_p15.jpg" alt="Forward comparison for (192,128) head dimensions"><figcaption>Figure 5: cuDNN vs FA4 for causal attention with (192,128) head dimensions.</figcaption></figure>
+      <div class="takeaway">This matters because production LLM architectures increasingly use non-square head dimensions; a kernel story only for textbook d=128 is too narrow.</div>
+      <div class="cite">Fig.5 p.15; §5 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Backward results</div>
+      <h1 class="title">Backward speedups validate the 2-CTA / TMEM story</h1>
+      <figure class="full"><img src="figures/figure6_p16.jpg" alt="Backward pass TFLOPS on B200"><figcaption>Figure 6: backward TFLOPS on B200, non-causal and causal.</figcaption></figure>
+      <ul class="bullets"><li>Consistent long-sequence speedups are attributed to the 2-CTA backward pass.</li><li>The result supports the roofline claim: reducing SMEM traffic matters once tensor-core time is no longer dominant.</li></ul>
+      <div class="cite">Fig.6 p.16; §5.2 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Deterministic backward</div>
+      <h1 class="title">Reproducibility is treated as a scheduling problem, not just a lock</h1>
+      <figure class="full"><img src="figures/figure7_p16.jpg" alt="Deterministic backward ablations"><figcaption>Figure 7: deterministic causal backward ablations across SPT/LPT/swizzle choices.</figcaption></figure>
+      <ul class="bullets"><li>Naive serialization can stall CTAs badly.</li><li>Swizzling and SPT reduce lock waiting.</li><li>Reported deterministic backward reaches up to <b>75%</b> of nondeterministic 1-CTA speed.</li></ul>
+      <div class="cite">Fig.7 p.16; §3.2.4 p.12-13; §5.2 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Engineer’s interpretation</div>
+      <p class="big">FA4 is a reminder that every hardware generation changes the definition of “obvious.”</p>
+      <p class="lead">A kernel that was IO-aware on A100 and async-aware on H100 must become non-MMA-aware on B200. The invariant is not a particular trick; it is measuring the current bottleneck honestly.</p>
+      <div class="cite">Synthesis from §1, §3, §6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Practical playbook</div>
+      <h1 class="title">If you build attention variants on Blackwell, borrow the questions</h1>
+      <ol class="numbered"><li>Can softmax / exp be overlapped with at least two independent MMA waves?</li><li>Can a subset of special-function work move to FMA/ALU without register spills?</li><li>Does the backward roofline say SMEM, atomics, or exp is actually limiting?</li><li>Does causal / varlen scheduling start with heavy tiles, or end with stragglers?</li><li>Is compile time short enough that kernel design can iterate experimentally?</li></ol>
+      <div class="cite">§3.1-3.3; §4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits / caveats</div>
+      <h1 class="title">Do not over-generalize the win</h1>
+      <ul class="bullets"><li>Full design relies on Blackwell features: TMEM, fully async MMA, and 2-CTA MMA.</li><li>Polynomial exp emulation is partial by necessity; doing all entries risks register pressure and spills.</li><li>cuDNN incorporated some FA4 techniques after the initial release, so the exact speed gap is version-sensitive.</li><li>The paper’s hardware labels deserve careful reading: main text says B200, appendix A.1 says B100 180GB SXM6 for speed benchmarking.</li></ul>
+      <div class="cite">§3.1.3 p.8; §6 p.16; Fig.4 caption p.15; App. A.1 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · key quote</div>
+      <h1 class="title">The bottleneck shift in the authors’ words</h1>
+      <div class="hl"><p class="hl__en">Although Blackwell B200 doubles the tensor core throughput compared to Hopper H100 (2.25 PFLOPS vs. 1 PFLOPS for FP16/BF16), other functional units ... scale more slowly or remain unchanged.</p><p class="hl__zh">Blackwell 的矩陣乘法變快很多，但 shared memory 與 exponential units 沒有同步成長，這才是 FA4 的出發點。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">For typical attention workloads on Blackwell, surprisingly, shared memory traffic and exponential operations now dominate execution time, exceeding MMA compute by 25-60%.</p><p class="hl__zh">典型 Blackwell attention 中，瓶頸反而轉到 shared memory traffic 與 exponential operations，超過 MMA compute 約 25-60%。<span class="hl__src">§1 p.2</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · numerics and productivity</div>
+      <h1 class="title">Two small details that make the method believable</h1>
+      <div class="hl"><p class="hl__en">The degree-3 polynomial matches hardware to within 1 BF16 ULP on 99% of inputs.</p><p class="hl__zh">因為最後要捨入到 BF16，低階 polynomial exp 的誤差多半被 BF16 量化誤差吃掉。<span class="hl__src">§3.1.3 p.8</span></p></div>
+      <div class="hl"><p class="hl__en">FlashAttention-4 reduces compile time by 20-30x compared to FlashAttention-3.</p><p class="hl__zh">CuTe-DSL 的價值不只是跑得快，也讓 kernel 實驗不用一直卡在 C++ template 編譯等待。<span class="hl__src">§4 p.14</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Bottom line</h2>
+      <p class="end__sub">FlashAttention-4 is a clean example of hardware-aware algorithm design: measure the shifted roofline, then redesign the kernel around the new limiting resource.</p>
+      <div class="end__next">Tomorrow: model compression / efficiency rotation</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
