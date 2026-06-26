@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAT-Q: Cost-efficient and Accurate Ternary Quantization for LLMs</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">ICML 2026 Oral · Model Compression / Efficiency · 2026-06-26</div>
+      <h1 class="title">CAT-Q: Cost-efficient and Accurate Ternary Quantization for LLMs</h1>
+      <div class="authors">Shigeng Wang, Chao Li, Yangyuxuan Kang, Jiawei Fan, Anbang Yao · Intel Labs China</div>
+      <div class="meta-row"><span class="badge tier">1.58-bit PTQ</span><span class="badge date">512 calibration samples</span><span class="badge">1.7B–235B models</span></div>
+      <div class="cite">Source: arXiv:2606.26650v1; Proceedings of ICML 2026, PMLR 306</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Ternary LLMs no longer have to be trained from scratch.</p>
+      <p class="lead">CAT-Q uses PTQ, not QAT: 512 calibration samples (~1M tokens) produce 1.58-bit LLMs that compete with BitNet / TriLM-style models trained on 100B–1T tokens.</p>
+      <div class="scorebox"><span class="score score--hi">~100,000x fewer tokens</span><span class="score score--hi">1–60h on 8x A100</span><span class="score score--hi">up to 235B params</span></div>
+      <div class="cite">Abstract p.1; §3.3 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h1 class="title">1.58-bit PTQ is attractive, but historically unstable</h1>
+      <ul class="bullets"><li>Ternary weights map each value to <b>{-1, 0, +1}</b>, giving >10x memory reduction vs FP16 and replacing many multiplications with additions/subtractions.</li><li>Standard PTQ is practical at 8-bit and sometimes 4-bit, but ultra-low-bit 2-bit / 1.58-bit settings suffer severe information loss.</li><li>Existing high-performing ternary LLMs mostly use QAT / retraining, which is expensive and architecture-specific.</li></ul>
+      <div class="takeaway">CAT-Q asks: can ternary LLMs be made with the PTQ workflow engineers actually want?</div>
+      <div class="cite">Introduction p.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost of prior ternary LLMs</div>
+      <h1 class="title">The previous recipe was “spend tokens until ternary behaves”</h1>
+      <table class="bench"><thead><tr><th>Family</th><th>Quantization route</th><th class="num">Training tokens</th><th class="num">Max scale / note</th></tr></thead><tbody><tr><td>BitNet 1.58-bit v2</td><td>QAT</td><td class="num">100B</td><td class="num">largest 7B</td></tr><tr><td>TriLM</td><td>QAT</td><td class="num">300B</td><td class="num">largest 3.9B</td></tr><tr><td>Tequila</td><td>re-training / QAT-like</td><td class="num">10B</td><td class="num">only 1B and 3B Llama3</td></tr><tr class="win"><td>CAT-Q</td><td>PTQ calibration</td><td class="num best">~1M</td><td class="num">1.7B–235B</td></tr></tbody></table>
+      <div class="takeaway">The central efficiency claim is not “slightly faster training” — it is replacing QAT-scale token budgets with calibration-scale PTQ.</div>
+      <div class="cite">§1 p.2; Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core diagnosis</div>
+      <h1 class="title">CAT-Q identifies two coupled failure modes</h1>
+      <ol class="numbered"><li><b>Distributional misalignment:</b> direct ternarization creates ternary weights whose distribution does not align with the pretrained FP weights.</li><li><b>Non-differentiable convergence:</b> hard ternarization is too abrupt for PTQ; unlike QAT, there is no long retraining phase to absorb the shock.</li><li><b>Layer isolation:</b> single-layer reconstruction ignores neighboring-layer compensation, worsening the error budget.</li></ol>
+      <div class="takeaway">The method is built around these three points: LM for alignment, ST for convergence, sliding-window reconstruction for cross-layer compensation.</div>
+      <div class="cite">§1 p.2; §2.2-2.4 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method overview</div>
+      <h1 class="title">CAT-Q learning flow: redistribute → soften → hard ternarize</h1>
+      <figure class="full" style="max-height:50vh; margin-top:.4rem;"><img src="figures/figure1_p3.jpg" alt="figure"></figure>
+      <p class="note">Flow: W → Ŵ → differentiable ternarization → hard T; deploy as W ≈ αT.</p>
+      <div class="cite">Figure 1 p.3; §2.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ternary formulation</div>
+      <h1 class="title">The target is still the classic ternary reconstruction problem</h1>
+      <div class="formula">min<sub>α,T</sub> ||W - αT||<sup>2</sup><sub>2</sub>,  where T<sub>i</sub> ∈ {-1, 0, +1}</div>
+      <div class="formula">T<sub>i</sub> = 1 if W<sub>i</sub> &gt; Δ; 0 if |W<sub>i</sub>| ≤ Δ; -1 if W<sub>i</sub> &lt; -Δ</div>
+      <ul class="bullets"><li>TWN and absmean-style ternarization estimate α and Δ from fixed statistics.</li><li>CAT-Q keeps the hardware-friendly target but learns how to approach it under PTQ.</li></ul>
+      <div class="cite">§2.1 p.3 Eq.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Learnable Modulation (LM)</div>
+      <h1 class="title">LM does not just tune α and Δ — it changes the coordinate system</h1>
+      <div class="two-col"><div><div class="formula">Ŵ = (W - µ) / α</div><div class="formula">µ = µ<sub>0</sub> + δ<sub>µ</sub>α<sub>0</sub><br>α = δ<sub>α</sub>α<sub>0</sub><br>Δ = δ<sub>Δ</sub>Δ<sub>0</sub></div><ul class="bullets"><li>µ<sub>0</sub>, α<sub>0</sub>, Δ<sub>0</sub> are statistics-based priors.</li><li>δ factors are learned with calibration samples.</li></ul></div><div><ul class="bullets"><li>Ŵ is a <b>redistribution proxy</b>: the model learns a representation where ternary thresholding is less destructive.</li><li>Reconstruction remains <b>W ≈ αT</b> at deployment, preserving ternary implementation simplicity.</li></ul></div></div>
+      <div class="cite">§2.2 p.4 Eq.3-4; Appendix B.2 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why LM matters</div>
+      <h1 class="title">Reconstruction error collapses when the distribution is learned</h1>
+      <figure class="full"><img src="figures/figure2_p3.jpg" alt="figure"><figcaption>Figure 2: on Qwen3-4B layer 4, LM (green) has far lower weight reconstruction errors than static approximation (blue) and direct learning (orange).</figcaption></figure>
+      <div class="takeaway">The visual result matches the diagnosis: the key is distribution alignment, not merely “make α learnable.”</div>
+      <div class="cite">Figure 2 p.3; §3.4 p.8 Table 8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Softened Ternarization (ST)</div>
+      <h1 class="title">ST turns hard discretization into a curriculum</h1>
+      <figure class="full" style="max-height:42vh; margin-top:.4rem;"><img src="figures/figure3_p4.jpg" alt="figure"></figure>
+      <p class="note">ST schedule: identity → differentiable ternary until γ → hard ternary.</p>
+      <div class="cite">§2.3 p.4-5 Eq.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Sliding-layer optimization</div>
+      <h1 class="title">The reconstruction target is a window output, not each layer alone</h1>
+      <div class="formula">min<sub>A,T</sub> ||F(W, X) - F(A · T, X)||<sup>2</sup><sub>2</sub></div>
+      <ul class="bullets"><li>W is the set of FP weights in the current sliding window; A and T are the corresponding scales and ternary weights.</li><li>Neighboring layers become aware of each other, so compensation can happen inside the window.</li><li>This relaxes pure weight reconstruction into output reconstruction, reducing optimization difficulty.</li></ul>
+      <div class="cite">§2.4 p.5 Eq.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h1 class="title">Evaluation spans model family, size, and architecture</h1>
+      <div class="scorebox"><span class="score score--hi">10 LLMs</span><span class="score score--hi">1.7B–235B</span><span class="score score--hi">dense + MoE</span><span class="score">512 x 2048 C4 tokens</span></div>
+      <ul class="bullets"><li>Dense models: Llama2 and Qwen3 families; MoE: Qwen3-30B-A3B, Qwen3-235B-A22B, Ring-flash-2.0 100B-A6.1B.</li><li>Zero-shot commonsense benchmarks: PIQA, ARC-Easy, ARC-Challenge, HellaSwag, Winogrande.</li><li>Default hyperparameters: group size 128, Δ<sub>0</sub>=0.5, s<sub>0</sub>=30, γ=0.8, 60 epochs, AdamW.</li></ul>
+      <div class="cite">§3.1 p.5; Appendix B.1 Table A p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 1 · vs QAT ternary methods</div>
+      <h1 class="title">At similar scales, CAT-Q reaches QAT-level accuracy with calibration tokens</h1>
+      <table class="bench" style="compact"><thead><tr><th>Model / method</th><th>Tokens</th><th class="num">Avg acc.</th><th class="num">Readout</th></tr></thead><tbody><tr><td>BitNetV1-1.3B</td><td>100B</td><td class="num">48.28</td><td class="num">QAT baseline</td></tr><tr><td>TriLM-1.5B</td><td>300B</td><td class="num">50.20</td><td class="num">QAT baseline</td></tr><tr class="win"><td>Qwen3-1.7B + CAT-Q</td><td>1M</td><td class="num best">51.01</td><td class="num">PTQ wins</td></tr><tr><td>TequilaLLM-3B</td><td>10B</td><td class="num">57.60</td><td class="num">retraining</td></tr><tr><td>Qwen3-4B + CAT-Q</td><td>1M</td><td class="num">57.06</td><td class="num">near Tequila</td></tr><tr class="win"><td>Qwen3-4B + CAT-Q</td><td>2M</td><td class="num best">58.80</td><td class="num">beats Tequila</td></tr><tr><td>BitNetV1-7B</td><td>100B</td><td class="num">57.42</td><td class="num">QAT baseline</td></tr><tr class="win"><td>Qwen3-8B + CAT-Q</td><td>1M</td><td class="num best">61.76</td><td class="num">PTQ wins</td></tr></tbody></table>
+      <div class="cite">Table 2 p.6; §3.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 2 · vs recent PTQ</div>
+      <h1 class="title">CAT-Q beats 2-bit PTQ while using 1.58-bit weights</h1>
+      <table class="bench"><thead><tr><th>Model</th><th>Method</th><th class="num">Bits</th><th class="num">Avg acc.</th></tr></thead><tbody><tr><td>Llama2-7B</td><td>SliderQuant</td><td class="num">W2A16</td><td class="num">55.38</td></tr><tr class="win"><td>Llama2-7B</td><td>CAT-Q</td><td class="num">W1.58A16</td><td class="num best">57.69</td></tr><tr><td>Llama2-70B</td><td>SliderQuant</td><td class="num">W2A16</td><td class="num">71.08</td></tr><tr class="win"><td>Llama2-70B</td><td>CAT-Q</td><td class="num">W1.58A16</td><td class="num best">72.72</td></tr></tbody></table>
+      <div class="takeaway">The paper’s strongest PTQ claim: lower bit width, better average accuracy, and practical deployment formats.</div>
+      <div class="cite">Table 4 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Scale result</div>
+      <p class="big">The 235B result is the “PTQ scalability” proof point.</p>
+      <p class="lead">CAT-Q reports ternarizing LLMs from 1.7B to 235B parameters, with 1–60 hours on 8 A100-80GB GPUs. Qwen3-235B-A22B reaches 69.09 average accuracy under W1.58A16.</p>
+      <div class="scorebox"><span class="score score--hi">235B params</span><span class="score score--hi">≤60h</span><span class="score">8x A100-80GB</span><span class="score score--hi">69.09 avg</span></div>
+      <div class="cite">Table 1 p.6; §3.3 p.7; Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Deployment</div>
+      <h1 class="title">The low-bit representation translates into throughput, not only storage</h1>
+      <table class="bench" style="compact"><thead><tr><th>Model</th><th>Format</th><th class="num">Weight memory</th><th class="num">CPU tok/s</th><th class="num">GPU tok/s</th></tr></thead><tbody><tr><td>Qwen3-4B</td><td>W4A16</td><td class="num">2.32 GB</td><td class="num">19.31</td><td class="num">225.91</td></tr><tr><td>Qwen3-4B</td><td>W2A16</td><td class="num">1.55 GB</td><td class="num">23.84</td><td class="num">268.51</td></tr><tr class="win"><td>Qwen3-4B</td><td>CAT-Q</td><td class="num">1.01/1.17 GB</td><td class="num">37.35</td><td class="num best">320.34</td></tr><tr><td>Llama2-7B</td><td>W4A16</td><td class="num">3.80 GB</td><td class="num">11.83</td><td class="num">174.34</td></tr><tr><td>Llama2-7B</td><td>W2A16</td><td class="num">2.63 GB</td><td class="num">17.01</td><td class="num">210.72</td></tr><tr class="win"><td>Llama2-7B</td><td>CAT-Q</td><td class="num">1.62/1.90 GB</td><td class="num">26.30</td><td class="num best">281.66</td></tr></tbody></table>
+      <div class="cite">Table 13 p.9; llama.cpp, i9-13900KF + RTX 4090, batch 1, 512-token generation</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">CAT-Q works because it separates “where to quantize” from “how to converge.”</p>
+      <ul class="bullets"><li><b>LM</b> finds a ternary-friendly coordinate system by learning distribution and threshold modulation.</li><li><b>ST</b> makes the discrete jump gradual: identity → differentiable ternary → hard ternary.</li><li><b>Sliding reconstruction</b> lets local layer windows compensate quantization error together.</li></ul>
+      <div class="cite">§2.2-2.4; Table 5-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · LM</div>
+      <h1 class="title">Static approximation → direct learning → LM is a large jump</h1>
+      <table class="bench"><thead><tr><th>Model</th><th>Strategy</th><th class="num">Avg acc.</th><th class="num">Delta vs SA</th></tr></thead><tbody><tr><td>Qwen3-4B</td><td>Static approximation</td><td class="num">40.16</td><td class="num">--</td></tr><tr><td>Qwen3-4B</td><td>Direct learning</td><td class="num">46.94</td><td class="num">+6.78</td></tr><tr class="win"><td>Qwen3-4B</td><td>LM (ours)</td><td class="num best">57.06</td><td class="num">+16.90</td></tr><tr><td>Llama2-7B</td><td>Static approximation</td><td class="num">45.37</td><td class="num">--</td></tr><tr><td>Llama2-7B</td><td>Direct learning</td><td class="num">50.23</td><td class="num">+4.86</td></tr><tr class="win"><td>Llama2-7B</td><td>LM (ours)</td><td class="num best">57.69</td><td class="num">+12.32</td></tr></tbody></table>
+      <div class="takeaway">This is the cleanest evidence that distribution modulation is the main technical lever.</div>
+      <div class="cite">Table 8 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · LM + ST synergy</div>
+      <h1 class="title">ST adds the final stability gain on top of LM</h1>
+      <table class="bench"><thead><tr><th>Model</th><th>Baseline</th><th class="num">LM-only</th><th class="num">LM + ST</th></tr></thead><tbody><tr class="win"><td>Qwen3-4B</td><td>40.16</td><td class="num">53.19</td><td class="num best">57.06</td></tr><tr class="win"><td>Llama2-7B</td><td>45.37</td><td class="num">55.97</td><td class="num best">57.69</td></tr></tbody></table>
+      <ul class="bullets"><li>γ = 0.8 is the default sweet spot; γ = 1.0 drops accuracy, so the hard stage after differentiable relaxation still matters.</li><li>s<sub>0</sub> = 30 is best in the reported sweep; too smooth or too sharp both hurt.</li></ul>
+      <div class="cite">Table 5-7 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Implementation details</div>
+      <h1 class="title">The default recipe is intentionally small and reproducible</h1>
+      <table class="bench"><thead><tr><th>Configuration</th><th>Setting</th><th class="num">Why it matters</th></tr></thead><tbody><tr><td>Calibration set</td><td>C4</td><td class="num">standard PTQ calibration corpus</td></tr><tr><td>Samples x length</td><td>512 x 2048</td><td class="num">~1M calibration tokens</td></tr><tr><td>Group size</td><td>128</td><td class="num">matches recent ternary QAT comparisons</td></tr><tr><td>Δ0 / s0 / γ</td><td>0.5 / 30 / 0.8</td><td class="num">ST schedule defaults</td></tr><tr><td>Optimizer / epochs</td><td>AdamW / 60</td><td class="num">short PTQ optimization</td></tr></tbody></table>
+      <div class="takeaway">The recipe is not data-hungry; its complexity is in the optimization path, not the dataset.</div>
+      <div class="cite">Appendix B.1 p.14 Table A</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h1 class="title">The method solves quantization, but the ecosystem is not done</h1>
+      <ul class="bullets"><li><b>Kernel support:</b> optimized public 1.58-bit GPU/CPU kernels are still mostly tied to BitNet-style models; diverse ternary LLM kernels remain lacking.</li><li><b>Accuracy gap:</b> there is still room to close the FP16 gap, especially on complex reasoning tasks.</li><li><b>MoE sensitivity:</b> MoE models show larger quantization sensitivity, likely because fewer parameters are active per token.</li><li><b>Evaluation breadth:</b> commonsense zero-shot is strong, but production instruction-following / long-context behavior needs more stress testing.</li></ul>
+      <div class="cite">Appendix G p.16; §3.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineer’s reading</div>
+      <h1 class="title">What to take away if you build inference systems</h1>
+      <ol class="numbered"><li>1.58-bit PTQ is becoming less of a toy if the optimization path is designed for discreteness rather than borrowed from 4-bit PTQ.</li><li>The bottleneck may shift from quantization algorithm to kernel availability and format standardization.</li><li>For edge / local inference, ternary weight-only + low-bit activation paths are worth tracking, especially if llama.cpp-style formats mature.</li></ol>
+      <div class="takeaway">CAT-Q is most compelling as a bridge: pretrained FP LLM → cheap PTQ → deployable ternary checkpoint.</div>
+      <div class="cite">Synthesis from §2-3 and Appendix G</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h1 class="title">Key claim in the authors’ own words</h1>
+      <div class="hl"><p class="hl__en">“CAT-Q can efficiently quantize them into ternary models using only 512 calibration samples ... yielding about a 100,000x reduction in training tokens.”</p><p class="hl__zh">CAT-Q 只用 512 個校準樣本就能量化成 ternary model，訓練 token 相對 BitNet 1.58-bit v1/v2 約少 100,000 倍。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">“The first challenge is that direct ternarization ... tends to generate a ternary weight distribution that is not well aligned with the high-precision weight distribution.”</p><p class="hl__zh">第一個核心問題是 ternary weights 與原始 FP weights 的分布不對齊。<span class="hl__src">§1 p.2</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h1 class="title">The mechanism and the deployment caveat</h1>
+      <div class="hl"><p class="hl__en">“By this two-stage relay of differentiable ternarization and hard ternarization, ST establishes a smooth transition that effectively guides the ternarization process toward stable convergence.”</p><p class="hl__zh">ST 的關鍵是先用可微分路徑靠近 ternary，再切回 hard ternarization，讓收斂更穩。<span class="hl__src">§2.3 p.5</span></p></div>
+      <div class="hl"><p class="hl__en">“Optimized kernel support for diverse 1.58-bit LLMs remains lacking.”</p><p class="hl__zh">方法能產出 ternary LLM，但通用高效 kernel ecosystem 還沒有完全成熟。<span class="hl__src">Appendix G p.16</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">今日結論</h2>
+      <p class="end__sub">CAT-Q 的價值不只在 1.58-bit 數字，而是在把 ternary LLM 從 QAT 工程變成 PTQ 工程。</p>
+      <div class="end__next">明日主題：AI Agent 框架 / 多模態系統</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
