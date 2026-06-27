@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resp-Agent: An Agent-Based System for Multimodal Respiratory Sound Generation and Disease Diagnosis</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 2026-06-27</div>
+      <h1 class="title">Resp-Agent</h1>
+      <div class="sub">An Agent-Based System for Multimodal Respiratory Sound Generation and Disease Diagnosis</div>
+      <div class="authors">Pengfei Zhang · Tianxin Xie · Minghao Yang · Li Liu<br>The Hong Kong University of Science and Technology (Guangzhou)</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv:2602.15909v3</span><span class="badge">AI Agent / Multimodal System</span></div>
+      <div class="cite">Source: arXiv:2602.15909, title page p.1; arXiv metadata comments.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">今日一句話</div>
+      <p class="big">把 failure mining 接上可控生成器，augmentation 就從「補資料」變成「agent 控制迴路」。</p>
+      <p class="lead">Thinker-A2CA 找診斷弱點，Generator 合成目標病例，Diagnoser 用 text-audio anchors 捕捉短暫病理聲音。</p>
+      <div class="cite">§1 p.2; §4 p.4; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">問題不是只有「分類器不夠強」</h1>
+      <ul class="bullets"><li><b>Representation gap:</b> spectrogram / CNN pipeline 會模糊 crackles 等 transient events；text-only EHR 又缺少客觀聲學證據。</li><li><b>Data gap:</b> 公開呼吸聲資料集小、異質、長尾，且很少有標準化 multimodal clinical context。</li><li><b>System gap:</b> 診斷與生成通常分開做，無法把「模型錯在哪」直接轉成「該合成什麼」。</li><li><b>Evaluation gap:</b> in-domain split 容易樂觀；paper 強制 source-disjoint Test-CD。</li></ul>
+      <div class="takeaway">Resp-Agent 的主張：用 agent planner 把資料、生成、診斷三者綁成閉環。</div>
+      <div class="cite">§1 p.1–2; §3 p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">核心貢獻：一個 benchmark + 一個閉環 agent system</h1>
+      <ol class="numbered"><li><b>Resp-229k:</b> 229,101 clips / 408 h / 16 classes，附 LLM-rendered clinical summaries。</li><li><b>Thinker-A2CA:</b> compute-aware LLM planner，依 rationales、error profiles、confidence 安排 targeted synthesis。</li><li><b>Generator:</b> Qwen3-0.6B-Base + modality injection + CFM，解耦 pathology content 與 acoustic style。</li><li><b>Diagnoser:</b> Longformer modality weaving + sparse audio anchors，把 EHR text 對齊 10 秒音訊中的 transient cues。</li><li><b>Evidence:</b> ICBHI Score 72.70；Test-CD Macro-F1 從 0.212 拉到 0.598。</li></ol>
+      <div class="cite">§3 p.3–4; §4 p.4–8; §5 p.8–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Resp-229k：資料規模與 split 本身就是貢獻</h1>
+      <div class="two-col"><div><h2 class="head">資料集設計</h2><ul class="bullets"><li>238,074 raw clips → 229,101 quality-controlled samples。</li><li>16 classes：15 disease categories + healthy control。</li><li>Clinical summaries 由 DeepSeek-R1-Distill-Qwen-7B 整理 metadata，不直接聽音訊。</li><li>二階段 audit：rule checks + stronger verifier critique + human sampling review。</li></ul></div><div><table class="bench" style="compact"><thead><tr><th>Split</th><th class="num">#Files</th><th class="num">Hours</th><th class="num">Mean s</th></tr></thead><tbody><tr><td>Train</td><td class="num">196,654</td><td class="num">341</td><td class="num">6.2</td></tr><tr><td>Valid</td><td class="num">16,931</td><td class="num">31</td><td class="num">6.6</td></tr><tr><td>Test</td><td class="num">15,516</td><td class="num">36</td><td class="num">8.4</td></tr><tr class="win"><td>Total</td><td class="num best">229,101</td><td class="num best">408</td><td class="num">6.4</td></tr></tbody></table></div></div>
+      <div class="takeaway">Train/valid 只用 ICBHI + SPRSound + UK COVID-19；test 保留 KAUH + COUGHVID，刻意測跨來源泛化。</div>
+      <div class="cite">§3 p.3–4; Table 1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Figure 1：Resp-Agent 的全局閉環</h1>
+      <figure class="full" style="max-height:56vh;"><img src="figures/figure1_p3.jpg" alt="Resp-Agent overview"><figcaption>Thinker-A2CA 接收 audio paths / EHR table / target class，路由到 controllable synthesis 與 clinical inference，並把 confidence / error profiles 回饋到下一輪。</figcaption></figure>
+      <div class="cite">Figure 1 p.3; §4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Thinker-A2CA：planner 的輸出是「合成預算怎麼花」</h1>
+      <div class="two-col"><div><h2 class="head">輸入</h2><ul class="bullets"><li>Audio paths</li><li>EHR tables</li><li>Target classes</li><li>Diagnoser rationales</li><li>Error profiles</li><li>Calibrated confidence</li></ul></div><div><h2 class="head">輸出</h2><ul class="bullets"><li>Structured tool arguments</li><li>Deterministic I/O schemas</li><li>Concise instrumented logs</li><li>Targeted synthesis schedule</li><li>下一輪 curriculum bias</li></ul></div></div>
+      <div class="takeaway">這裡的 agent 不是 chat wrapper，而是把 failure signal 轉成資料生成策略的 central controller。</div>
+      <div class="cite">§4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Generator Stage 1：把 text-only LLM retool 成 acoustic unit generator</h1>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure2_p5.jpg" alt="Resp-MLLM architecture"><figcaption>Resp-MLLM：診斷語義提供 content；BEATs reference audio 經 style projector 注入 [AUDIO_i] placeholders；漏看 masking 防止 oracle peeking。</figcaption></figure>
+      <div class="cite">Figure 2 p.5; §4.1.1 p.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Modality injection：content 與 style 被刻意拆開</h1>
+      <div class="formula">P = Pool<sub>K</sub>(Z), &nbsp; E<sub>style</sub> = StyleProj(P)</div>
+      <div class="formula">Prompt = [DIAGNOSIS] d + [AUDIO<sub>0</sub>] ... [AUDIO<sub>K-1</sub>]</div>
+      <ul class="bullets"><li>Z 是 10 s / 16 kHz reference audio 的 BEATs framewise features；Pool 後得到 K 個 style descriptors。</li><li>[AUDIO_i] token 的 embedding 由 E<sub>style</sub> row 替換，但 language backbone 架構不改。</li><li>Resp-MLLM autoregressively predicts BEATs codebook discrete acoustic units。</li><li>約 10% preceding unit embeddings 被 [BEATs MASK] 取代，避免看見 oracle t-1 token。</li></ul>
+      <div class="cite">§4.1.1 p.5–6; Eq.1–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Generator Stage 2：CFM 讓 discrete units 變成可聽 waveform</h1>
+      <div class="two-col"><div><div class="formula">x<sub>t</sub> = (1-t)x<sub>0</sub> + tx<sub>1</sub></div><div class="formula">dx<sub>t</sub>/dt = v<sub>theta</sub>(x<sub>t</sub>, c)</div><ul class="bullets"><li>DiT-style conditional flow matching decoder reconstructs mel-spectrograms。</li><li>Vocos 將 mel 轉回 waveform。</li></ul></div><div><h2 class="head">dual-path condition c</h2><ul class="bullets"><li><b>Content stream:</b> predicted unit indices embedded and interpolated to mel frame rate。</li><li><b>Timbre stream:</b> time-averaged BEATs features broadcast across time。</li><li><b>Reference prefix:</b> short ground-truth mel prefix encourages accurate continuation。</li></ul></div></div>
+      <div class="takeaway">工程上很乾淨：LLM 決定「要什麼病理內容」，CFM 決定「怎麼像那個聲音」。</div>
+      <div class="cite">§4.1.2 p.6; Eq.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Diagnoser：把 EHR token 與 audio token 放進同一條 Longformer sequence</h1>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure3_p7.jpg" alt="Diagnoser architecture"><figcaption>Modality Weaving + Strategic Global Attention：496 個 audio placeholders 被 BEATs features 替換；[CLS]、[DESCRIPTION] 與 audio anchors 取得 global attention。</figcaption></figure>
+      <div class="cite">Figure 3 p.7; §4.2 p.6–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Audio anchors：sub-100ms 的 cross-modal routing grid</h1>
+      <div class="formula">T = 496 frames / 10 s ⇒ hop Δt = 20.16 ms</div>
+      <div class="formula">stride s = 4 ⇒ anchor spacing sΔt = 80.6 ms, worst-case snap ≤ 40.3 ms</div>
+      <ul class="bullets"><li>Global set G = {[CLS], [DESCRIPTION]} ∪ A；anchors A = {a<sub>1+ks</sub>}。</li><li>G tokens mutual-attend to entire sequence；其他 token 仍維持 local sliding window。</li><li>文字症狀如 “wheeze” 可以直接 query 遠處短暫 acoustic event，不必等 local window 慢慢傳訊。</li><li>這是 paper 的 mechanism 皇冠：低成本但有臨床時間尺度的注意力路由。</li></ul>
+      <div class="cite">§4.2.2 p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">Anchors 決定模型「看得到哪裡」；Generator 決定訓練時「看過什麼 rare cases」。</p>
+      <p class="lead">Thinker-A2CA 的價值，是把這兩件事用 failure signal 連成同一個 active curriculum。</p>
+      <div class="cite">Appendix B.2 p.18; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Experiment map：三個問題、兩個 benchmark</h1>
+      <ol class="numbered"><li><b>Q1 Diagnoser 是否比 unimodal / shallow fusion 強？</b> ICBHI official split + Resp-229k Test-CD。</li><li><b>Q2 Thinker-guided synthesis 是否必要？</b> 固定 Diagnoser/Generator，只換 planner policy 與 synthetic budget B。</li><li><b>Q3 架構本身是否負責？</b> ablate LLM EHR、modality weaving、audio anchors、generator content-style disentanglement。</li></ol>
+      <div class="scorebox"><span class="score score--hi">ICBHI Score 72.70</span><span class="score score--hi">Test-CD Macro-F1 0.598</span><span class="score">229,101 clips</span></div>
+      <div class="cite">§5 p.8–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">ICBHI official split：Resp-Agent 刷新 paper 所列 SOTA</h1>
+      <table class="bench"><thead><tr><th>Method</th><th>Backbone</th><th class="num">Sp</th><th class="num">Se</th><th class="num">Score</th></tr></thead><tbody><tr><td>BTS 2024</td><td>CLAP</td><td class="num">81.40</td><td class="num">45.67</td><td class="num">63.54</td></tr><tr><td>Wang et al. 2024</td><td>HTS-AT</td><td class="num">79.61</td><td class="num">48.77</td><td class="num">64.19</td></tr><tr><td>MVST 2024</td><td>AST</td><td class="num">81.99</td><td class="num">51.10</td><td class="num">66.55</td></tr><tr><td>Dong et al. 2025</td><td>AST</td><td class="num">85.99</td><td class="num">49.11</td><td class="num">67.55</td></tr><tr class="win"><td>Resp-Agent</td><td>LLM + Longformer</td><td class="num">79.29</td><td class="num best">66.10</td><td class="num best">72.70</td></tr></tbody></table>
+      <div class="takeaway">Score gain vs listed previous SOTA: +5.15 absolute points；主要來自 sensitivity 大幅提升。</div>
+      <div class="cite">Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Resp-229k：architecture + synthetic balancing 才把 Macro-F1 拉開</h1>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Acc orig</th><th class="num">Acc balanced</th><th class="num">F1 orig</th><th class="num">F1 balanced</th></tr></thead><tbody><tr><td>Conformer audio-only</td><td class="num">0.7200</td><td class="num">0.7820</td><td class="num">0.1935</td><td class="num">0.5360</td></tr><tr><td>Longformer no anchors</td><td class="num">0.6495</td><td class="num">0.7630</td><td class="num">0.1890</td><td class="num">0.5200</td></tr><tr class="win"><td>Resp-Agent multimodal</td><td class="num best">0.8494</td><td class="num best">0.8870</td><td class="num best">0.2118</td><td class="num best">0.5980</td></tr></tbody></table>
+      <ul class="bullets"><li>Original imbalanced data：accuracy 已高，但 Macro-F1 顯示 rare classes 還是難。</li><li>Balanced regime：generator 提供 minority distributions，F1 才從 0.2118 躍升到 0.5980。</li><li>No anchors 版本 F1 較低，說明 fusion 本身不夠，attention routing 是必要條件。</li></ul>
+      <div class="cite">Table 8 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Planner policy：同樣 50k synthetic clips，Thinker-A2CA 最會花預算</h1>
+      <table class="bench" style="compact"><thead><tr><th>Policy</th><th class="num">B k</th><th class="num">Acc</th><th class="num">Macro-F1</th><th class="num">F1 tail</th><th>LoSO F1/tail</th></tr></thead><tbody><tr><td>No-Synth CE</td><td class="num">0</td><td class="num">0.849</td><td class="num">0.212</td><td class="num">0.074</td><td>0.237 / 0.086</td></tr><tr><td>Random</td><td class="num">50</td><td class="num">0.869</td><td class="num">0.442</td><td class="num">0.291</td><td>n/r</td></tr><tr><td>Class-Prior</td><td class="num">50</td><td class="num">0.876</td><td class="num">0.512</td><td class="num">0.349</td><td>0.473 / 0.334</td></tr><tr><td>Uncertainty-Static</td><td class="num">50</td><td class="num">0.881</td><td class="num">0.546</td><td class="num">0.376</td><td>n/r</td></tr><tr class="win"><td>Thinker-A2CA</td><td class="num">50</td><td class="num best">0.887</td><td class="num best">0.598</td><td class="num best">0.421</td><td>0.532 / 0.383</td></tr></tbody></table>
+      <div class="takeaway">Compared with static uncertainty: +0.052 Macro-F1 and +0.045 tail F1 under the same synthetic budget.</div>
+      <div class="cite">Table 3 p.9; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Generator 與 Diagnoser ablations：不是單一 trick</h1>
+      <div class="two-col"><div><h2 class="head">Generator disentanglement</h2><table class="bench" style="compact"><thead><tr><th>Test</th><th class="num">Style-Sim</th><th class="num">P-Acc</th><th class="num">FAD</th></tr></thead><tbody><tr><td>Style-swap avg</td><td class="num">0.91</td><td class="num best">97.9%</td><td class="num">1.18</td></tr><tr><td>Content-swap avg</td><td class="num best">0.93</td><td class="num">96.1%</td><td class="num">1.19</td></tr></tbody></table></div><div><h2 class="head">Diagnoser ablation</h2><table class="bench" style="compact"><thead><tr><th>Config</th><th class="num">Acc</th><th class="num">F1</th></tr></thead><tbody><tr><td>Late Fusion + raw</td><td class="num">0.780</td><td class="num">0.145</td></tr><tr><td>Weaving + LLM EHR no anchors</td><td class="num">0.650</td><td class="num">0.189</td></tr><tr class="win"><td>Full + anchors</td><td class="num best">0.849</td><td class="num best">0.212</td></tr></tbody></table></div></div>
+      <div class="cite">Table 4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">Negative controls：傳統 imbalance remedy 不夠</h1>
+      <ul class="bullets"><li>Class-weighted CE：Macro-F1 0.248；Focal Loss：0.267；都遠低於 CE + Thinker-A2CA 的 0.598。</li><li>Naive augmentation（duplication、pitch/time shift、noise）在 cross-domain test 讓 audio-only Conformer Macro-F1 下降 0.0247。</li><li>原因很合理：病理聲音的 low-energy micro-structures 很容易被 pathology-agnostic transform 破壞。</li><li>所以 paper 的關鍵不是「平衡類別數」，而是「合成有診斷資訊的 rare/hard cases」。</li></ul>
+      <div class="takeaway">如果要借鑑到其他醫療模態，第一步不是加 loss weight，而是建立 failure-aware controllable generator。</div>
+      <div class="cite">§5 p.9; Appendix D.1 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">工程啟發</div>
+      <p class="big">一個好的 medical AI agent，不只是回答問題，而是主動修正自己的資料分佈。</p>
+      <p class="lead">Resp-Agent 把「模型錯在哪」變成下一批 synthetic training examples 的生成條件。這才是 closed-loop agent system 的含金量。</p>
+      <div class="cite">§6 p.10; Appendix B.2 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h1 class="title">限制與安全邊界</h1>
+      <ul class="bullets"><li><b>Research only:</b> authors explicitly state it is not a certified medical device and cannot influence patient care without validation and regulatory oversight。</li><li><b>Summary quality:</b> clinical summaries come from heterogeneous public metadata, not full EHR；source coverage 會影響文字訊號。</li><li><b>Compute cost:</b> some LoSO planner settings are omitted because retraining across five folds is expensive。</li><li><b>Scope:</b> evidence covers respiratory audio datasets；generalizing to other medical domains still needs domain-specific generator + evaluation。</li></ul>
+      <div class="cite">Ethics p.11; §3 p.3; Table 3 p.9; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <h1 class="title">Appendix · 原文螢光筆 1</h1>
+      <div class="hl"><p class="hl__en">“Resp-Agent, an autonomous multimodal system orchestrated by a novel Active Adversarial Curriculum Agent (Thinker-A2CA)… actively identifies diagnostic weaknesses and schedules targeted synthesis in a closed loop.”</p><p class="hl__zh">Resp-Agent 的關鍵不是把幾個模型串起來，而是讓 Thinker-A2CA 根據診斷弱點主動安排合成資料，形成閉環課程。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">“For a 10 s segment embedded into T=496 time steps… adjacent global anchors are spaced by… 80.6452 ms… worst-case deviation ≤40.3 ms.”</p><p class="hl__zh">這個數字把 audio anchor 從抽象設計落到臨床聲音事件尺度：不用 full quadratic，也能以 sub-100ms 解析度對齊瞬態聲音。<span class="hl__src">§4.2.2 p.8</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <h1 class="title">Appendix · 原文螢光筆 2</h1>
+      <div class="hl"><p class="hl__en">“Thinker-A2CA achieves a Macro-F1 of 0.598 and a Macro-F1tail of 0.421… +0.052 Macro-F1 and +0.045 Macro-F1tail over… static-uncertainty baseline.”</p><p class="hl__zh">同預算比較才看出 agent planner 的價值：不是合成越多越好，而是選對該合成的 rare / hard cases。<span class="hl__src">§5 p.9</span></p></div>
+      <div class="hl"><p class="hl__en">“Tightly coupling where the model fails with what the generator synthesizes transforms augmentation from a passive remedy into an active, self-correcting training curriculum.”</p><p class="hl__zh">把 failure mining 與可控生成器接起來，augmentation 就從資料前處理變成系統級控制迴路。<span class="hl__src">§6 p.10</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <h1 class="title">Appendix · Reproducibility checklist</h1>
+      <ul class="bullets"><li>Code: GitHub `zpforlove/Resp-Agent`。</li><li>Dataset: HuggingFace `AustinZhang/resp-agent-dataset`。</li><li>Model checkpoints: HuggingFace `AustinZhang/resp-agent-models`。</li><li>Training details: AdamW; Longformer with DeepSpeed + gradient checkpointing; text dropout 0.2; audio frame dropout 0.1; anchor stride 4。</li><li>ICBHI fine-tuning removes focal/balancing heuristics for apples-to-apples official metric comparison。</li></ul>
+      <div class="cite">Reproducibility Statement p.11; Appendix C p.18–19</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">明日預告</h2>
+      <p class="end__sub">週日輪轉：火爆 GitHub Repo 或公司技術報告。</p>
+      <div class="end__next">今天這篇的 takeaway：closed-loop agent system 的價值，在於讓失敗分析能直接改變下一輪資料生成。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
