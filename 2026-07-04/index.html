@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PairCoder++: Pair Programming as a Universal Paradigm for Verified Code-Driven Multimodal and Structured-Artifact Generation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Agent Frameworks / Multimodal Systems · Daily Research Deck · 2026-07-04</div>
+      <h1 class="title">PairCoder++: verified pair programming for code-driven multimodal generation</h1>
+      <div class="authors">Junhao Chen et al. · THU, PKU, PolyU Hong Kong, USTC, UESTC, Tongji, Tianjin Univ., Guangming Lab, BAAI</div>
+      <div class="meta-row"><span class="badge tier">ACL 2026 accepted</span><span class="badge date">arXiv 2607.01883 · announced 2026-07-02</span><span class="badge">17 benchmarks · 7 models · 3 vendors</span></div>
+      <p class="lead">A two-agent Driver/Navigator loop grounds review in compiler, execution, simulator, and rendering evidence — then switches roles when errors persist.</p>
+      <div class="cite">Source: cover + Abstract p.1; arXiv comment: Accepted by ACL 2026</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">When a toolchain can speak, <b>pair programming turns its signal into better artifacts</b>.</p>
+      <div class="sub">PairCoder helps most where outputs are verifiable and baselines leave headroom; it ties or mildly regresses where the oracle is weak or saturated.</div>
+      <div class="scorebox"><span class="score score--hi">44/48 OpenAI cells improve</span><span class="score score--lo">2.9x-9.2x tokens</span><span class="score">17 public benchmarks</span></div>
+      <div class="cite">Abstract p.1; §4.2 p.7-9; §4.5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Code generation is really artifact generation with an invisible judge</h2>
+      <ul class="bullets"><li>LLMs create charts, scientific figures, SVGs, CAD, 3D scenes, web apps, and Verilog by <b>writing programs</b>.</li><li>The success condition lives outside text: compiler, renderer, simulator, tests, or geometric/visual metric.</li><li>Single-pass generation fails at the boundary: code may not compile/run, or the rendered artifact may miss the target structure/semantics/geometry.</li><li>The paper’s key framing: independent review is useful only when grounded in concrete verification evidence.</li></ul>
+      <div class="cite">§1 Introduction p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why existing fixes are not enough</div>
+      <h2 class="head">More agents can be expensive; self-correction can be blind</h2>
+      <div class="two-col"><div><h1 class="title">Team-style agents</h1><ul class="bullets"><li>Role-specialized pipelines improve correctness.</li><li>But prior systems can pay up to order-of-magnitude token overhead.</li><li>They are often domain-specific rather than a universal recipe.</li></ul></div><div><h1 class="title">Single-model self-correction</h1><ul class="bullets"><li>Cheaper and simple to deploy.</li><li>But it inherits one model perspective’s blind spots.</li><li>Without a strong oracle, it can churn or rationalize errors.</li></ul></div></div>
+      <div class="takeaway">PairCoder chooses the smallest collaborative structure with an independent reviewer: <b>two agents + toolchain evidence</b>.</div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">A minimal protocol, evaluated as a broad multimodal system</h2>
+      <ol class="numbered"><li><b>Protocol:</b> Driver writes/revises, Navigator reviews against benchmark-native evidence, roles switch on persistent errors.</li><li><b>Scope:</b> 17 benchmarks across program synthesis, multilingual code, web, hardware, charts, SVG, CAD, 3D scenes, and P3D parametric 3D.</li><li><b>Metrics:</b> full official suites: pass/compile/execute plus SSIM, CLIP, DINO, SigLIP-2, Chamfer, geometry/topology.</li><li><b>Boundary condition:</b> gains follow oracle informativeness and baseline headroom.</li></ol>
+      <div class="cite">§1 p.2; §4.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Framework figure</div>
+      <h2 class="head">Driver writes; Navigator reviews concrete evidence; errors move the keyboard</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure2_p4.jpg" alt="PairCoder framework"><figcaption>Figure 2: Driver/Navigator framework with code generation, review, toolchain evidence, and role switching.</figcaption></figure>
+      <div class="cite">Fig.2 p.4; §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Formal loop</div>
+      <h2 class="head">The objective is not just likely code — it is verified quality</h2>
+      <div class="formula">c* = arg max<sub>c in C</sub> P(c | q) · Quality(c, q)</div>
+      <ul class="bullets"><li>At each iteration, Driver produces candidate code C<sub>t</sub> from task Q and memory M<sub>t-1</sub>.</li><li>Navigator receives candidate C<sub>t</sub>, history, and verification evidence psi<sub>t</sub>, then accepts or requests revision.</li><li>No fine-tuning or auxiliary objective: frozen LLMs are steered by role prompts and shared evidence.</li></ul>
+      <div class="cite">Eq.1 p.4; §3.2 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Navigator evidence</div>
+      <h2 class="head">psi_t is the whole trick: review is grounded in what actually ran</h2>
+      <div class="two-col"><div><h1 class="title">Evidence attached to review</h1><ul class="bullets"><li>Compile/execute predicate plus diagnostics</li><li>Optional Navigator-authored tests</li><li>For image-conditioned tasks: candidate rendering beside target</li></ul></div><div><h1 class="title">Conservative verdict</h1><div class="formula">R<sub>t</sub> = [NOERROR] or REVISE(Delta<sub>t</sub>)</div><ul class="bullets"><li>REVISE must cite the offending line, violated requirement, and concrete fix.</li><li>If no definite fault exists, Navigator must accept — preventing churn.</li></ul></div></div>
+      <div class="cite">§3.2 p.5; Eq.5 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Workflow</div>
+      <h2 class="head">Self-Mirror keeps the same LLM behaving as Driver or Navigator</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure3_p5.jpg" alt="PairCoder workflow"><figcaption>Figure 3: Driver proposes/revises, Navigator reviews against evidence; the state tracks Q, candidate/review history, roles, and iteration.</figcaption></figure>
+      <div class="takeaway">The implementation realizes role separation with system prompts and per-agent message histories, not model training.</div>
+      <div class="cite">Fig.3 p.5; §3.3 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Termination & fallback</div>
+      <h2 class="head">If debate does not resolve, return the best verified candidate — not the last one</h2>
+      <div class="formula">Omega(S<sub>t</sub>) = true if R<sub>t</sub> = [NOERROR] or tau >= T</div>
+      <ul class="bullets"><li>Accepted candidate returns immediately on [NOERROR].</li><li>If budget T is exhausted, PairCoder returns arg max<sub>C_i in M_t</sub> Quality(C_i).</li><li>Quality orders candidates by passing verification, then continuous score, then recency.</li></ul>
+      <div class="takeaway">This is a safety valve: unresolved review degrades to the best seen artifact.</div>
+      <div class="cite">Algorithm 1 / §3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experiment grid</div>
+      <h2 class="head">The evaluation is broad enough to test universality, not one benchmark luck</h2>
+      <table class="bench"><thead><tr><th>Family</th><th>Benchmarks</th><th>Primary evidence</th></tr></thead><tbody><tr><td>Program synthesis</td><td>LiveCodeBench, BigCodeBench, DS-1000</td><td>Unit tests / execution</td></tr><tr><td>Multilingual / web / hardware</td><td>HumanEval-X, WebApp1K, VerilogEval, RTLLM</td><td>Tests, Jest, simulation</td></tr><tr><td>Code-driven artifacts</td><td>DaTikZ, Plot2Code, PandasPlotBench, ChartMimic, StarVector, GenCAD, 3DCodeBench, P3D</td><td>Compile/render + visual/geometric metrics</td></tr></tbody></table>
+      <p class="note">Models: gpt-5.4-mini / gpt-5.4 / gpt-5.5; doubao-1.5-lite / doubao-seed-2.0-mini; deepseek-v3.2 / deepseek-v4-flash; thinking disabled.</p>
+      <div class="cite">§4.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main results</div>
+      <h2 class="head">The biggest gains appear where the verifier is rich and the baseline has room</h2>
+      <table class="bench"><thead><tr><th>Result slice</th><th class="num">Single -> PairCoder</th><th>Why it matters</th></tr></thead><tbody><tr class="win"><td>3DCodeBench exec (gpt-5.4-mini)</td><td class="num best">0.200 -> 0.783</td><td>Turns many non-runnable Blender scripts into executable artifacts</td></tr><tr><td>DaTikZ compile (gpt-5.4)</td><td class="num best">0.717 -> 0.967</td><td>LaTeX errors are a strong oracle</td></tr><tr><td>RTLLM pass@1 (gpt-5.4)</td><td class="num best">0.400 -> 0.620</td><td>Simulation feedback creates actionable fixes</td></tr><tr><td>P3D validity (gpt-5.4)</td><td class="num best">0.715 -> 0.990</td><td>Compiler-valid solids improve coverage</td></tr></tbody></table>
+      <div class="scorebox"><span class="score score--hi">OpenAI: 44/48 cells improve</span><span class="score">3 exceptions are exact ties</span><span class="score score--lo">1 small regression: Plot2Code exec gpt-5.5</span></div>
+      <div class="cite">Table 1 p.8-9; §4.2 p.7-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Multimodal code-driven generation</div>
+      <h2 class="head">PairCoder improves not only execution, but artifact similarity</h2>
+      <table class="bench"><thead><tr><th>Benchmark</th><th class="num">Primary metric</th><th>Artifact metric</th></tr></thead><tbody><tr><td>DaTikZ</td><td class="num best">compile .500 -> .633</td><td>SSIM/CLIP/DINO .215/.327/.303 -> .256/.384/.338</td></tr><tr><td>Plot2Code</td><td class="num best">exec .841 -> .962</td><td>SSIM/CLIP .412/.802 -> .474/.912</td></tr><tr><td>GenCAD-Code</td><td class="num best">exec .900 -> .983</td><td>Chamfer .233 -> .166 (lower is better)</td></tr><tr class="win"><td>3DCodeBench</td><td class="num best">exec .200 -> .783</td><td>SigLIP-2/DINO .181/.101 -> .702/.376; Chamfer 4.85 -> 2.62</td></tr></tbody></table>
+      <div class="cite">Table 2 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative evidence</div>
+      <h2 class="head">The repaired failures are visually concrete across six artifact domains</h2>
+      <figure class="full" style="max-height:56vh;"><img src="figures/figure8_p12.jpg" alt="Qualitative comparison across artifacts"><figcaption>Figure 8: target/reference, single model, and PairCoder outputs for Plot2Code, PandasPlotBench, ChartMimic, StarVector, GenCAD-Code, and 3DCodeBench.</figcaption></figure>
+      <div class="cite">Fig.8 p.12; §5 p.11-12</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">The method is strongest when the artifact has a <b>trustworthy oracle</b> and the baseline still fails.</p>
+      <div class="sub">This is why compile/render/simulation-heavy tasks show large jumps, while saturated or weak-oracle tasks tie or wobble.</div>
+      <ul class="bullets"><li>3DCodeBench: up to +58 pp executability.</li><li>DaTikZ: +10 to +30 compile points across models.</li><li>Weak oracle examples: DS-1000 signature execution, BigCodeBench library calls, RTLLM compile-only evidence.</li></ul>
+      <div class="cite">§4.2-4.3 p.9; Conclusion p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost / benefit</div>
+      <h2 class="head">The loop is not free — but cost rises mainly when review finds errors</h2>
+      <figure class="full" style="max-height:42vh;"><img src="figures/figure6_p10.jpg" alt="Cost versus benefit"><figcaption>Figure 6: per-benchmark token multiplier versus primary-metric gain at gpt-5.4-mini.</figcaption></figure>
+      <div class="scorebox"><span class="score score--hi">2.9x GenCAD</span><span class="score score--hi">3.4x StarVector</span><span class="score">6.9x DaTikZ</span><span class="score score--lo">9.2x Plot2Code</span><span class="score">7.4x overall / 138M tokens</span></div>
+      <div class="cite">§4.5 p.10; Fig.6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Role switching analysis</div>
+      <h2 class="head">Let the agent that diagnosed the error fix it</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure7_p10.jpg" alt="Role switching policy comparison"><figcaption>Figure 7: switching on each error is best/tied-best on four tested benchmarks and never worst.</figcaption></figure>
+      <ul class="bullets"><li>HumanEval-X C++: immediate switching reaches 0.427.</li><li>Delaying to two errors drops to 0.390 — same as never switching.</li><li>Interpretation: keeping the diagnosing agent in reviewer seat wastes its diagnosis.</li></ul>
+      <div class="cite">§4.6 p.10-11; Fig.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reasoning effort</div>
+      <h2 class="head">More thinking helps the Driver, but does not invent a missing verifier</h2>
+      <div class="two-col"><div><h1 class="title">Where evidence is informative</h1><ul class="bullets"><li>BigCodeBench high reasoning: 0.425 -> 0.475.</li><li>Gain grows from +0.8 pp no-thinking to +5.0 pp high reasoning.</li><li>Doctest evidence catches remaining errors.</li></ul></div><div><h1 class="title">Where evidence is weak</h1><ul class="bullets"><li>DS-1000 signature-only execution: 0.310 -> 0.300 (noise).</li><li>Extra reasoning improves the generator but gives Navigator nothing new to adjudicate.</li><li>High effort roughly triples per-call token cost.</li></ul></div></div>
+      <div class="cite">§4.7 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">P3D-Bench detail</div>
+      <h2 class="head">A clean causal story: coverage improves; valid geometry is not disturbed</h2>
+      <ul class="bullets"><li>P3D-Bench asks models to write parametric construction programs compiled to meshes and scored against ground-truth geometry.</li><li>Text-to-3D minimal-JSON split: 400 cases, with executable validity, geometry, and topology metrics.</li><li>gpt-5.4 validity: 0.715 -> 0.990; doubao-1.5-lite: 0.140 -> 0.427 (+28.7 pp).</li><li>On programs the baseline already compiles, geometry is unchanged; gains come from repairing non-executable programs into valid solids.</li></ul>
+      <div class="cite">§4.4 p.9-10; Table 1 p.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">The framework is practical only if the oracle and budget justify it</h2>
+      <ul class="bullets"><li>Token and latency overhead are substantial: about 7x average, 2.9x-9.2x by benchmark.</li><li>Where verification is weak, review quality becomes model-bound and can churn correct code.</li><li>High-reasoning variants add more cost and were only tested on a small Python subset.</li><li>No public reviewer scores were available in the ingested artifacts; review disputes cannot be analyzed.</li></ul>
+      <div class="takeaway">The honest deployment rule: use PairCoder when failures are expensive and the external verifier is strong.</div>
+      <div class="cite">Limitations p.13; §4.3 p.9; §4.7 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaway</div>
+      <h2 class="head">How to adapt PairCoder to your own agent system</h2>
+      <ol class="numbered"><li>Expose the toolchain: compile logs, tests, simulator outputs, render images, or metric failures must enter the review prompt.</li><li>Force concrete review: accept with [NOERROR] or return a line-level, requirement-level fix — no vague style churn.</li><li>Switch ownership when errors persist so the diagnosing agent performs the repair.</li><li>Track best verified candidate, not final candidate, as a safe fallback under budget exhaustion.</li><li>Measure cost-benefit per task family; do not use multi-round review where oracle is weak.</li></ol>
+      <div class="cite">Derived from §3.2-3.4 p.4-7 and §4.5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 1</div>
+      <h2 class="head">Why toolchain grounding matters</h2>
+      <div class="hl"><p class="hl__en">the program must survive an external toolchain (a compiler, renderer, or simulator) that the model cannot observe while writing, and the artifact must then match the target in structure, semantics, and geometry.</p><p class="hl__zh">程式必須通過模型寫作時看不見的外部工具鏈，產物還要在結構、語義、幾何上匹配目標。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">the Navigator must cite a concrete error or accept with [NOERROR], which prevents churn on already correct programs.</p><p class="hl__zh">Navigator 必須指出具體錯誤，否則用 [NOERROR] 接受，避免把已正確的程式反覆改壞。<span class="hl__src">§1 p.2 / §3.2 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 2</div>
+      <h2 class="head">Boundary conditions</h2>
+      <div class="hl"><p class="hl__en">The same columns also delimit the method honestly: on benchmarks where the verification signal is weak ... small regressions appear.</p><p class="hl__zh">論文很誠實地標出方法邊界：驗證訊號弱時，少數回歸會出現。<span class="hl__src">§4.3 p.9</span></p></div>
+      <div class="hl"><p class="hl__en">This makes the source of the gain unambiguous: it is coverage of non-executable programs, not re-optimization of already-valid geometry.</p><p class="hl__zh">P3D 的提升來源很清楚：把原本不可執行的程式修成有效 solid，而不是重優化已有效幾何。<span class="hl__src">§4.4 p.10</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Full-paper visual material</div>
+      <h2 class="head">Appendix galleries support the same failure-repair story</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure18_p28.jpg" alt="3DCodeBench qualitative gallery"><figcaption>Figure 18: 3DCodeBench qualitative gallery — useful for inspecting how toolchain-grounded review converts hard failures into executable 3D scenes.</figcaption></figure>
+      <div class="cite">Fig.18 p.28; Appendix B</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Bottom line</h2>
+      <p class="end__sub">PairCoder is not just ‘two agents’. It is two agents with an external verifier allowed to speak in the loop.</p>
+      <div class="end__next">Tomorrow: GitHub Trending / company technical report day.</div>
+      <div class="cite">Conclusion p.13</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
