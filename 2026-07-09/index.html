@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MHLA: Restoring Expressivity of Linear Attention via Token-Level Multi-Head</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 週四計算加速 / Attention Efficiency</div>
+      <h1 class="title">MHLA: Restoring Expressivity of Linear Attention via Token-Level Multi-Head</h1>
+      <div class="authors">Kewei Zhang*, Ye Huang*, Yufan Deng, Jincheng Yu, Junsong Chen, Huan Ling, Enze Xie, Daquan Zhou · Peking University / NVIDIA</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge">arXiv 2601.07832v2</span><span class="badge date">2026-07-09</span></div>
+      <p class="lead">把 linear attention 的失準歸因到 <b>global context collapse</b>，再用 token-block multi-head mixing 把 query-conditioned selectivity 補回來。</p>
+      <div class="cite">Source: arXiv 2601.07832v2; OpenReview forum 340QjF3jJP (ICLR 2026 Poster).</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Linear attention 快，但它把所有 token 壓進同一個 global KV summary；MHLA 的核心，是讓每個 query block 重新混合多個 local summaries。</p>
+      <div class="takeaway">一句話：不是多加一個補丁，而是把「查哪裡」這件事放回 linear attention。</div>
+      <div class="cite">Abstract p.1; §3.2 p.4-p.5; §4.1 p.5-p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">為什麼這篇適合今天：週四 compute acceleration</h2>
+      <ul class="bullets"><li>主題命中：針對 <b>attention 的時間 / 記憶體瓶頸</b>，從 O(N<sup>2</sup>) softmax 改成接近 O(N) 的 linear attention。</li><li>不是純 benchmark trick：paper 先提出 failure mode，再用 rank / entropy 解釋為什麼一般 LA 會崩。</li><li>工程落點清楚：標準 GEMM、chunkwise training、video 31,500-token setting，對長序列生成很實用。</li><li>頂會優先：OpenReview search 顯示 ICLR 2026 Poster；ingest 以 arXiv PDF/raw 為事實來源。</li></ul>
+      <div class="cite">§1 p.1-p.3; §4.2 p.7; §5.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">問題：softmax attention 太貴，linear attention 又太鈍</h2>
+      <div class="two-col" style="split"><div><p class="col-hint">Softmax self-attention</p><ul class="bullets"><li>每個 query 對所有 key 做 pairwise similarity。</li><li>時間 O(N<sup>2</sup>d)，記憶體 O(N<sup>2</sup>)。</li><li>優點是 query-specific：每個 query 都能形成不同 token distribution。</li></ul></div><div><p class="col-hint">Standard linear attention</p><ul class="bullets"><li>把所有 K,V 先壓縮成 global summary。</li><li>時間可降到 O(Nd<sup>2</sup>) / O(Nd_phi)。</li><li>代價是所有 query 共享同一個摘要，selectivity 變弱。</li></ul></div></div>
+      <div class="takeaway">MHLA 的目標不是否定 linear attention，而是修掉「所有 query 讀同一個壓縮世界」這件事。</div>
+      <div class="cite">§3.1 p.4; §3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">核心診斷：global context collapse</h2>
+      <ul class="bullets"><li>標準 LA 的 global KV summary 是固定 d x d 容量；N 變大時，token-specific information 會被擠掉。</li><li>rank limitation：A<sub>lin</sub> = Q~K~<sup>T</sup>，所以 rank(A<sub>lin</sub>) <= d，當 N >> d 時必然是低秩近似。</li><li>loss of sparsity：每個 query 無法在 compression 前重加權 individual keys，attention 會趨向更均勻。</li></ul>
+      <div class="formula">Global LA: G = Σ<sub>j</sub> phi(K<sub>j</sub>)<sup>T</sup>V<sub>j</sub>, then every query reads the same G.</div>
+      <div class="cite">§3.2 p.4-p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">機制證據：rank 與 entropy 同時指向 collapse</h2>
+      <table class="bench"><thead><tr><th>Attention</th><th class="num">Rank ↑</th><th class="num">Entropy ↓</th><th>Interpretation</th></tr></thead><tbody><tr><td>Linear Attention</td><td class="num">58.4</td><td class="num">5.12</td><td>低 rank、高 entropy：多數 query 失去焦點</td></tr><tr><td>Softmax Attention</td><td class="num">254.8</td><td class="num">4.13</td><td>高 rank、較 sparse</td></tr><tr class="win"><td>MHLA</td><td class="num best">233.4</td><td class="num best">4.06</td><td>接近 softmax 的 diversity / selectivity</td></tr></tbody></table>
+      <div class="takeaway">這頁是整篇的皇冠：MHLA 不是只追速度，而是在 linear complexity 下把 expressive rank 拉回來。</div>
+      <div class="cite">Fig.3 p.5; §3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">從一個 global summary，到多個 local summaries</h2>
+      <figure class="full" style="max-height:56vh;"><img src="figures/figure2_p3.jpg" alt="Figure 2: MHLA vs other linear attentions"><figcaption>Fig.2: MHLA 在 token dimension 分 head，透過 Multi-Head Mixing 讓每個 query block 取得不同 KV mixture。</figcaption></figure>
+      <p class="note">Figure-first takeaway: 以前是所有 query 讀同一個 Global KV Summary；MHLA 讓 query block 讀加權後的 Local KV Summaries。</p>
+      <div class="cite">Figure 2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">MHLA step 1：把 token 切成 M 個 block</h2>
+      <ul class="bullets"><li>輸入 X 投影成 Q,K,V；採用 kernel feature map phi(.)。</li><li>把 sequence 切成 M 個 non-overlapping blocks；vision 裡通常是 2D spatial grid，video 裡是 spatiotemporal grid。</li><li>對每個 block b 建 local summary S<sub>b</sub> 與 normalizer z<sub>b</sub>。</li></ul>
+      <div class="formula">S<sub>b</sub> = Σ<sub>j in b</sub> phi(K<sub>j</sub>)V<sub>j</sub><sup>T</sup>, &nbsp; z<sub>b</sub> = Σ<sub>j in b</sub> phi(K<sub>j</sub>)</div>
+      <div class="cite">§4.1 Eq.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">MHLA step 2：Multi-Head Mixing</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure4_p6.jpg" alt="Figure 4: MHLA overview and coefficient matrix"><figcaption>Fig.4: learned coefficient matrix M_c 讓 query block 對 local KV summaries 做不同線性組合。</figcaption></figure>
+      <div class="takeaway">這不是 transformer head 的 channel split，而是沿 token / spatial / temporal 維度切 block。名字有點容易誤會，這裡要看清楚呢。</div>
+      <div class="cite">Figure 4 p.6; §4.1 p.5-p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">公式直覺：block selection x token reweighting</h2>
+      <div class="formula">S~<sub>i</sub> = Σ<sub>b=1..M</sub> m<sub>i,b</sub>S<sub>b</sub> = Σ<sub>t=1..N</sub> m<sub>i,b(t)</sub> phi(K<sub>t</sub>)V<sub>t</sub><sup>T</sup></div>
+      <ul class="bullets"><li>m<sub>i,b(t)</sub>：query block i 對 token t 所在 block 的 block-level weight。</li><li>phi(q)<sup>T</sup>phi(K<sub>t</sub>)：block 內仍保留 kernel similarity，區分 individual tokens。</li><li>所以 MHLA 的 selectivity 是兩段式：先選相關 blocks，再在 block 內選相關 tokens。</li></ul>
+      <div class="cite">§4.2 Eq.5 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">複雜度：多了一個 M，沒有回到 O(N^2)</h2>
+      <table class="bench"><thead><tr><th>Method</th><th>Time</th><th>Rank bound</th><th>Memory</th><th>Query-conditioned</th></tr></thead><tbody><tr><td>Self Attention</td><td>O(N<sup>2</sup>d)</td><td>N</td><td>O(N<sup>2</sup>)</td><td>Yes</td></tr><tr><td>Linear Attention</td><td>O(Nd<sup>2</sup>)</td><td>d</td><td>O(d<sup>2</sup>)</td><td>No</td></tr><tr class="win"><td>MHLA</td><td>O(Nd<sup>2</sup> + M<sup>2</sup>d<sup>2</sup>)</td><td class="best">Σ min(n<sub>b</sub>,d)</td><td>O(Md<sup>2</sup>)</td><td class="best">Yes</td></tr></tbody></table>
+      <div class="takeaway">若 M<sup>2</sup> <= N，主導項仍是 O(Nd<sup>2</sup>)；實務上 M 是 accuracy/overhead 的旋鈕。</div>
+      <div class="cite">Table 1 p.8; §4.3 p.7-p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">ImageNet：不是只贏 vanilla LA，也追上其他 efficient vision models</h2>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">Self / baseline</th><th class="num">Best prior</th><th class="num">MHLA</th></tr></thead><tbody><tr class="win"><td>DeiT-T Top-1</td><td class="num">Self 72.2 / LA 69.8</td><td class="num">MALA 75.1</td><td class="num best">75.8</td></tr><tr class="win"><td>DeiT-S Top-1</td><td class="num">Self 79.8 / LA 77.6</td><td class="num">RALA 80.4</td><td class="num best">81.0</td></tr><tr class="win"><td>VLT-T Top-1</td><td>-</td><td class="num">MAViT-T 82.4*</td><td class="num best">82.6</td></tr><tr class="win"><td>VLT-S Top-1</td><td>-</td><td class="num">MAViT-S 84.3*</td><td class="num best">84.6</td></tr></tbody></table>
+      <div class="cite">Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Image generation：FID 改善，但要看尺度</h2>
+      <table class="bench"><thead><tr><th>Model / res</th><th class="num">Self FID ↓</th><th class="num">Linear FID ↓</th><th class="num">MHLA FID ↓</th></tr></thead><tbody><tr class="win"><td>DiT-S/2 256</td><td class="num">68.40</td><td class="num">89.72</td><td class="num best">59.80</td></tr><tr class="win"><td>DiT-S/2 512</td><td class="num">84.54</td><td class="num">125.33</td><td class="num best">78.63</td></tr><tr class="win"><td>DiT-B/2 256</td><td class="num">43.47</td><td class="num">60.47</td><td class="num best">37.47</td></tr><tr><td>DiT-XL/2 256</td><td class="num best">19.47</td><td class="num">28.63</td><td class="num">20.32 plain / 19.17 +CPE+Gate</td></tr></tbody></table>
+      <div class="takeaway">重要細節：作者自己指出 CPE 在 XL 上可能退化；plain MHLA 接近 self-attention，才是更乾淨的機制證據。</div>
+      <div class="cite">Table 3a p.9; §5.2 analysis p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Video generation：長序列是 MHLA 最有說服力的場景</h2>
+      <div class="scorebox"><span class="score score--hi">31,500 tokens</span><span class="score score--hi">2.1x speedup</span><span class="score score--hi">81s latency</span></div>
+      <table class="bench"><thead><tr><th>Wan2.1 variant</th><th class="num">Quality ↑</th><th class="num">Semantic ↑</th><th class="num">Total ↑</th><th class="num">Latency ↓</th></tr></thead><tbody><tr><td>Wan-FA</td><td class="num">85.23</td><td class="num">75.65</td><td class="num">83.31</td><td class="num">166</td></tr><tr><td>Wan-LA</td><td class="num">69.96</td><td class="num">11.38</td><td class="num">58.24</td><td class="num">82</td></tr><tr><td>Wan-MHLA</td><td class="num">84.26</td><td class="num">76.16</td><td class="num">82.62</td><td class="num best">81</td></tr><tr class="win"><td>Wan-MHLA-H</td><td class="num">84.87</td><td class="num best">79.59</td><td class="num best">83.82</td><td class="num">103</td></tr></tbody></table>
+      <div class="cite">Table 5 p.10; §5.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism insight</div>
+      <p class="big">Vanilla LA 在 31,500-token video setting 幾乎不是「慢慢變差」，而是訓練直接卡住；這正好回扣 global context collapse。</p>
+      <div class="takeaway">這種「機制預測 → 長序列實驗驗證」的閉環，是這篇比一般 efficient attention paper 更紮實的地方。</div>
+      <div class="cite">§3.2 p.4-p.5; Fig.6 / §5.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">T2I / NLP：跨 domain 支撐，但要保守解讀</h2>
+      <div class="two-col" style="split"><div><p class="col-hint">Text-to-Image SANA</p><table class="bench"><thead><tr><th>Model</th><th class="num">FID ↓</th><th class="num">CLIP ↑</th><th class="num">GenEval ↑</th></tr></thead><tbody><tr><td>SANA*</td><td class="num">6.10</td><td class="num">28.15</td><td class="num">0.64</td></tr><tr class="win"><td>SANA-MHLA</td><td class="num best">5.90</td><td class="num best">28.26</td><td class="num best">0.68</td></tr></tbody></table></div><div><p class="col-hint">NLP 340M / 325M</p><ul class="bullets"><li>MMLU: MHLA 23.7 vs Mamba2 23.0 / GDN 23.0。</li><li>CSR avg: MHLA 47.1, close to / slightly above linear recurrent baselines。</li><li>LongBench AVG: MHLA 7.41 vs Transformer++ 6.92 / Mamba2 6.62。</li></ul></div></div>
+      <div class="cite">Table 4 p.10; Table 6 p.11; Table 8 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Ablation 1：locality-biased + learnable 才完整</h2>
+      <table class="bench"><thead><tr><th>LB-init</th><th>Learnable</th><th class="num">Top1-acc (%)</th><th>Read</th></tr></thead><tbody><tr><td>Yes</td><td>No</td><td class="num">75.4</td><td>locality prior 本身有效</td></tr><tr><td>No</td><td>Yes</td><td class="num">75.1</td><td>可學但缺少穩定 prior</td></tr><tr class="win"><td>Yes</td><td>Yes</td><td class="num best">75.8</td><td>prior + data adaptation</td></tr></tbody></table>
+      <div class="takeaway">這裡透露了一點工程性格：MHLA 不是完全任由 M_c 學，先放 locality bias 讓收斂更穩。</div>
+      <div class="cite">Table 7a p.11; §5.5 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Ablation 2：M 不宜盲目加大</h2>
+      <table class="bench"><thead><tr><th class="num">Head number M</th><th class="num">FID ↓</th><th class="num">Throughput ↑</th><th>Interpretation</th></tr></thead><tbody><tr><td class="num">4</td><td class="num">79.56</td><td class="num best">435</td><td>便宜但略弱</td></tr><tr class="win"><td class="num">16</td><td class="num best">78.63</td><td class="num best">435</td><td>最佳 sweet spot</td></tr><tr><td class="num">64</td><td class="num">79.50</td><td class="num">408</td><td>超過 sqrt(N) 後 overhead 出現</td></tr></tbody></table>
+      <p class="note">在 DiT-S/2 512px，N=1024；作者依 M<sup>2</sup> <= N 的原則，指出 M=16 就足夠。</p>
+      <div class="cite">Table 7b p.11; §5.5 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">我會怎麼看這篇：它的價值與風險</h2>
+      <ol class="numbered"><li><b>價值：</b>把 efficient attention 從「替換 kernel」拉回「恢復 query-conditioned routing」這個更可解釋的層次。</li><li><b>價值：</b>video long sequence 的實驗很有工程說服力，因為它真的碰到 softmax 太貴、vanilla LA 會崩的區域。</li><li><b>風險：</b>M、block geometry、locality prior 都是新的設計自由度；換資料型態時未必免費。</li><li><b>風險：</b>NLP 部分是支持性證據，不是壓倒性勝利；不要把 MHLA 解讀成所有 sequence modeling 的通用答案。</li></ol>
+      <div class="cite">§4.1 p.5; §4.2 p.7; §5.3 p.10; §5.4 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">工程啟發：給圖像 / 影片生成系統的三個 takeaways</h2>
+      <ul class="bullets"><li>如果你的 bottleneck 是高解析 / 長影片 attention，先問：是否真的需要每層保留 full softmax？</li><li>若使用 linear attention 但品質掉很多，檢查它是不是把所有 token 壓成單一 global state。</li><li>用 block/chunk geometry 表達空間或時間 locality，可能比堆額外 DWConv / gating 更乾淨。</li></ul>
+      <div class="takeaway">也就是說，想省算力時別只看 Big-O；要看「壓縮後還能不能讓不同 query 找不同東西」。</div>
+      <div class="cite">§1 p.2-p.3; §4.2 p.7; §5.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · 原文螢光筆 1</div>
+      <div class="hl"><p class="hl__en">“As the sequence length N increases, the information requiring representation exceeds the capacity of the fixed-size d x d matrix, leading to performance saturation. We term this phenomenon global context collapse.”</p><p class="hl__zh">隨序列長度 N 增加，需要被表示的資訊量超過固定 d x d 矩陣容量，造成效能飽和；作者稱之為 global context collapse。<span class="hl__src">§3.2 p.4</span></p></div>
+      <div class="hl"><p class="hl__en">“Eq. 5 makes the mechanism transparent: each query-block rescales the contribution of entire blocks via m_i, and within each block the usual kernel inner product differentiates tokens.”</p><p class="hl__zh">Eq.5 把機制說清楚：query block 先透過 m_i 重新加權整個 block，block 內再用 kernel inner product 區分 token。<span class="hl__src">§4.2 p.7</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · 原文螢光筆 2</div>
+      <div class="hl"><p class="hl__en">“At this extreme sequence length, vanilla LA suffers severe degradation due to global context collapse, whereas MHLA preserves linear-time complexity and recovers performance comparable to the original FlashAttention-based Wan2.1-1.3B, achieving a 2.1x inference speedup.”</p><p class="hl__zh">在極長序列下，vanilla LA 因 global context collapse 嚴重退化；MHLA 保留線性時間，同時接近原本 FlashAttention Wan2.1-1.3B 的表現，並達到 2.1x 推論加速。<span class="hl__src">§5.3 p.10</span></p></div>
+      <p class="note">Reviewer note: OpenReview forum 已確認，但 reviewer JSON 因 HTTP 403 無法抓取；本 deck 不推測 reviewer score。</p>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">明日預告：模型壓縮 / 效率</h2>
+      <p class="end__sub">週五會轉到 quantization、distillation、pruning 或 inference efficiency。今天這篇的餘味是：省算力以前，先確認模型還保有「選擇性」。</p>
+      <div class="end__next">Source deck: 2026-07-09 · MHLA / ICLR 2026 Poster</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
