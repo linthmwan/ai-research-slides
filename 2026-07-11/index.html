@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Broke the System? Failure Localization in LLM-Based Multi-Agent Systems</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 週六 AI Agent 框架 / 多模態系統</div>
+      <h1 class="title">Who Broke the System? Failure Localization in LLM-Based Multi-Agent Systems</h1>
+      <div class="authors">Yufei Xia, Anjun Gao, Yueyang Quan, Zhuqing Liu, Minghong Fang · University of Louisville / University of North Texas</div>
+      <div class="meta-row"><span class="badge tier">COLM 2026 conference paper</span><span class="badge">arXiv:2607.07989v1</span><span class="badge date">Announced 2026-07-08</span></div>
+      <div class="cite">Source: cover p.1; arXiv:2607.07989v1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把 multi-agent debug 從「看誰看起來錯」改成「驗證誰在最早 decisive step 讓系統偏航」。</p>
+      <p class="lead">AgentLocate 先讓 LLM Judge 提出 agent-step 假設，再用多個 Evaluator 以 confidence-weighted voting 挑戰它，最後把 evaluator rationale / disagreement 變成 Judge refinement data。</p>
+      <div class="cite">Abstract p.1; §3 p.4-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">問題：multi-agent failure 的 root cause 常被 downstream symptom 蓋住</h2>
+      <ul class="bullets"><li>角色分工、tool use、shared state 讓單一小錯沿著後續 prompt / tool outcome / coordination pattern 擴散。</li><li>真正關鍵的是 <b>which agent</b> 與 <b>earliest decisive step</b>，不是最後哪個 agent 輸出錯答案。</li><li>越長的 trajectory，越容易把「錯誤首次變可見的位置」誤認為「錯誤來源」。</li></ul>
+      <div class="takeaway">這篇的核心觀點：debug agent 系統時，要找 root cause，不是追最後一個症狀。</div>
+      <div class="cite">§1 p.1-2; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">為什麼現有方法不夠穩？兩條路都會漏掉 causal structure</h2>
+      <div class="two-col"><div><p class="col-hint">Counterfactual replay / AgenTracer</p><ul class="bullets"><li>理論上更接近 causal testing。</li><li>但改一個 step 會改後續 prompts、tool outcomes、coordination patterns。</li><li>因此在 multi-agent setting 下，失敗誘因不一定能被穩定釘住。</li></ul></div><div><p class="col-hint">Template / taxonomy / AEGIS</p><ul class="bullets"><li>用 curated error patterns 做 responsibility matching。</li><li>對 emergent reasoning drift 與 coordination breakdown 覆蓋不足。</li><li>poisoning forensics 更假設 adversarial trace，與 benign failure mismatch。</li></ul></div></div>
+      <div class="cite">§1 p.2; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">形式化：輸出不是一個 label，而是一個 agent-step pair</h2>
+      <div class="formula">Trajectory: τ = (s<sub>0</sub>, a<sub>0</sub>, s<sub>1</sub>, a<sub>1</sub>, ..., s<sub>T</sub>)</div>
+      <div class="formula">Goal: infer (i*(τ), t*(τ)) = responsible agent + earliest decisive step</div>
+      <ul class="bullets"><li>scheduler ρ(t) 決定第 t 步 acting agent；若 corrected action at t* 能反轉 failure outcome，該步就是 decisive。</li><li>這使 localization 同時要求 <b>Who</b> 與 <b>When</b>：只找出 agent 不夠，找太晚的 step 也不夠。</li></ul>
+      <div class="cite">§2.1 p.3; Definition 1 §3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Method spine</div>
+      <p class="big">Judge → Evaluators → Fine-tuned Judge</p>
+      <p class="lead">AgentLocate 把一次性 attribution 拆成「假設、驗證、吸收批評」三個動作；每個 failed trajectory 都變成下一輪 Judge 的訓練訊號。</p>
+      <div class="cite">§3 p.4-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Stage 1 · Judge hypothesis generation</h2>
+      <div class="two-col"><div><p class="col-hint">All-at-once</p><ul class="bullets"><li>Judge 一次讀完整 failed trajectory。</li><li>直接輸出 (î, t̂)。</li><li>適合 trajectory 較短或需要全局脈絡。</li></ul></div><div><p class="col-hint">Step-by-step</p><ul class="bullets"><li>Judge 每次只看 growing prefix。</li><li>若當前 action 已滿足 decisive-error criterion，立即輸出 (ρ(t), t)。</li><li>更貼近「最早 decisive point」的搜尋。</li></ul></div></div>
+      <div class="formula">(î, t̂) = Judge(p, τ, q)</div>
+      <div class="cite">§3.1 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Stage 2 · Evaluator verification：讓多個觀點挑戰 Judge</h2>
+      <ul class="bullets"><li>每個 Evaluator 看到 Judge 的候選 `(î,t̂)`，但可以同意或反駁。</li><li>prompt styles 包含 base、concise、evidence-focused，目的是得到互補 reasoning behavior。</li><li>每個 evaluator 輸出候選 location、rationale 與 self-reported confidence。</li></ul>
+      <div class="formula">Evaluator<sub>h</sub> → (i<sub>h</sub>, t<sub>h</sub>, r<sub>h</sub>, c<sub>h</sub>), where c<sub>h</sub> ∈ [0,1]</div>
+      <div class="cite">§3.2 p.5; Appendix D p.15-16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Aggregation：不是多數決，而是 confidence-weighted support</h2>
+      <div class="formula">A(i,t) = Σ<sub>h</sub> c<sub>h</sub> · 1{(i<sub>h</sub>,t<sub>h</sub>) = (i,t)}</div>
+      <div class="formula">(i<sub>eval</sub>, t<sub>eval</sub>) = argmax<sub>(i,t)</sub> A(i,t)</div>
+      <ul class="bullets"><li>Evaluator rationale / confidence 不只是投票輔助；後面會成為 Judge refinement 的 supervision。</li><li>這一步降低單一 model run 或單一 prompt style 的偶然偏差。</li></ul>
+      <div class="cite">§3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Stage 3 · Adaptive Judge improvement</h2>
+      <ul class="bullets"><li>如果 Judge 與 evaluator aggregate 不一致，差異本身就是「Judge reasoning 哪裡偏離 decisive criterion」的訊號。</li><li>即使一致，evaluator rationale 也補上 missing evidence / causal link。</li><li>每個 failed query 形成一筆 richer training instance，而非只保留 final label。</li></ul>
+      <div class="formula">z<sub>q</sub> = {τ, q, î, t̂, {i<sub>h</sub>,t<sub>h</sub>,r<sub>h</sub>,c<sub>h</sub>}<sub>h</sub>, i<sub>eval</sub>, t<sub>eval</sub>}</div>
+      <div class="cite">§3.3 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">實驗設計：兩個 failure localization benchmarks + 多模型檢驗</h2>
+      <ol class="numbered"><li><b>Who&When</b>：Algorithm-Generated 126 cases / 191 agents / avg 8.6 steps；Hand-Crafted 58 cases / avg 50 steps。</li><li><b>Aegis-Bench</b>：9,533 failure trajectories、6 task domains、6 agent frameworks、24,843 injected error instances。</li><li><b>Models</b>：Qwen-7B、Llama-8B、Mistral-7B、GPT-4o；Who&When 50/10/40 train/val/test。</li><li><b>Metrics</b>：Who&When 用 agent-level + step-level；Aegis-Bench 用 agent-level + pair-level。</li></ol>
+      <div class="cite">§4.1 p.6-7; Appendix E p.16-17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">主結果：Algorithm-Generated 上 agent 與 exact step 都明顯領先</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Qwen A/O agent</th><th class="num">Qwen A/O step</th><th class="num">GPT-4o S/S agent</th><th class="num">GPT-4o S/S step</th></tr></thead><tbody><tr><td>WhichAgent</td><td class="num">30.95</td><td class="num">19.05</td><td class="num">28.57</td><td class="num">19.05</td></tr><tr><td>AgenTracer</td><td class="num">45.24</td><td class="num">11.90</td><td class="num">61.90</td><td class="num">9.52</td></tr><tr><td>ECHO</td><td class="num">30.95</td><td class="num">14.29</td><td class="num">19.05</td><td class="num">9.52</td></tr><tr><td>AEGIS</td><td class="num">33.33</td><td class="num">-</td><td class="num">21.43</td><td class="num">-</td></tr><tr class="win"><td>AgentLocate</td><td class="num best">69.05</td><td class="num best">38.10</td><td class="num best">64.29</td><td class="num best">33.33</td></tr></tbody></table>
+      <div class="takeaway">注意 step-level：AgenTracer 在 GPT-4o step-by-step 有 61.90 agent-level，卻只有 9.52 step-level；找對人不等於找對根因時刻。</div>
+      <div class="cite">Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Figure-first：原文 Table 1 的整體趨勢</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/table1_p7.jpg" alt="Table 1 localization performance"><figcaption>Table 1 · Who&When Algorithm-Generated localization performance（裁自 PDF p.7）</figcaption></figure>
+      <p class="note">抽圖 clean=false（body_x4）但為原文主表；關鍵數字已在前頁 table block 轉錄核對。</p>
+      <div class="cite">Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">長 trajectory 與 Aegis-Bench：優勢仍在，但 pair-level 更難</h2>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">AgentLocate</th><th class="num">Best contrast</th><th class="num">Interpretation</th></tr></thead><tbody><tr class="win"><td>Hand-Crafted Qwen A/O agent / step</td><td class="num best">62.50 / 16.67</td><td class="num">AEGIS 54.17 agent-only; WhichAgent 45.83 / 4.17</td><td class="num">long-horizon exact step 仍難</td></tr><tr><td>Hand-Crafted Llama A/O agent / step</td><td class="num">62.50 / 20.83</td><td class="num">AEGIS 37.50 agent-only</td><td class="num">跨模型仍穩</td></tr><tr class="win"><td>Aegis-Bench Qwen S/S agent / pair</td><td class="num best">59.83 / 11.50</td><td class="num">AgenTracer 42.67 / 6.67; AEGIS 41.00 / 6.17</td><td class="num">error-mode pair-level margin 較小</td></tr></tbody></table>
+      <div class="cite">Table 2 p.20; Table 3 p.20; Appendix G p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Efficiency：接近 training-free baseline 的開銷，遠小於 replay-based tracing</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Tokens (HC A/O)</th><th class="num">Cost USD (HC A/O)</th><th class="num">Runtime sec (HC A/O)</th></tr></thead><tbody><tr><td>WhichAgent</td><td class="num">494,274</td><td class="num">0.068</td><td class="num">556</td></tr><tr><td>AgenTracer</td><td class="num">23,072,290</td><td class="num">3.204</td><td class="num">6,752</td></tr><tr><td>ECHO</td><td class="num">608,504</td><td class="num">0.084</td><td class="num">349</td></tr><tr class="win"><td>AgentLocate</td><td class="num">1,071,606</td><td class="num">0.148</td><td class="num best">315</td></tr></tbody></table>
+      <div class="takeaway">相對 AgenTracer：315 sec vs 6,752 sec，約 21.4x faster；$0.148 vs $3.204，約 21.6x cheaper。</div>
+      <div class="cite">Tables 6-8 p.22</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · 皇冠頁</div>
+      <p class="big">真正有效的是「被多視角質疑後的 supervision」，不是單純多叫幾個模型。</p>
+      <p class="lead">1→3 Evaluators 讓 Qwen all-at-once agent-level 從 35.71% 升到 69.05%；但再加到 5 或 7 沒有一致收益。</p>
+      <div class="cite">Table 10 p.23; §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">Ablation：三個少掉的版本都不如完整 verify-and-refine</h2>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">A/O agent</th><th class="num">A/O step</th><th class="num">S/S agent</th><th class="num">S/S step</th></tr></thead><tbody><tr><td>I: Judge only</td><td class="num">38.10</td><td class="num">19.05</td><td class="num">38.10</td><td class="num">16.67</td></tr><tr><td>II: Evaluator aggregate only</td><td class="num">52.38</td><td class="num">28.57</td><td class="num">47.62</td><td class="num">23.81</td></tr><tr><td>III: direct label fine-tune</td><td class="num">54.76</td><td class="num">23.81</td><td class="num">57.14</td><td class="num">26.19</td></tr><tr class="win"><td>Full AgentLocate</td><td class="num best">69.05</td><td class="num best">38.10</td><td class="num best">69.05</td><td class="num best">33.33</td></tr></tbody></table>
+      <div class="takeaway">作者的解釋很重要：final label 太薄；evaluator rationale / disagreement 才提供長 trajectory 裡可學的 corrective signal。</div>
+      <div class="cite">Table 13 p.25; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">案例：Step 6 的 assumption 讓整個 agent team 偏航</h2>
+      <figure class="full" style="max-height:56vh;"><img src="figures/figure1_p21.jpg" alt="Failure propagation example"><figcaption>Figure 1 · bottle recycling case：Step 6 使用假設價格而非 Wikipedia 抽取值，後續流程被錯誤前提牽走。</figcaption></figure>
+      <div class="cite">Figure 1 p.21; §4.2 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">作者自己的診斷：visibility bias 仍是未解問題</h2>
+      <ul class="bullets"><li>最常被 mislocalized 的 agent 往往是 Verification_Expert、WebSurfer 這類後段驗證 / 檢索角色。</li><li>原因不是它們一定最常犯 root error，而是 upstream mistakes 常在這裡才「變得可見」。</li><li>未來需要更顯式 modeling error propagation：分離 true upstream source 與 failure surface。</li></ul>
+      <figure class="full" style="max-height:36vh;"><img src="figures/figure5_p23.jpg" alt="Top frequent failure-causing agents"><figcaption>Figure 5 · Top failure-causing agents（clean=true；但 deck 重點在作者對 visibility bias 的文字分析）</figcaption></figure>
+      <div class="cite">§5 p.9; Figure 5 p.23</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">局限：這不是「已解決 agent debugging」</h2>
+      <ol class="numbered"><li><b>Exact step 仍難</b>：Hand-Crafted 長 trajectory 下 Qwen all-at-once step-level 只有 16.67%，雖然仍優於多數 baseline。</li><li><b>Error-mode pair 不完全對齊目標</b>：Aegis-Bench pair-level margin 較小，作者也說 AgentLocate 主設計目標是 Who/When，不是 taxonomy classification。</li><li><b>Evaluator model 差異有限</b>：換 evaluator model 的改善 modest，表示方法增益主要不是「換更強模型」本身。</li><li><b>Code release 尚未落地</b>：paper 只寫 code will be released upon acceptance。</li></ol>
+      <div class="cite">Table 2 p.20; Appendix G p.18; Table 9 p.23; §4.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <h2 class="head">工程啟發：Agent framework 應該保存可被 challenge 的 failure trace</h2>
+      <ul class="bullets"><li>日誌格式要保留 acting agent、step index、state / tool result、query context，否則 `(i,t)` localization 沒有落點。</li><li>Debug pipeline 不宜只做一次 LLM judge；至少要讓不同 prompt/perspective 對同一候選做 independent critique。</li><li>把 disagreement / rationale 存成可訓練資料，比只存 final correct label 更有價值。</li><li>對 production agent，這可以變成「post-mortem → evaluator review → judge adapter update」的閉環。</li></ul>
+      <div class="takeaway">這篇最值得帶走的不是某個 benchmark 數字，而是 agent observability 與 refinement data schema 的設計方向。</div>
+      <div class="cite">§3 p.4-6; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <h2 class="head">Appendix highlight · 一次性 attribution 為何不夠</h2>
+      <div class="hl"><p class="hl__en">The core motivation is that a single attribution pass is often brittle for long, tool-mediated trajectories, so localization should be treated as a process that can be challenged, verified, and improved rather than a one-shot decision.</p><p class="hl__zh">核心動機是：對長、含工具的 trajectory，單次歸因常常脆弱；failure localization 應被視為可挑戰、可驗證、可改進的流程，而不是一次性判決。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <h2 class="head">Appendix highlight · 為何 full AgentLocate 贏過直接 label fine-tune</h2>
+      <div class="hl"><p class="hl__en">Variant III is trained directly on the original benchmark trajectories with ground-truth labels ... its performance still remains below that of the full AgentLocate.</p><p class="hl__zh">Variant III 直接用原始 benchmark trajectory 與 ground-truth labels 訓練，但表現仍低於完整 AgentLocate；這支持 evaluator-enriched supervision 比 final label 更有資訊量。<span class="hl__src">§5 p.9</span></p></div>
+      <div class="cite">§5 p.9; Table 13 p.25</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <h2 class="head">Appendix · 最小公式卡</h2>
+      <div class="formula">(î, t̂) = Judge(p, τ, q)</div>
+      <div class="formula">A(i,t) = Σ<sub>h</sub> c<sub>h</sub> · 1{(i<sub>h</sub>,t<sub>h</sub>) = (i,t)}</div>
+      <div class="formula">z<sub>q</sub> = {τ, q, î, t̂, evaluator outputs, i<sub>eval</sub>, t<sub>eval</sub>}</div>
+      <ul class="bullets"><li>第一式產生候選；第二式做 confidence-weighted aggregation；第三式把整個 review episode 變成 refinement data。</li></ul>
+      <div class="cite">§3.1-3.3 p.4-6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">今天的 takeaway</h2>
+      <p class="end__sub">Agent debugging 的下一步不是更多 logging 而已，而是能把 failure trace 變成可驗證、可反駁、可訓練的 supervision。</p>
+      <div class="end__next">明日主題：火爆 GitHub Repo 或公司技術報告</div>
+      <div class="cite">Deck generated 2026-07-11 · Asia/Taipei</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
