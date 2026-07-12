@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VikingMem: A Memory Base Management System for Stateful LLM-based Applications</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Sunday GitHub Trending x VLDB 2026 accepted</div>
+      <h1 class="title">VikingMem:<br>A Memory Base Management System for Stateful LLM-based Applications</h1>
+      <div class="authors">Jiajie Fu, Junwen Chen, Mengzhao Wang, Aoxiang He, Maojia Sheng, Xiangyu Ke, Yifan Zhu, Yunjun Gao</div>
+      <div class="meta-row"><span class="badge tier">PVLDB / VLDB 2026 accepted</span><span class="badge">arXiv 2605.29640</span><span class="badge">OpenViking trending repo</span><span class="badge date">2026-07-12</span></div>
+      <div class="cite">Source: OpenViking README lines 706-712; arXiv:2605.29640; PDF p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Long-term LLM memory is treated as a <b>database problem</b>: Events become logs, Entities become materialized state, and retrieval becomes a latency-bounded query plan.</p>
+      <p class="lead">The important move is not merely "better vector search". VikingMem changes the unit of memory, lifecycle, and ranking objective.</p>
+      <div class="cite">Abstract p.1; §2.2.2 p.4; §3 p.5-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h1 class="title">Finite context windows are the wrong abstraction for state</h1>
+      <ul class="bullets"><li>Persistent assistants, agents, education, and recommendation systems need continuity across many sessions.</li><li>Ad hoc logs, shallow caches, and task-specific heuristics lead to stale/conflicting memory and custom reconciliation logic.</li><li>Simply stuffing more history into prompts is costly, latency-sensitive, and still lacks lifecycle operations like consolidation, forgetting, and provenance.</li></ul>
+      <div class="takeaway">Memory needs a service-grade substrate, not a longer prompt.</div>
+      <div class="cite">§1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Industrial observations</div>
+      <h1 class="title">Three pressures shape the system design</h1>
+      <ol class="numbered"><li><b>Low signal-to-noise streams:</b> meetings, chat, logs, and trajectories contain sparse value with interleaved topics.</li><li><b>Dynamic state:</b> users, tools, and agent procedures evolve; insert-and-retrieve RAG accumulates contradictions.</li><li><b>Fragmented architectures:</b> companion chat, education, search, and agent SOPs need different memory schemas but should share infrastructure.</li></ol>
+      <div class="cite">§2.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h1 class="title">From memory prompt tricks to Memory Base Management System</h1>
+      <ol class="numbered"><li>Defines <b>Memory Base</b>: selective extraction + statefulness/evolution + generalizable design.</li><li>Implements <b>VikingMem</b> on VikingDB: extraction, management, retrieval, event/entity stores, and keyword graph.</li><li>Shows deployment across five industrial categories at ByteDance, including Agent Memory.</li><li>Reports SOTA long-term memory effectiveness with sub-second retrieval latency.</li></ol>
+      <div class="cite">§1 p.2; §3 p.5; §4 p.7-8; Table 1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core abstraction</div>
+      <h1 class="title">Events are logs; Entities are materialized views</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:52vh;"><img src="figures/figure1_p4.jpg" alt="Event and entity schema"><figcaption>Figure 1: Event/Entity schemas and built-in operators</figcaption></figure></div><div><ul class="bullets"><li><b>Event:</b> timestamped episodic unit selectively extracted from raw sessions.</li><li><b>Entity:</b> persistent evolving state such as user profile or tool SOP.</li><li><b>Operator:</b> application-defined rule controlling how Events update Entity fields.</li></ul><div class="cite">Figure 1 p.4; §2.2.1 p.3-4</div></div></div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Database lens</div>
+      <p class="big">entity := SELECT OP(event.content)<br>FROM Events WHERE filters(event)<br>GROUP BY keys(event)</p>
+      <p class="lead">Changing keys, filters, and OP materializes user profiles, tool memories, SOPs, learning progress, or recommendations from the same Event log.</p>
+      <div class="cite">§2.2.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System pipeline</div>
+      <h1 class="title">Extraction -> Management -> Retrieval</h1>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure2_p5.jpg" alt="VikingMem pipeline"><figcaption>Figure 2: VikingMem pipeline over VikingDB-backed event/entity stores</figcaption></figure>
+      <div class="takeaway">VikingDB stores records and indices; VikingMem owns schema-driven extraction, deduplication, event-to-entity updates, and reranking.</div>
+      <div class="cite">Figure 2 p.5; §3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Memory extraction</div>
+      <h1 class="title">One-pass extraction compiles schemas into a single prompt</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:52vh;"><img src="figures/figure3_p6.jpg" alt="Extraction paradigm"><figcaption>Figure 3: Schema-driven one-pass extraction</figcaption></figure></div><div><ul class="bullets"><li>Prior systems use separate hard-coded prompts for each memory type, causing N passes for N types.</li><li>VikingMem compiles Event and Entity schemas into one prompt so the LLM extracts all defined memories in one inference pass.</li><li>The fixed prompt prefix and memory schema can benefit from prefix-cache reuse.</li></ul><div class="cite">§3.1 p.5-6; Figure 3 p.6</div></div></div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fast entity updates</div>
+      <h1 class="title">EUA turns semantic entity maintenance into patch application</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:46vh;"><img src="figures/figure4_p6.jpg" alt="Entity Update Algorithm"><figcaption>Figure 4 / Algorithm 1: Faster Entity Update without LLM</figcaption></figure></div><div><ul class="bullets"><li>For string fields, the extractor emits compact <b>SEARCH/REPLACE</b>-style patches.</li><li>EUA locates the best approximate span by edit distance and applies the replacement deterministically.</li><li>Only a small top-5 relevant entity candidate set is included in the prompt for patch generation.</li></ul><div class="formula">E_new[f] = E_old[f][0:i] + REPLACE + E_old[f][j:]</div><div class="cite">§3.1 Algorithm 1 p.6</div></div></div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Segmentation</div>
+      <h1 class="title">IMSM fixes the unit of memory before retrieval ever starts</h1>
+      <ul class="bullets"><li>Phase 1: semantic saliency filtering removes greetings, fillers, and low-value spans.</li><li>Phase 2: event-centric partitioning returns coordinate tuples for coherent segments.</li><li>Non-contiguous same-topic fragments (A1 + A2) can be merged while interleaved noise (B) is excluded.</li></ul>
+      <div class="takeaway">This is the paper’s strongest mechanism: better memories are created at ingestion, not rescued at query time.</div>
+      <div class="cite">§3.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Memory management</div>
+      <h1 class="title">Operators encode memory lifecycle policies</h1>
+      <table class="bench"><thead><tr><th>Operator</th><th>Role</th><th>Why it matters</th></tr></thead><tbody><tr><td>SUM / COUNT / AVG / MAX</td><td>Numerical aggregation</td><td>Avoids LLM arithmetic failure and token cost</td></tr><tr><td>LLM_MERGE</td><td>Textual merge / conflict resolution</td><td>Evolves qualitative entity state</td></tr><tr class="win"><td>TIME_COMPRESS</td><td>Topic timeline + lazy merge + TTL</td><td>Keeps recent detail, summarizes old inactive memories</td></tr></tbody></table>
+      <div class="cite">§3.2 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Retrieval scoring</div>
+      <h1 class="title">Recall uses relevance, freshness, and business priors</h1>
+      <div class="formula">S<sub>final</sub> = (1 - w<sub>time</sub> - w<sub>busi</sub>) S<sub>origin</sub> + w<sub>time</sub> S<sub>time</sub> + w<sub>busi</sub> S<sub>busi</sub></div>
+      <ul class="bullets"><li>Primary path: dense+sparse hybrid retrieval over the memory store.</li><li>Temporal score gives a freshness tolerance window, then exponential decay.</li><li>Business score can be type-level or instance-level, extracted into schema fields.</li><li>Auxiliary keyword graph covers indirect low-similarity memories such as nicknames.</li></ul>
+      <div class="cite">§3.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reranking</div>
+      <h1 class="title">Late interaction is the latency-aware alternative to cross-encoders</h1>
+      <ul class="bullets"><li>Cross-encoder rerankers can push p99 into seconds, too slow for interactive memory recall.</li><li>VikingMem precomputes ColBERT-style contextualized vectors during extraction.</li><li>Quantization and token-merge compression keep overhead comparable to dense vectors.</li></ul>
+      <div class="takeaway">The system pays extra compute when memories are ingested, then keeps query-time rerank fast.</div>
+      <div class="cite">§3.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Application</div>
+      <h1 class="title">Agent Memory: tool traces become reusable operational knowledge</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:52vh;"><img src="figures/figure5_p8.jpg" alt="Agent Memory use case"><figcaption>Figure 5: Agent Memory use case</figcaption></figure></div><div><ul class="bullets"><li>Raw execution traces are verbose and noisy; VikingMem extracts salient tool invocations as Events.</li><li>Each Event records tool, usage situation, task goal, and success status.</li><li>Tool Entity evolves into lessons learned: suitable use cases, failure cases, and future suggestions.</li></ul><div class="cite">§4.2 p.8; Figure 5 p.8</div></div></div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation setup</div>
+      <h1 class="title">Two long-term memory benchmarks, eight baselines</h1>
+      <table class="bench"><thead><tr><th>Dataset</th><th>Scale</th><th>Task focus</th></tr></thead><tbody><tr><td>LOCOMO</td><td>10 conversations, 1000+ messages each</td><td>QA with single-hop, multi-hop, temporal, open-domain</td></tr><tr class="win"><td>LongMemEval_s</td><td>500 conversations, avg ~115,000 tokens</td><td>Multi-session reasoning, memory updates, preferences</td></tr></tbody></table>
+      <ul class="bullets"><li>Baselines: Mem0, Mem0-graph, Zep, RAG, Mirix, Full-Context, OpenClaw, Claude Native Memory.</li><li>Each experiment is repeated three times; systems face a 24-hour end-to-end cap.</li></ul>
+      <div class="cite">§5.1.1-5.1.5 p.8-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main results</div>
+      <h1 class="title">VikingMem leads on accuracy while staying sub-second</h1>
+      <table class="bench" style="compact"><thead><tr><th>Setting</th><th class="num">VikingMem</th><th class="num">Strong baseline</th><th class="num">p95</th></tr></thead><tbody><tr class="win"><td>LOCOMO / GPT-4o-mini</td><td class="num best">88.83</td><td class="num">Mirix 78.66</td><td class="num">0.39s</td></tr><tr class="win"><td>LOCOMO / GPT-4.1-mini</td><td class="num best">90.12</td><td class="num">Full-context 86.36</td><td class="num">0.39s</td></tr><tr class="win"><td>LongMemEval / GPT-4o-mini</td><td class="num best">66.36</td><td class="num">Zep 63.21</td><td class="num">0.89s</td></tr><tr class="win"><td>LongMemEval / GPT-4o</td><td class="num best">75.80</td><td class="num">Zep 70.40</td><td class="num">0.89s</td></tr></tbody></table>
+      <div class="cite">Table 1 p.9; §5.2 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">The biggest gain comes from <b>creating denser memories</b>, not from merely ranking noisy chunks harder.</p>
+      <div class="scorebox"><span class="score score--lo">IMSM removed: 88.83 -> 83.51</span><span class="score">Rerank removed: 88.83 -> 85.19</span><span class="score">Entity removed: 88.83 -> 86.93</span></div>
+      <p class="lead">IMSM has the largest ablation drop (-5.32 points) with ~0 search-latency impact because it works offline at ingestion.</p>
+      <div class="cite">Table 4 p.11; §5.5.1-5.5.3 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost and latency</div>
+      <h1 class="title">One-pass extraction + EUA cuts cost without sacrificing score</h1>
+      <table class="bench"><thead><tr><th>Technique</th><th class="num">Cost($)</th><th class="num">Time(s)</th><th class="num">Score</th></tr></thead><tbody><tr><td>Multiple Prompts</td><td class="num">0.35</td><td class="num">11.02</td><td class="num">88.86</td></tr><tr><td>One-pass w/o EUA</td><td class="num">0.11</td><td class="num">12.32</td><td class="num">88.83</td></tr><tr class="win"><td>One-pass w/ EUA</td><td class="num best">0.07</td><td class="num best">7.42</td><td class="num">88.77</td></tr></tbody></table>
+      <div class="takeaway">The system converts repeated semantic extraction into one schema-driven pass, then makes entity updates deterministic where possible.</div>
+      <div class="cite">Table 2 p.11; §5.3 p.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Storage efficiency</div>
+      <h1 class="title">Less storage, higher retrieval quality</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Stored tokens</th><th class="num">LLM-Judge score</th></tr></thead><tbody><tr><td>Naive RAG</td><td class="num">100% baseline</td><td class="num">63.81</td></tr><tr class="win"><td>VikingMem</td><td class="num best">16.82% (-83.18%)</td><td class="num best">75.80</td></tr></tbody></table>
+      <div class="takeaway">Selective Events + Entity snapshots are semantically denser than full raw conversation storage.</div>
+      <div class="cite">Table 3 p.11; §5.4 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Operator evidence</div>
+      <h1 class="title">Real applications use different operator mixtures</h1>
+      <table class="bench" style="compact"><thead><tr><th>Scenario</th><th class="num">MAX</th><th class="num">AVG</th><th class="num">LLM_M</th><th class="num">TIME_C</th></tr></thead><tbody><tr><td>Education</td><td class="num">90%</td><td class="num best">96%</td><td class="num">91%</td><td class="num">26%</td></tr><tr class="win"><td>Agent Memory</td><td class="num best">96%</td><td class="num best">98%</td><td class="num">98%</td><td class="num">42%</td></tr><tr><td>Social Comp.</td><td class="num">16%</td><td class="num">32%</td><td class="num best">100%</td><td class="num best">72%</td></tr></tbody></table>
+      <div class="cite">Table 5 p.12; §5.6 p.11-12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">F1 robustness check</div>
+      <h1 class="title">The ranking is not only an LLM-judge artifact</h1>
+      <div class="scorebox"><span class="score score--hi">VikingMem F1 54.98%</span><span class="score">Full-Context 53.03%</span><span class="score">Zep 47.03%</span></div>
+      <ul class="bullets"><li>Because LLM-as-a-judge can be prompt/model sensitive, the paper also reports token-level F1 on LOCOMO.</li><li>VikingMem leads overall and on single-hop, multi-hop, and open-domain questions; it remains competitive on temporal questions.</li></ul>
+      <div class="cite">Table 6 p.12; §5.7 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h1 class="title">What this deck should not overclaim</h1>
+      <ul class="bullets"><li>Main scores rely on LLM-as-a-judge; F1 helps, but evaluation is still benchmark/protocol dependent.</li><li>Time weighting is disabled in the public fact-based benchmark setup, so recency/business priors are not fully stressed there.</li><li>OpenViking is an open-source subset of VikingMem, not necessarily the full commercial ByteDance deployment.</li><li>Semantic extraction and LLM_MERGE inherit model/prompt quality, even if EUA and statistical operators reduce unnecessary calls.</li></ul>
+      <div class="cite">§5.1.5 p.10; §5.7 p.12; §3.1-3.2 p.5-7; README selection note</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h1 class="title">For agent builders, the design lesson is surprisingly concrete</h1>
+      <ol class="numbered"><li>Define memory schemas before collecting memory: otherwise the system only stores logs.</li><li>Separate episodic Events from evolving Entity state, and make update operators explicit.</li><li>Spend LLM calls at ingestion when they reduce future query noise; keep query-time recall/rerank latency bounded.</li><li>Ablate segmentation separately from retrieval. If memory units are wrong, a better retriever only ranks bad evidence.</li></ol>
+      <div class="cite">Synthesis from §2-§5; main numeric support Table 4 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 1</div>
+      <h1 class="title">The paper’s core reframing</h1>
+      <div class="hl"><p class="hl__en">"we introduce the Memory Base, a novel data management paradigm to manage the persistent state of long-term interactions."</p><p class="hl__zh">作者把 LLM memory 問題重新定位為「長期互動的持久狀態管理」問題，而不是單純向量檢索。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">"VikingMem treats the event store as a generic log and the entity store as a family of materialized views over that log."</p><p class="hl__zh">Event 是可查詢日誌，Entity 是物化視圖；這是整篇最像資料庫系統的抽象。<span class="hl__src">§2.2.2 p.4</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 2</div>
+      <h1 class="title">The efficiency story</h1>
+      <div class="hl"><p class="hl__en">"one-pass extraction substantially improves cost efficiency ... the extraction cost drops from $0.35 to $0.11 ... EUA further ... decreasing ... to $0.07."</p><p class="hl__zh">schema-driven one-pass + patch-style EUA 把抽取成本從 $0.35 壓到 $0.07，品質幾乎不變。<span class="hl__src">§5.3 / Table 2 p.11</span></p></div>
+      <div class="hl"><p class="hl__en">"VikingMem retains only the extracted events and entity snapshots, reducing the total storage footprint to just 16.82% of the original size."</p><p class="hl__zh">保留高密度 Events/Entities，而不是全量 raw log；這是 83.18% storage reduction 的來源。<span class="hl__src">§5.4 / Table 3 p.11</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 3</div>
+      <h1 class="title">The ablation that matters most</h1>
+      <div class="hl"><p class="hl__en">"Its removal triggered the most severe performance drop ... 88.83 -> 83.51."</p><p class="hl__zh">IMSM 是最大的品質槓桿，證明「切對 memory unit」比單純換 reranker 更根本。<span class="hl__src">§5.5.2 / Table 4 p.11</span></p></div>
+      <ul class="bullets"><li>Rerank removed: 88.83 -> 85.19 (+6.8ms p95 when included).</li><li>Keyword Graph removed: 88.83 -> 86.92, but costs +25.8ms p95 when included.</li></ul>
+      <div class="cite">Table 4 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow: LLM architecture / training / alignment</h2>
+      <p class="end__sub">Today’s useful lens: do not ask a context window to behave like a database.</p>
+      <div class="end__next">Next rotation: Monday - LLM</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
