@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generalize LMMs to Versatile Visual Modalities via Fabricated Modality Synthesis</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 2026-07-14 · Tuesday / Vision-Language Models</div>
+      <h1 class="title">Generalize LMMs to Versatile Visual Modalities via Fabricated Modality Synthesis</h1>
+      <div class="authors">Shihao Yuan, Yuanze Li, Ruyi Zhang, Ming Liu, Wangmeng Zuo · Harbin Institute of Technology</div>
+      <div class="meta-row"><span class="badge tier">ECCV 2026 accepted</span><span class="badge">arXiv 2607.10308v1</span><span class="badge date">Announced 2026-07-11</span></div>
+      <p class="lead">VVM-Tuning asks whether an LMM can handle thermal, depth, X-ray, optical-flow-like, and synthetic modalities <b>without in-modality training</b>.</p>
+      <div class="cite">Source: arXiv:2607.10308v1 · §cover p.1 · §1 pp.1-4</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Do not teach the model every sensor. Teach it to separate <b>what the scene is</b> from <b>how this sensor paints it</b>.</p>
+      <p class="lead">The paper treats non-RGB modalities as different samplings of the same physical world: shared semantics stay stable; appearances and color meanings change.</p>
+      <div class="cite">Abstract p.1; Fig.1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Current LMMs are mostly RGB-native, even when they look multimodal</h2>
+      <ul class="bullets"><li>Non-RGB ability often comes from <b>seen</b> data already included in scaling: DocQA, ScienceQA, RGB-D / RGB-T, domain-specific medical or remote-sensing datasets.</li><li>ImageBind / PandaGPT-style transfer still relies on paired or seen modality encoders, so it does not answer the unseen visual-modality question.</li><li>The paper makes the question explicit: can LMMs generalize to versatile visual modalities <b>without training on in-modality data</b>?</li></ul>
+      <div class="takeaway">The gap is not “more benchmarks”; it is an alignment problem between semantics, appearance, and physical meaning.</div>
+      <div class="cite">§1 pp.1-2; §2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core observation</div>
+      <h2 class="head">A thermal image and an RGB image can share a scene while disagreeing on appearance</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure1_p2.jpg" alt="Overview of modality commonalities and context"><figcaption>Fig.1: modalities share intrinsic semantics, while modality context explains how appearance maps to physical meaning.</figcaption></figure>
+      <ul class="bullets"><li><b>Modality-unaware perception:</b> recognize shape, edge, contour, position, and scene semantics even without sensor knowledge.</li><li><b>Modality-aware understanding:</b> use context to map a color or pattern back to temperature, depth, radiation, flow, etc.</li></ul>
+      <div class="cite">Fig.1 p.2; §1 pp.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Human analogy</div>
+      <h2 class="head">Before knowing the sensor, we can still perceive basic visual elements</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:50vh;"><img src="figures/figure2_p3.jpg" alt="Example of modality-unaware perception"><figcaption>Fig.2: color, edge, contour, shape, and position remain perceivable.</figcaption></figure></div><div><ul class="bullets"><li>This motivates a <b>two-level</b> view of visual perception.</li><li><b>Semantic perception:</b> objects and scene relations.</li><li><b>Photographic perception:</b> visible clues such as color, lines, textures, and shapes before physical interpretation.</li></ul><div class="takeaway">The training target is not “understand thermal immediately”; it is “keep visual clues disentangled enough that context can later interpret them.”</div></div></div>
+      <div class="cite">Fig.2 p.3; §1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contribution map</div>
+      <h2 class="head">Three artifacts: synthesis pipeline, tuning tasks, and VVM-Bench</h2>
+      <ol class="numbered"><li><b>Fabricated modality synthesis:</b> RGB scenes are transformed into diverse pseudo-modal images and paired with synthetic modality contexts.</li><li><b>VVM-Tuning:</b> instruction tuning separates modality-unaware perception from modality-aware understanding.</li><li><b>VVM-Bench:</b> 6 modalities and 11 VQA tasks test perception and context-grounded understanding.</li></ol>
+      <div class="scorebox"><span class="score score--hi">6 modalities</span><span class="score score--hi">11 VQA tasks</span><span class="score score--hi">13,317 samples</span></div>
+      <div class="cite">§1 p.4; §3.5 pp.9-10; §B.2 p.27</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 1 / Modality synthesis</div>
+      <h2 class="head">Fabricate appearances first, then fabricate the words that explain them</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure3_p6.jpg" alt="Modality synthesis pipeline"><figcaption>Fig.3: image synthesis plus modality context fabrication.</figcaption></figure>
+      <ul class="bullets"><li>Image branch: RGB to grayscale, histogram spline randomization, 22 colormaps, noise / smoothing / blur.</li><li>Context branch: masks or object labels connect colors to objects and physical attributes; if no annotation exists, an LMM writes context from examples.</li></ul>
+      <div class="cite">Fig.3 p.6; §3.2 pp.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 1 / Appearance diversity</div>
+      <h2 class="head">The synthetic images are deliberately simple, but cover many “sensor-like” looks</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:48vh;"><img src="figures/figure4_p7.jpg" alt="Fabricated images with different colormaps"><figcaption>Fig.4: same-source scenes rendered with different fabricated appearances.</figcaption></figure></div><div><ul class="bullets"><li>Spline S(x) remaps grayscale pixel values while preserving valid [0,255] range.</li><li>Pseudo-color maps mimic scientific visualization and sensor outputs.</li><li>Augmentations simulate noisy or low-resolution imaging processes.</li></ul><div class="formula">I_hat = S(I), where S: [0,255] to [0,255] is a rejected-if-invalid cubic spline</div><div class="takeaway">The point is not photorealism; it is pressure-testing whether semantics survive appearance changes.</div></div></div>
+      <div class="cite">§3.2 p.7; Appendix C.1 pp.28-29; Alg.A1 p.29</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 2 / Task construction</div>
+      <h2 class="head">VVM-Tuning trains two abilities instead of one entangled captioning skill</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure5_p8.jpg" alt="VVM-Tuning task construction"><figcaption>Fig.5: semantic/photo descriptions and QA feed perception; modality context feeds understanding.</figcaption></figure>
+      <ul class="bullets"><li><b>Perception tasks:</b> semantic description, semantic QA, photographic description, photographic QA.</li><li><b>Understanding tasks:</b> modality description and modality QA built from semantic + photographic descriptions plus context.</li></ul>
+      <div class="cite">Fig.5 p.8; §3.3-§3.4 pp.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 3 / Objective</div>
+      <h2 class="head">The learning algorithm is deliberately ordinary SFT</h2>
+      <div class="formula">L<sub>SFT</sub> = -Σ<sub>i=1..n</sub> log pi<sub>theta</sub>(y<sub>i</sub> | X, y<sub>&lt;i</sub>)</div>
+      <ul class="bullets"><li>All structure is in the <b>data and task design</b>, not a new model architecture.</li><li>Training optimizes generated answer T<sub>a</sub> toward ground-truth T<sub>gt</sub>.</li><li>This makes the result relevant to many base LMM families: LLaVA, Qwen2.5-VL, Qwen3-VL.</li></ul>
+      <div class="takeaway">A simple objective makes the ablation cleaner: gains are more attributable to task decomposition and synthetic modality construction.</div>
+      <div class="cite">§3.1 p.6; §4.1 pp.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Benchmark</div>
+      <h2 class="head">VVM-Bench tests both “can you see it?” and “do you know what the sensor means?”</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure6_p10.jpg" alt="VVM-Bench overview"><figcaption>Fig.6: 3 collected modalities plus 3 fabricated modalities; perception and understanding VQA tasks.</figcaption></figure>
+      <table class="bench"><thead><tr><th>Subset</th><th>Task intent</th><th>Context?</th></tr></thead><tbody><tr><td>Perception</td><td>Semantics and visible attributes perceivable without modality knowledge</td><td>No</td></tr><tr><td>Understanding</td><td>Link modality appearance to physical meaning and sensor knowledge</td><td>Yes</td></tr></tbody></table>
+      <div class="cite">§3.5 pp.9-10; §B.1-§B.2 pp.26-27</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h2 class="head">Five model settings, one-stage SFT, no in-modality training</h2>
+      <table class="bench"><thead><tr><th>Axis</th><th>Setting</th></tr></thead><tbody><tr><td>Base LMMs</td><td>LLaVA-1.5 7B; Qwen2.5-VL 3B/7B; Qwen3-VL 4B/8B</td></tr><tr><td>Training</td><td>4 NVIDIA A800 GPUs; batch size 32; AdamW; lr 1e-5; 1 epoch</td></tr><tr><td>Data</td><td>roughly 50k samples, including 12k RGB instruction samples to preserve general ability</td></tr><tr><td>Eval</td><td>choice-question VQA; model outputs option letter only</td></tr></tbody></table>
+      <div class="cite">§4.1 pp.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 1 / Perception</div>
+      <h2 class="head">Synthetic appearance training improves modality-unaware perception by +8.2 points on average</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Baseline avg</th><th class="num">VVM avg</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>LLaVA-1.5 7B</td><td class="num">60.4%</td><td class="num best">74.1%</td><td class="num">+13.6%</td></tr><tr><td>Qwen2.5-VL 3B</td><td class="num">72.2%</td><td class="num">81.9%</td><td class="num">+9.7%</td></tr><tr><td>Qwen2.5-VL 7B</td><td class="num">78.1%</td><td class="num">84.1%</td><td class="num">+6.0%</td></tr><tr><td>Qwen3-VL 4B</td><td class="num">77.6%</td><td class="num">82.8%</td><td class="num">+5.3%</td></tr><tr><td>Qwen3-VL 8B</td><td class="num">77.6%</td><td class="num">84.1%</td><td class="num">+6.5%</td></tr></tbody></table>
+      <div class="takeaway">Average gain across all tested models and modalities: <b>+8.2%</b>; Optical Flow has the largest average modality gain at <b>+14.2%</b>.</div>
+      <div class="cite">Tab.1 p.11; §4.2 pp.11-12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 2 / Understanding</div>
+      <h2 class="head">Context-grounded modality understanding improves, but less than perception</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Baseline avg</th><th class="num">VVM avg</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>LLaVA-1.5 7B</td><td class="num">79.4%</td><td class="num best">84.9%</td><td class="num">+5.6%</td></tr><tr><td>Qwen2.5-VL 3B</td><td class="num">86.7%</td><td class="num">90.6%</td><td class="num">+3.8%</td></tr><tr><td>Qwen2.5-VL 7B</td><td class="num">86.2%</td><td class="num">90.6%</td><td class="num">+4.5%</td></tr><tr><td>Qwen3-VL 4B</td><td class="num">87.9%</td><td class="num">89.9%</td><td class="num">+2.0%</td></tr><tr><td>Qwen3-VL 8B</td><td class="num">88.3%</td><td class="num">91.5%</td><td class="num">+3.2%</td></tr></tbody></table>
+      <div class="takeaway">Average gain: <b>+3.8%</b>. The smaller gain supports the authors’ warning: physical meanings are harder to synthesize than appearances.</div>
+      <div class="cite">Tab.2 p.12; §4.3 pp.12-13</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">The biggest proof is not the final score; it is that <b>context rescues depth</b> when the model otherwise sees only colors.</p>
+      <div class="scorebox"><span class="score">Thermal +15.37%</span><span class="score score--hi">Depth +32.75%</span><span class="score">X-ray +3.05%</span></div>
+      <p class="lead">In real modalities, adding modality context changes understanding accuracy most for Depth. The text bridge tells the LMM how appearance maps back to physical meaning.</p>
+      <div class="cite">Tab.3 p.13; §4.4 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation / Perception before understanding</div>
+      <h2 class="head">Perception tasks form the base; understanding tasks add the context layer</h2>
+      <table class="bench"><thead><tr><th>Training tasks</th><th class="num">P avg</th><th class="num">U avg</th><th>Interpretation</th></tr></thead><tbody><tr><td>None / baseline</td><td class="num">78.1%</td><td class="num">86.2%</td><td>RGB-native model before VVM-Tuning</td></tr><tr><td>Perception only</td><td class="num">81.7%</td><td class="num">88.3%</td><td>roughly half the full gain</td></tr><tr><td>Understanding only</td><td class="num">78.0%</td><td class="num">88.2%</td><td>context helps U, but P nearly returns to baseline</td></tr><tr class="win"><td>Full VVM-Tuning</td><td class="num best">84.1%</td><td class="num best">90.6%</td><td>best combined perception + context adaptation</td></tr></tbody></table>
+      <div class="cite">Tab.4 p.14; §4.4 pp.13-14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why it works</div>
+      <h2 class="head">VVM-Tuning weakens over-alignment to RGB appearance</h2>
+      <ul class="bullets"><li>The same semantics appear through many fabricated appearances, so the model is trained to recover scene meaning without relying on RGB-like color statistics.</li><li>Photographic tasks prevent the model from ignoring visual details; it must still name colors, edges, shapes, and relative sizes in the fabricated image.</li><li>Modality contexts then map those details to physical attributes such as temperature, depth, motion direction, hardness, humidity, or radiation.</li></ul>
+      <div class="takeaway">This is closer to “latent factor disentanglement by instruction data” than to ordinary domain fine-tuning.</div>
+      <div class="cite">§3.3-§3.4 pp.8-9; §4.4 pp.13-14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">What is fragile</div>
+      <h2 class="head">Synthetic modalities teach perception better than they teach real physical meaning</h2>
+      <ul class="bullets"><li>Understanding gains are consistently lower than perception gains: +3.8% vs +8.2% average.</li><li>The authors explicitly identify a synthetic gap: made-up physical meanings are harder to imitate than visual appearance.</li><li>Multiple-choice VQA is convenient, but it can hide shallow option-matching and does not fully evaluate multi-hop modality reasoning.</li></ul>
+      <div class="takeaway">The method is a strong perceptual basis, not a complete replacement for domain-specific sensing knowledge.</div>
+      <div class="cite">§4.3 p.13; §A.5 p.25</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineer’s read</div>
+      <h2 class="head">The useful pattern is data factorization, not fancy architecture</h2>
+      <ol class="numbered"><li><b>Hold semantics fixed:</b> start from paired RGB/fabricated views of the same scene.</li><li><b>Vary appearance aggressively:</b> random splines, colormaps, blur/noise, style transfer, flow visualization.</li><li><b>Ask two question families:</b> one that ignores modality meaning, one that requires textual modality context.</li><li><b>Measure separately:</b> perception gain and context-understanding gain should not be collapsed into one score.</li></ol>
+      <div class="cite">§3.2-§3.5 pp.6-10; §4 pp.10-14</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Benchmark composition</div>
+      <h2 class="head">VVM-Bench sample counts</h2>
+      <table class="bench"><thead><tr><th>Subset</th><th class="num">Thermal</th><th class="num">Depth</th><th class="num">X-Ray</th><th class="num">Opt.Flow</th><th class="num">Syn.1</th><th class="num">Syn.2</th><th class="num">Total</th></tr></thead><tbody><tr><td>Perception</td><td class="num">1330</td><td class="num">1873</td><td class="num">1692</td><td class="num">378</td><td class="num">1018</td><td class="num">700</td><td class="num">6991</td></tr><tr><td>Understanding</td><td class="num">1386</td><td class="num">2304</td><td class="num">1575</td><td class="num">240</td><td class="num">421</td><td class="num">400</td><td class="num">6326</td></tr><tr class="win"><td>Total</td><td class="num">2716</td><td class="num">4177</td><td class="num">3267</td><td class="num">618</td><td class="num">1439</td><td class="num">1100</td><td class="num best">13317</td></tr></tbody></table>
+      <div class="cite">Tab.A10 p.27</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight</div>
+      <div class="hl"><p class="hl__en">“Effective generalization requires models to possess both modality-agnostic perception of scene semantics and the adaptability to modality-specific characteristics.”</p><p class="hl__zh">有效泛化不只是看懂場景語意，也要能適應不同模態特有的感測 / 外觀規則。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">“Experiments show our VVM-tuning brought an average 8.2% improvement for all base models among 6 modalities on our VVM-Bench perception subset.”</p><p class="hl__zh">在 6 種模態的 perception subset 上，VVM-Tuning 對所有 base model 的平均提升為 8.2%。<span class="hl__src">§4.2 p.11 / Tab.1</span></p></div>
+      <div class="cite">Appendix highlights from knowledge spec</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Limitation in the authors’ words</div>
+      <div class="hl"><p class="hl__en">“Our tuning only disentangles that alignment by semantics and photographics, not executing a completely new alignment or injecting new knowledge.”</p><p class="hl__zh">這是把語意與 photographic perception 解耦，不是建立全新 alignment，也不是把新領域知識灌進模型。<span class="hl__src">§A.5 p.25</span></p></div>
+      <ul class="bullets"><li>Generalization remains bounded by the base LMM’s known objects and abilities.</li><li>Non-RGB downstream tasks often require specialized domain knowledge.</li><li>Choice-question VQA can be guessed from options, especially when context is strong.</li></ul>
+      <div class="cite">§A.5 p.25</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Takeaway</h2>
+      <p class="end__sub">VVM-Tuning is a clean reminder: for multimodal models, “more modalities” can sometimes start from better factorization of one modality.</p>
+      <div class="end__next">Tomorrow: video generation / temporal models</div>
+      <div class="cite">Daily rotation: Wednesday topic</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
