@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cycle-World - Daily AI Research 2026-07-15</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research - Video / Temporal Models</div>
+      <h1 class="title">Cycle-World: Reverse-Prediction Cycle Consistency for Long Video World Models</h1>
+      <div class="authors">Zihan Su*, Teng Hu*, Jiangning Zhang, Ruiyan Wang, Ran Yi, Lizhuang Ma, Dacheng Tao</div>
+      <div class="meta-row"><span class="badge tier">ECCV 2026 accepted</span><span class="badge">arXiv 2607.11836v1</span><span class="badge date">Announced 2026-07-13</span></div>
+      <p class="lead">A 60-second autoregressive video generator that asks each future latent: <b>can your past still be reconstructed?</b></p>
+      <div class="cite">Cover / Abstract p.1; arXiv comment: Accepted by ECCV 2026</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Long-horizon drift is treated as a <b>reversibility failure</b>, not just accumulated noise.</p>
+      <p class="lead">Cycle-World trains a reverse predictor and reuses it at inference time as a differentiable critic before bad latents enter the history buffer.</p>
+      <div class="cite">Abstract p.1; Methodology pp.5-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h1 class="title">AR video models need memory, but memory also preserves mistakes</h1>
+      <ul class="bullets"><li><b>Offline quality vs online generation:</b> bidirectional/full-sequence models make strong clips, but are awkward for open-ended world-model rollouts.</li><li><b>Exposure bias:</b> training sees ground-truth history; inference conditions on its own imperfect outputs.</li><li><b>Forward-only mitigation is incomplete:</b> Diffusion Forcing / Self-Forcing / LongLive reduce generic noise, but do not verify whether a generated future still makes the past possible.</li><li><b>Structural hallucination is sticky:</b> clipping, disappearing objects, and identity shifts become part of the context and poison later chunks.</li></ul>
+      <div class="takeaway">The core failure mode is causal: a locally plausible future can make the sequence globally impossible.</div>
+      <div class="cite">Introduction pp.2-3; Related Work pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core contributions</div>
+      <h1 class="title">One theory, one training loss, one inference-time guardrail</h1>
+      <ol class="numbered"><li><b>Cycle-Bounded Drift theorem:</b> bound forward drift through reverse-prediction cycle error.</li><li><b>Cycle-Consistent Learning (CCL):</b> train a reverse model in latent space and backprop L<sub>cycle</sub> into the forward generator.</li><li><b>Intrinsic Latent Reversibility:</b> avoid Decode-Flip-Encode by predicting the previous latent directly.</li><li><b>Cycle-Guided Inference (CGI):</b> plug in a frozen reverse model as a differentiable runtime corrector.</li><li><b>Long-horizon validation:</b> VBench 5s/60s plus PC/PACE physical consistency and ablations.</li></ol>
+      <div class="cite">Contributions p.3; Methodology pp.5-10; Experiments pp.10-14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Figure-first overview</div>
+      <h1 class="title">The same reverse model is used twice: training constraint and runtime critic</h1>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure2_p5.jpg" alt="Overview of Cycle-World training and inference"><figcaption>Fig.2 overview: CCL adds reverse-prediction cycle loss; CGI iteratively refines latents with cycle discrepancy.</figcaption></figure>
+      <div class="cite">Fig.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Theory</div>
+      <h1 class="title">Cycle error is an upper-bound handle on forward drift</h1>
+      <div class="formula">e<sub>n</sub> <= C(d<sub>cycle</sub><sup>(n)</sup> + e<sub>n-1</sub> + epsilon<sub>R</sub>)</div>
+      <ul class="bullets"><li>e<sub>n</sub> is accumulated latent drift at step n.</li><li>d<sub>cycle</sub><sup>(n)</sup> = || z_hat<sub>n-1</sub> - R<sub>phi</sub>(z_hat<sub>n</sub>) || measures whether the generated future can reconstruct the generated past.</li><li>If the reverse model cannot infer the history, the current state likely left the natural video manifold.</li></ul>
+      <div class="cite">Theorem 1, Sec.3.1 p.6; Appendix B.1 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Why long videos benefit more</div>
+      <p class="big">A tiny single-step reversibility advantage becomes large when the rollout is long.</p>
+      <div class="formula">Delta E<sub>n</sub> = (delta<sub>unc</sub> - delta<sub>cycle</sub>) C(C<sup>n</sup> - 1)/(C - 1) &gt; 0</div>
+      <p class="lead">Cycle-World may look close to baselines on short clips; its claim is that the gap expands with n.</p>
+      <div class="cite">Proposition 1, Sec.3.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CCL training</div>
+      <h1 class="title">Make the forward generator pay for irreversible futures</h1>
+      <div class="two-col"><div><h2 class="head">Naive reverse training bottleneck</h2><ul class="bullets"><li>Reversed videos do not produce latents that are trivially symmetric with forward latents.</li><li>Decode-Flip-Encode would be costly and breaks joint training practicality.</li></ul></div><div><h2 class="head">Intrinsic Latent Reversibility</h2><ul class="bullets"><li>R<sub>phi</sub>(z_hat<sub>n</sub>) predicts the forward-ordered previous latent z_hat<sub>n-1</sub>.</li><li>Cycle distance is direct vector subtraction in the shared latent manifold.</li></ul></div></div>
+      <div class="formula">L<sub>cycle</sub> = E[ || z_hat<sub>n-1</sub> - R<sub>phi</sub>(z_hat<sub>n</sub>) ||<sub>2</sub><sup>2</sup> ]</div>
+      <div class="cite">Sec.3.2 pp.7-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training objective</div>
+      <h1 class="title">Cycle loss adds causal foresight to DMD-style forward training</h1>
+      <div class="formula">L<sub>total</sub> = L<sub>fwd</sub> + lambda L<sub>cycle</sub></div>
+      <ul class="bullets"><li>L<sub>fwd</sub> preserves distribution-level visual fidelity for each generated chunk.</li><li>L<sub>cycle</sub> penalizes futures that look locally plausible but cannot reconstruct their history.</li><li>Gradients from L<sub>cycle</sub> flow through R<sub>phi</sub> back into G<sub>theta</sub>, pruning divergent trajectories during learning.</li><li>Reported implementation uses lambda = 0.1.</li></ul>
+      <div class="cite">Sec.3.2 p.9; Appendix D p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CGI inference</div>
+      <h1 class="title">At inference, the reverse model becomes a frozen runtime critic</h1>
+      <ol class="numbered"><li>G<sub>theta</sub> proposes a clean latent from the current denoising state and history cache.</li><li>R<sub>phi</sub> reconstructs the predecessor through a reverse cache, producing z_tilde<sub>n-1</sub>.</li><li>Compute D(z<sub>n,t</sub>) = || z_hat<sub>n-1</sub> - z_tilde<sub>n-1</sub> ||<sub>2</sub><sup>2</sup>.</li><li>Update z<sub>n,t</sub> by gradient descent before the final latent is appended to the historical context.</li></ol>
+      <div class="formula">z<sub>n,t</sub><sup>(k+1)</sup> = z<sub>n,t</sub><sup>(k)</sup> - eta grad<sub>z</sub> D(z<sub>n,t</sub><sup>(k)</sup>)</div>
+      <div class="cite">Sec.3.3 pp.9-10; Appendix C p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Implementation details</div>
+      <h1 class="title">A practical construction on Wan2.1 / LongLive-style latent video models</h1>
+      <ul class="bullets"><li>Reverse model initialized from pre-trained Wan2.1 1.3B; temporal flip latent trajectories during ODE initialization.</li><li>Reverse model trained with self-forcing; Wan can serve as both teacher and critic.</li><li>Forward generator is built on LongLive and tuned on 60-second sequences with one prompt switch.</li><li>Forward LoRA fine-tuning: 3,000 iterations, batch size 4.</li><li>CGI default: all denoising timesteps, K = 1 per timestep, eta = 10.</li></ul>
+      <div class="cite">Appendix D pp.22-23</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result - VBench</div>
+      <h1 class="title">The long-horizon setting exposes drift that short clips hide</h1>
+      <table class="bench"><thead><tr><th>Model</th><th>Horizon</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>Self Forcing</td><td>60s</td><td class="num">71.86</td><td class="num">77.20</td><td class="num">50.51</td></tr><tr><td>SkyReels-V2</td><td>60s</td><td class="num">70.47</td><td class="num">75.30</td><td class="num">51.15</td></tr><tr><td>LongLive</td><td>60s</td><td class="num">82.62</td><td class="num">84.53</td><td class="num">74.97</td></tr><tr><td>Context Forcing</td><td>60s</td><td class="num">82.45</td><td class="num">83.55</td><td class="num">76.10</td></tr><tr class="win"><td>Ours</td><td>60s</td><td class="num best">82.88</td><td class="num">84.39</td><td class="num best">76.86</td></tr></tbody></table>
+      <div class="cite">Tab.1 p.11; Sec.4.2 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Physical consistency</div>
+      <h1 class="title">The largest gain is in physics-aware evaluation</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">PC</th><th class="num">PACE</th><th class="num">Avg.</th></tr></thead><tbody><tr><td>Self-Forcing</td><td class="num">55.97</td><td class="num">78.57</td><td class="num">67.27</td></tr><tr><td>LongLive</td><td class="num">61.94</td><td class="num">78.03</td><td class="num">69.99</td></tr><tr><td>RollingForcing</td><td class="num">67.91</td><td class="num">75.05</td><td class="num">71.48</td></tr><tr><td>Infinity-RoPE</td><td class="num">60.45</td><td class="num">78.58</td><td class="num">69.52</td></tr><tr class="win"><td>Ours</td><td class="num best">69.40</td><td class="num best">81.91</td><td class="num best">75.66</td></tr></tbody></table>
+      <ul class="bullets"><li>PC uses VideoPhy physical commonsense scoring.</li><li>PACE is a Gemini LLM-as-a-Judge score over prompt compliance, gravity/mass, collision dynamics, motion continuity, and temporal coherence.</li></ul>
+      <div class="cite">Tab.2 p.13; Appendix E pp.23-24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative check</div>
+      <h1 class="title">At 60 seconds, baselines lose identity or structure; Cycle-World keeps them</h1>
+      <figure class="full" style="max-height:62vh;"><img src="figures/figure3_p12.jpg" alt="Long video generation qualitative comparison at 0, 30, 60 seconds"><figcaption>Fig.3: two prompts, sampled at 0 / 30 / 60 seconds across baselines and Cycle-World.</figcaption></figure>
+      <div class="cite">Fig.3 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h1 class="title">CCL and CGI solve different halves of the problem</h1>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Semantic</th><th class="num">PC</th><th class="num">PACE</th></tr></thead><tbody><tr><td>Baseline</td><td class="num">83.72</td><td class="num">85.42</td><td class="num">76.95</td><td class="num">61.94</td><td class="num">78.03</td></tr><tr><td>+ CCL</td><td class="num">83.89</td><td class="num">85.72</td><td class="num">76.55</td><td class="num">68.70</td><td class="num">79.50</td></tr><tr><td>+ CGI</td><td class="num best">84.51</td><td class="num best">86.37</td><td class="num">77.05</td><td class="num">65.67</td><td class="num">78.80</td></tr><tr class="win"><td>Cycle-World</td><td class="num">84.36</td><td class="num">86.14</td><td class="num best">77.25</td><td class="num best">69.40</td><td class="num best">81.91</td></tr></tbody></table>
+      <div class="takeaway">CGI alone maximizes visual scores; CCL and full Cycle-World are needed for the strongest physical consistency.</div>
+      <div class="cite">Tab.3 p.13; Sec.4.3 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation visual</div>
+      <h1 class="title">The dual-phase design is visible in rollout stability</h1>
+      <figure class="full" style="max-height:56vh;"><img src="figures/figure4_p14.jpg" alt="Qualitative ablation for Cycle-World components"><figcaption>Fig.4: cycle loss establishes a structural prior; cycle guidance adds active runtime correction.</figcaption></figure>
+      <ul class="bullets"><li>Full Cycle-World prevents trajectory drift and background degradation better than either component alone.</li></ul>
+      <div class="cite">Fig.4 p.14; Sec.4.3 pp.13-14</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">Cycle consistency is a <b>counterfactual test</b>: if this future is real, can it explain the past?</p>
+      <p class="lead">That test catches structural hallucinations earlier than image-level quality metrics, because impossible dynamics fail reverse reconstruction even when one frame looks fine.</p>
+      <div class="cite">Sec.3.1-3.3 pp.6-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">60-second physical ablation</div>
+      <h1 class="title">On the hardest horizon, learned prior plus runtime critic is best</h1>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">PC</th><th class="num">PACE</th><th class="num">Avg.</th></tr></thead><tbody><tr><td>Baseline</td><td class="num">59.45</td><td class="num">75.71</td><td class="num">67.58</td></tr><tr><td>+ CCL</td><td class="num">70.40</td><td class="num">74.94</td><td class="num">72.67</td></tr><tr><td>+ CGI</td><td class="num">62.77</td><td class="num best">76.67</td><td class="num">69.72</td></tr><tr class="win"><td>Cycle-World</td><td class="num best">70.90</td><td class="num">75.42</td><td class="num best">73.16</td></tr></tbody></table>
+      <ul class="bullets"><li>CCL gives the strong physical prior.</li><li>CGI preserves instance-level alignment.</li><li>The full model recovers the best average over 60 seconds.</li></ul>
+      <div class="cite">Tab.S2 p.24; Appendix F pp.24-25</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Sensitivity</div>
+      <h1 class="title">The regularizer has a real quality-vs-physics trade-off</h1>
+      <div class="two-col"><div><h2 class="head">Cycle-loss weight lambda</h2><ul class="bullets"><li>lambda = 0.05: higher visual/semantic, but PC falls to 56.72.</li><li>lambda = 0.2: stricter PC 68.66, but Total drops to 82.89.</li><li>lambda = 0.1: reported balance.</li></ul></div><div><h2 class="head">Inference guidance</h2><ul class="bullets"><li>1 step across all 4 timesteps gives the best reported combined result.</li><li>Putting all steps at the first timestep lowers PACE to 76.79.</li><li>eta = 10 is the default balance; eta = 15 raises PC/PACE but lowers visual scores.</li></ul></div></div>
+      <div class="cite">Tab.S3-S5 pp.28-29</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h1 class="title">What has to be true for Cycle-World to hold</h1>
+      <ul class="bullets"><li><b>Theory depends on the reverse model:</b> reverse predictability and reverse-Lipschitz assumptions must be reasonable on the latent manifold.</li><li><b>Plug-and-play is scoped:</b> CGI needs the target model and reverse corrector to share the same Video VAE / latent space.</li><li><b>Inference is not free:</b> gradient refinement is inserted into denoising, even if K = 1 keeps it modest.</li><li><b>PACE is evaluator-dependent:</b> it is an LLM-as-a-Judge metric, not a human preference study.</li><li><b>Architecture scope:</b> evidence centers on Wan2.1 / LongLive-style latent AR diffusion.</li></ul>
+      <div class="cite">Sec.3.1 p.6; Sec.3.3 p.9; Appendix D/E pp.22-24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h1 class="title">If you build long video generators, add a backward critic before adding bigger context</h1>
+      <ol class="numbered"><li>Do not only ask whether the next chunk is high quality; ask whether it remains causally compatible with history.</li><li>Keep cycle checks in latent space when VAEs make pixel-space reversal expensive or mismatched.</li><li>Separate parametric prior and runtime correction: one teaches the model where the manifold is, the other catches per-sample drift.</li><li>Evaluate at long horizons; short 5s clips can hide the exact failure mode that world models care about.</li></ol>
+      <div class="cite">Synthesis from Sec.3-4 and Appendix F/I</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h1 class="title">Paper quote: the central premise</h1>
+      <div class="hl"><p class="hl__en">If a generated causal sequence obeys real-world dynamics, it must be temporally reversible.</p><p class="hl__zh">如果生成的因果序列遵守真實世界動力學，它就應該具備時間可逆性。<span class="hl__src">Sec.1 p.3</span></p></div>
+      <div class="cite">Introduction p.3</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h1 class="title">Paper quote: why the theory matters</h1>
+      <div class="hl"><p class="hl__en">The term (delta_unc - delta_cycle) represents the single-step advantage... this advantage is not merely additive, but scales with the sequence length n.</p><p class="hl__zh">cycle error 的單步優勢不是簡單加法，而會隨序列長度放大。<span class="hl__src">Sec.3.1 p.7</span></p></div>
+      <div class="cite">Proposition 1 discussion p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h1 class="title">Paper quote: latent-space practicality</h1>
+      <div class="hl"><p class="hl__en">This approach eliminates the need for "Decode-Flip-Encode" loop... making joint training feasible.</p><p class="hl__zh">把 cycle distance 放在 shared latent space，避免解碼-翻轉-再編碼，使 joint training 變得可行。<span class="hl__src">Sec.3.2 p.8</span></p></div>
+      <div class="cite">Sec.3.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h1 class="title">Paper quote: active correction</h1>
+      <div class="hl"><p class="hl__en">This active rectification mechanism acts as a structural bottleneck, preventing inherent drift from manifesting as visual degradation.</p><p class="hl__zh">推論時的主動 latent 修正形成結構瓶頸，讓 drift 在變成畫面劣化前被攔下。<span class="hl__src">Sec.3.3 p.10</span></p></div>
+      <div class="cite">Sec.3.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow</h2>
+      <p class="end__sub">Thursday rotation: computation acceleration - attention, kernels, and hardware-aware methods.</p>
+      <div class="end__next">Today source: ~/projects/ai-research-slides-src/2026-07-15/</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
