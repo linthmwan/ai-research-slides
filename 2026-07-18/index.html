@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SearchOS-V1: Towards Robust Open-Domain Information-Seeking Agent Collaboration</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 2026-07-18 · AI Agent Systems</div>
+      <h1 class="title">SearchOS-V1</h1>
+      <p class="lead">Towards Robust Open-Domain Information-Seeking Agent Collaboration</p>
+      <div class="authors">Yuyao Zhang*, Junjie Gao*, Zhengxian Wu, Jiaming Fan, Jin Zhang, Shihan Ma et al. · Renmin University of China + Ant Group</div>
+      <div class="meta-row"><span class="badge tier">arXiv 2607.15257v1</span><span class="badge date">Announced 2026-07-16</span><span class="badge">Code + project page</span></div>
+      <div class="cite">Source: arXiv 2607.15257v1, cover p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Search agents do not only need <b>more browsing</b>; they need an operating state that remembers coverage, evidence, failures, and unfinished work.</p>
+      <div class="sub">SearchOS turns open-domain search into relational schema completion with citations, then runs multi-agent collaboration over explicit SOCM state, middleware, and skills.</div>
+      <div class="cite">Abstract + §1 pp.1-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Long-horizon search breaks when progress lives only in the prompt</h2>
+      <ul class="bullets"><li>Interaction histories bury evidence and unresolved gaps.</li><li>Failed search paths repeat across turns and across workers.</li><li>More agents can duplicate effort or sit idle at synchronized batch barriers.</li><li>The missing abstraction is <b>system-maintained search state</b>.</li></ul>
+      <div class="takeaway">State should be maintained by the system rather than repeatedly inferred from conversation history.</div>
+      <div class="cite">§1 pp.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">SearchOS decomposes reliability into four infrastructure layers</h2>
+      <ol class="numbered"><li>Relational schema completion with grounded citations.</li><li>SOCM: Frontier Tasks, Evidence Graph, Coverage Map, Failure Memory.</li><li>Pipeline-parallel orchestration over unresolved coverage gaps.</li><li>Middleware-governed execution plus hierarchical search skills.</li></ol>
+      <div class="cite">§1 contributions p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Formulation</div>
+      <h2 class="head">Search becomes relational schema completion with citations</h2>
+      <div class="formula">Task T = (q, S), with S = {T<sub>m</sub>, R}; output O = {(E<sub>m</sub>, Y<sub>m</sub>, C<sub>m</sub>)}</div>
+      <ul class="bullets"><li>Tables define attributes and primary keys; foreign keys express relations.</li><li>The system discovers entity rows E<sub>m</sub> and fills value matrix Y<sub>m</sub>.</li><li>Citation matrix C<sub>m</sub> stores source URL plus anchored excerpt for each populated value.</li></ul>
+      <div class="cite">§2 pp.3-4, Eq.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture</div>
+      <h2 class="head">The diagram is closer to an agent operating system than a prompt recipe</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure2_p4.jpg" alt="Figure 2: SearchOS architecture: SOCM, orchestrator, agents, middleware harness, skills, and grounded report generation."><figcaption>Figure 2: SearchOS architecture: SOCM, orchestrator, agents, middleware harness, skills, and grounded report generation.</figcaption></figure>
+      <div class="cite">Figure 2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SOCM</div>
+      <h2 class="head">Search-Oriented Context Management externalizes four memories</h2>
+      <div class="scorebox"><span class="score score--hi">F_t Frontier Tasks</span><span class="score score--hi">G_t Evidence Graph</span><span class="score score--hi">C_t Coverage Map</span><span class="score score--hi">W_t Failure Memory</span></div>
+      <ul class="bullets"><li>M<sub>t</sub>=(F<sub>t</sub>,G<sub>t</sub>,C<sub>t</sub>,W<sub>t</sub>) lives outside agent conversations.</li><li>Locked read-modify-write updates prevent version drift.</li><li>Role-specific projections give each agent only the relevant slice.</li></ul>
+      <div class="cite">§3.1 pp.4-5, Eq.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evidence + coverage</div>
+      <h2 class="head">Evidence is cell-bound, not page-bound</h2>
+      <div class="two-col"><div><p class="col-hint">Evidence Graph</p><ul class="bullets"><li>Stores atomic findings rather than page summaries.</li><li>Records value, URL, span, schema binding, confidence, provenance tier, status.</li><li>Rejected or superseded nodes remain for audit.</li></ul></div><div><p class="col-hint">Coverage Map</p><ul class="bullets"><li>Each schema cell is missing, filled, uncertain, or unreachable.</li><li>Primary evidence is chosen by provenance, schema alignment, and authority-adjusted confidence.</li><li>Conflict is marked rather than overwritten.</li></ul></div></div>
+      <div class="cite">§3.1.2-3.1.3 pp.5-6, Eq.6-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure memory</div>
+      <h2 class="head">Dead ends become shared operational data</h2>
+      <ul class="bullets"><li>Failure records include type, task signature, corrective guidance, recurrence count, and latest occurrence.</li><li>Patterns include repeated queries, inaccessible sources, failed skills, dropped branches, rejected claims.</li><li>Recurrence strengthens do-not-retry guidance and can seed future runs.</li></ul>
+      <div class="cite">§3.1.4-3.1.5 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scheduling</div>
+      <h2 class="head">Continuous dispatch applies pipeline parallelism to search work</h2>
+      <div class="formula">D<sub>t</sub> = Top<sub>min(b_t, |R_t|)</sub>(R<sub>t</sub>; p); after completion, update SOCM and refill the slot.</div>
+      <ul class="bullets"><li>The orchestrator prioritizes schema gaps; explore/search/writer roles use scoped toolsets.</li><li>Ready tasks are dependency-aware Frontier Tasks.</li><li>Stragglers no longer block the next coverage gap from starting.</li></ul>
+      <div class="cite">§3.2 pp.6-7, Eq.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Middleware</div>
+      <h2 class="head">The harness wraps model calls and tool observations</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure3_p8.jpg" alt="Figure 3: Context, evidence extraction, and sensor middleware around the search-agent loop."><figcaption>Figure 3: Context, evidence extraction, and sensor middleware around the search-agent loop.</figcaption></figure>
+      <div class="cite">Figure 3 + §3.3 pp.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Middleware invariants</div>
+      <h2 class="head">Grounding and stall control are enforced outside prompts</h2>
+      <div class="two-col"><div><p class="col-hint">Evidence acceptance</p><div class="formula">E<sub>t</sub><sup>+</sup> = {z | Bind(z,S)=1 and Anchor(z,o<sub>t</sub>)=1}</div><p class="note">Only schema-bound, span-anchored candidates update G and C.</p></div><div><p class="col-hint">Stall sensor</p><div class="formula">stall when sum Δcoverage = 0 and sum Δevidence = 0 over window w</div><p class="note">Actions: continue, correction, backfill, drain-only, or stop branch.</p></div></div>
+      <div class="cite">§3.3.2-3.3.3 p.8, Eq.13-18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Skills</div>
+      <h2 class="head">SearchOS-V1 ships 280 pre-built hierarchical skills</h2>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure4_p9.jpg" alt="Figure 4: weighted skill keywords and access-skill counts/functions by domain."><figcaption>Figure 4: weighted skill keywords and access-skill counts/functions by domain.</figcaption></figure>
+      <ul class="bullets"><li>Orchestrator skills: schema/row alignment and synthesis validation.</li><li>Strategy skills: reformulation, enumeration, disambiguation, multi-hop reasoning, stall recovery.</li><li>Access skills: source-specific extraction; some become typed executable tools.</li></ul>
+      <div class="cite">§3.4 p.9 + Figure 4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experiment setup</div>
+      <h2 class="head">The evaluation stresses wide, structured information collection</h2>
+      <table class="bench"><thead><tr><th>Component</th><th class="num">Details</th></tr></thead><tbody><tr><td>Benchmarks</td><td>WideSearch: 200 wide-search questions across >15 domains; GISA: 373 human-crafted item/set/list/table queries.</td></tr><tr><td>Baselines</td><td>ReAct, Plan-and-Solve, Table-as-Search, A-MapReduce, Web2BigTable.</td></tr><tr><td>Backbones</td><td>GLM-5 for agent roles; Qwen3.5-35B-A3B for Evidence Extraction.</td></tr><tr><td>Budget</td><td>Max@3; 50 orchestrator iterations; 8 parallel sub-agents; 20 searches/sub-agent; 1800s.</td></tr></tbody></table>
+      <div class="cite">§4.1-4.3 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main results</div>
+      <h2 class="head">SearchOS leads every headline F1 metric in Table 2</h2>
+      <table class="bench"><thead><tr><th>Metric</th><th class="num">Best baseline</th><th class="num">SearchOS</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>WideSearch Item F1</td><td class="num">76.0</td><td class="num best">80.3</td><td class="num">+4.3</td></tr><tr class="win"><td>WideSearch Row F1</td><td class="num">54.5</td><td class="num best">56.5</td><td class="num">+2.0</td></tr><tr class="win"><td>GISA Table Item F1</td><td class="num">74.8</td><td class="num best">76.9</td><td class="num">+2.1</td></tr><tr class="win"><td>GISA Table Row F1</td><td class="num">58.1</td><td class="num best">59.7</td><td class="num">+1.6</td></tr><tr class="win"><td>GISA Set F1</td><td class="num">63.1</td><td class="num best">76.5</td><td class="num">+13.4</td></tr><tr class="win"><td>GISA List F1</td><td class="num">67.1</td><td class="num best">68.1</td><td class="num">+1.0</td></tr></tbody></table>
+      <div class="takeaway">Largest gain: GISA Set F1 +13.4, a completeness-sensitive enumeration metric.</div>
+      <div class="cite">Table 2 + §4.4 pp.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Result interpretation</div>
+      <p class="big">The improvement is mostly a <b>recall and completeness</b> story, not a precision-only story.</p>
+      <div class="sub">On WideSearch, Item Recall reaches 79.7 while precision remains best at 83.9; on GISA Set F1, SearchOS jumps 13.4 points.</div>
+      <div class="cite">Table 2 + §4.4 pp.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism 1</div>
+      <h2 class="head">Search-time schema planning beats fixed schema recipes</h2>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">Item F1</th><th class="num">Row F1</th><th class="num">Interpretation</th></tr></thead><tbody><tr><td>Fixed Single-Table</td><td class="num">47.9</td><td class="num">29.2</td><td class="num">Too rigid</td></tr><tr><td>Fixed Multi-Table</td><td class="num">58.3</td><td class="num">34.2</td><td class="num">Better on average</td></tr><tr><td>Oracle Single/Multi</td><td class="num">62.4</td><td class="num">41.2</td><td class="num">Best fixed per case</td></tr><tr class="win"><td>SearchOS</td><td class="num best">70.6</td><td class="num">48.9</td><td class="num">Planning stays in loop</td></tr></tbody></table>
+      <p class="note">Across 40 cases, SearchOS selected single-table for 35 tasks and multi-table for 5.</p>
+      <div class="cite">Table 3 + §5.1 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism 2</div>
+      <h2 class="head">Continuous scheduling improves throughput and quality</h2>
+      <table class="bench"><thead><tr><th>Policy</th><th class="num">Time</th><th class="num">Utilization</th><th class="num">Tasks/min</th><th class="num">LLM calls</th><th class="num">Item F1</th></tr></thead><tbody><tr><td>Batch</td><td class="num">629.13s</td><td class="num">34.6%</td><td class="num">2.99</td><td class="num">341.4</td><td class="num">79.66</td></tr><tr class="win"><td>Continuous</td><td class="num">476.34s</td><td class="num">41.7%</td><td class="num">3.37</td><td class="num">296.6</td><td class="num best">86.75</td></tr></tbody></table>
+      <ul class="bullets"><li>Average end-to-end time drops 24.3% in Table 5.</li><li>Paired rounds also reduce time by 28.6-32.6% while improving Item F1 by +1.85 to +15.00 pp.</li><li>Released slots are refilled with current coverage gaps.</li></ul>
+      <div class="cite">Tables 4-5 + §5.2 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism 3</div>
+      <h2 class="head">Loop sensors can redirect stalled search</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure5_p12.jpg" alt="Figure 5: early, mid-run, and late loop detection followed by strategy switches on WideSearch trajectories."><figcaption>Figure 5: early, mid-run, and late loop detection followed by strategy switches on WideSearch trajectories.</figcaption></figure>
+      <div class="takeaway">After loop detection, coverage or entity discovery resumes beyond the preceding stagnation period.</div>
+      <div class="cite">Figure 5 + §5.3 pp.12-13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism 4</div>
+      <h2 class="head">Skills add quality while cutting exploratory waste</h2>
+      <div class="two-col"><div><table class="bench"><thead><tr><th>Setting</th><th class="num">Item F1</th><th class="num">Row F1</th></tr></thead><tbody><tr><td>Without skills</td><td class="num">78.3</td><td class="num">53.1</td></tr><tr class="win"><td>With skills</td><td class="num">80.3</td><td class="num best">56.5</td></tr><tr><td>Delta</td><td class="num">+2.0</td><td class="num">+3.4</td></tr></tbody></table></div><div><div class="scorebox"><span class="score score--hi">-36.6% time</span><span class="score score--hi">-39.1% search calls</span><span class="score score--hi">-42.7% page calls</span></div><p class="note">Same 100 WideSearch questions; Figure 6 reports efficiency with 95% CIs.</p></div></div>
+      <div class="cite">Table 6 + Figure 6 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">Useful, but not settled</h2>
+      <ul class="bullets"><li>arXiv preprint: no public top-conference acceptance or reviewer score metadata available.</li><li>Large-scale skill synthesis is deferred beyond SearchOS-V1.</li><li>Results use Max@3 with specific backbones and a 1800s budget; model/cost transfer needs re-validation.</li><li>Broader domains and multimodal settings are future work.</li></ul>
+      <div class="cite">metadata + §3.4 p.9 + §4.3 p.10 + §7 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Engineering takeaway</div>
+      <p class="big">For serious agents, <b>state is product architecture</b>, not prompt decoration.</p>
+      <div class="sub">SearchOS is strongest where it makes hidden intermediate artifacts inspectable: gaps, provenance, conflicts, failures, budget pressure, and reusable procedures.</div>
+      <div class="cite">Synthesis from §3-§5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 1</div>
+      <h2 class="head">Why this is an OS problem</h2>
+      <div class="hl"><p class="hl__en">These failures arise because conventional agents treat plans, progress, evidence, and failures as transient conversation content.</p><p class="hl__zh">這篇的核心判斷是：失敗不是因為模型不會搜尋，而是因為計畫、進度、證據與失敗都被放在短暫對話裡。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">This state resides outside agent conversations and uses locked read-modify-write updates.</p><p class="hl__zh">SOCM 把狀態移出對話，並用鎖定的讀改寫更新，避免多 agent 看到互相不一致的搜尋世界。<span class="hl__src">§3.1 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 2</div>
+      <h2 class="head">Why middleware and skills matter</h2>
+      <div class="hl"><p class="hl__en">Because the harness enforces these transitions outside prompts, the same safeguards apply across models and roles.</p><p class="hl__zh">中介層把停滯偵測、預算與修正動作移到 prompt 之外，因此安全閥不依賴某個 agent 自己記得遵守。<span class="hl__src">§3.3 p.8</span></p></div>
+      <div class="hl"><p class="hl__en">The quality gains therefore come with less exploratory trial and error rather than additional browsing.</p><p class="hl__zh">skill 的收益不是暴力多查，而是減少試錯與重複瀏覽，這對長程 search agent 的成本很關鍵。<span class="hl__src">§5.4 p.13</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">SearchOS-V1</h2>
+      <p class="end__sub">Explicit shared search state, continuous orchestration, middleware-governed execution, and reusable skills.</p>
+      <div class="end__next">Next rotation: Sunday - hot GitHub repo or company technical report.</div>
+      <div class="cite">Deck generated from arXiv 2607.15257v1; source artifacts saved under 2026-07-18</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
