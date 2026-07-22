@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARCache: History-Guided Cache for Autoregressive Video Diffusion</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · Video / Temporal Models · CVPR 2026 Poster</div>
+      <h1 class="title">Accelerating Autoregressive Video Diffusion via History-Guided Cache and Residual Correction</h1>
+      <div class="authors">Kepan Nan, Wangbo Zhao, Penghao Zhou, Jun Li, Zhenheng Yang, Jian Yang, Ying Tai</div>
+      <div class="meta-row"><span class="badge tier">CVPR 2026 Poster</span><span class="badge date">2026-07-22 TW</span><span class="badge">ARDM acceleration</span></div>
+      <p class="lead">ARCache: 用 <b>history-aware cache refresh</b> 與 <b>clean residual reference</b>，讓長影片 ARDM 加速時不把 early approximation error 一路放大。</p>
+      <div class="cite">Source: CVF Open Access PDF, cover / Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Caching video ARDMs is not a denoising-step problem; it is a <b>history contamination</b> problem.</p>
+      <p class="lead">ARCache 將問題拆成兩個控制點：HGC 決定何時安全 reuse；ERC 決定如何不用污染軌跡修正 residual。</p>
+      <div class="cite">Abstract p.1; §3 p.3-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Why SDM caching breaks on autoregressive video</h2>
+      <ul class="bullets"><li>SDM 通常一次生成固定長度序列；ARDM 逐 frame / segment 生成，能支援 longer horizon 與更細 temporal control。</li><li>既有 feature caching 利用 denoising timesteps 的 redundancy；在 SDM 裡可直接 reuse intermediate features。</li><li>但 ARDM 每段都 conditioned on previous generated history；early cache approximation error 會進入 history loop，逐段累積成 artifacts。</li><li>所以 acceleration 的瓶頸不是「能不能少算」，而是「少算造成的錯會不會被後續片段放大」。</li></ul>
+      <div class="cite">§1 p.1-2; §2.1-2.3 p.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contribution map</div>
+      <h2 class="head">ARCache targets two separate error paths</h2>
+      <ol class="numbered"><li><b>History-Guided Cache (HGC)</b>: monitor history-token variation, not full-input drift, to trigger cache refresh.</li><li><b>Enhanced Residual Correction (ERC)</b>: use first-segment clean residual trajectory to correct later segments.</li><li><b>Training-free integration</b>: designed for existing autoregressive video diffusion / world model pipelines.</li><li><b>3-model validation</b>: FramePack-F1, SkyReels-V2, Matrix-Game show 2.88x / 1.87x / 3.13x fast-mode speedups.</li></ol>
+      <div class="cite">Abstract p.1; §3 p.3; Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure mode</div>
+      <h2 class="head">The same cache reuse has different consequences in SDM vs ARDM</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>SDM + cache</b>: all frames are generated jointly; cache error remains local to the denoising pass.</li><li><b>ARDM + cache</b>: segment N is conditioned on generated segment N-1; approximation error becomes historical context.</li><li><b>ARDM + ARCache</b>: suppress intra-segment error and mitigate inter-segment propagation.</li></ul><div class="takeaway">Long-horizon quality is governed by error propagation, not only per-step approximation.</div></div><div><figure class="full" style="max-height:52vh;"><img src="figures/figure1_p1.jpg" alt="Figure 1 comparison of SDM cache, ARDM cache, and ARCache"><figcaption>Figure 1: conventional cache accumulates errors in ARDM; ARCache adds suppression + mitigation.</figcaption></figure></div></div>
+      <div class="cite">Fig.1 p.1; §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Baseline math</div>
+      <h2 class="head">Naive caching assumes adjacent denoising states are close</h2>
+      <div class="formula">SDM cache: F(x<sub>t-k</sub>) := F(x<sub>t</sub>), &nbsp; k in {1,...,N}</div>
+      <div class="formula">ARDM naive cache: F([h<sup>s</sup><sub>t-k</sub>, x<sup>s</sup><sub>t-k</sub>]) := F([h<sup>s</sup><sub>t</sub>, x<sup>s</sup><sub>t</sub>])</div>
+      <ul class="bullets"><li>In theory, reuse for N later steps yields an `(N+1)`-fold acceleration opportunity.</li><li>In ARDMs, `h` is generated history; if `h` carries earlier cache errors, later segments inherit and amplify them.</li><li>This is why a paradigm-agnostic cache schedule is insufficient for video ARDM serving.</li></ul>
+      <div class="cite">Eq.(1)-(2), §3.1 p.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System overview</div>
+      <h2 class="head">ARCache adds one scheduler and one residual-correction path</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure2_p3.jpg" alt="Overview of ARCache with HGC and ERC"><figcaption>Figure 2: HGC handles adaptive feature reuse; ERC stores / corrects residual trajectory to suppress drift.</figcaption></figure>
+      <div class="cite">Fig.2 p.3; §3 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism 1 · HGC</div>
+      <p class="big">Cache refresh should follow <b>history-token change</b>, because history best predicts ARDM output transitions.</p>
+      <p class="lead">Figure 3 reports that History-Output correlation dominates Segment-Output / full-input alternatives on FramePack-F1.</p>
+      <div class="cite">§3.2 p.4; Fig.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HGC evidence</div>
+      <h2 class="head">History is the most reliable cache signal</h2>
+      <div class="two-col"><div><ul class="bullets"><li>ARDM layer input = history tokens `h<sup>s</sup><sub>t</sub>` + current noisy segment tokens `x<sup>s</sup><sub>t</sub>`.</li><li>Paper measures adjacent-step input-output correlation with Spearman correlation and P-value.</li><li>History variation is more predictive of output transition, so HGC watches history deviation rather than global model input.</li></ul><div class="takeaway">This is the key domain-specific change versus TeaCache-style full-input monitoring.</div></div><div><figure class="full" style="max-height:48vh;"><img src="figures/figure3_p4.jpg" alt="Spearman correlation comparison for cache signals"><figcaption>Figure 3: history-output signal is stronger for ARDM cache decisions.</figcaption></figure></div></div>
+      <div class="cite">Fig.3 p.4; §3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HGC rule</div>
+      <h2 class="head">A single threshold delta becomes the speed-quality knob</h2>
+      <div class="formula">Delta(h<sup>s</sup><sub>t</sub>) = ||h<sup>s</sup><sub>t</sub> - h<sup>s</sup><sub>t+1</sub>||<sub>1</sub> / ||h<sup>s</sup><sub>t+1</sub>||<sub>1</sub></div>
+      <div class="formula">Keep cache while accumulated Delta <= delta; refresh when the cumulative deviation crosses delta.</div>
+      <ul class="bullets"><li>Small `delta`: more recomputation, better fidelity.</li><li>Large `delta`: more feature reuse, faster generation, higher approximation risk.</li><li>Interpretation: unchanged history means stale features are probably safe; changed history means new context must be recomputed.</li></ul>
+      <div class="cite">Eq.(3)-(4), §3.2 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism 2 · ERC</div>
+      <p class="big">Do not correct a drifting segment by following its own drift.</p>
+      <p class="lead">ERC anchors later residual correction to the first segment, whose trajectory is not contaminated by historical cache errors.</p>
+      <div class="cite">§3.3 p.5; Fig.4 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Residual trajectory</div>
+      <h2 class="head">First-segment residuals act as a clean reference</h2>
+      <div class="two-col"><div><ul class="bullets"><li>TaylorSeer-style layer-wise correction is memory-heavy and can OOM on long ARDM sequences.</li><li>Paper observes stable residual trajectories across unaccelerated segments via PCA.</li><li>Later accelerated segments have contaminated trajectories; using them for correction can amplify drift.</li><li>ERC reuses the first segment’s trajectory parameter as the reference for all later segments.</li></ul></div><div><figure class="full" style="max-height:42vh;"><img src="figures/figure4_p5.jpg" alt="PCA residual trajectories across timesteps"><figcaption>Figure 4: residual trajectory stability motivates first-segment reference correction.</figcaption></figure></div></div>
+      <div class="cite">Fig.4 p.5; §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ERC formula</div>
+      <h2 class="head">Replace segment-specific trajectory parameter with first-segment parameter</h2>
+      <div class="formula">r<sup>s</sup><sub>t</sub> = r<sup>s</sup><sub>tb</sub> + lambda<sup>s</sup><sub>t</sub>(r<sup>s</sup><sub>ta</sub> - r<sup>s</sup><sub>tb</sub>)</div>
+      <div class="formula">For s > 1, use lambda<sup>s</sup><sub>t</sub> := lambda<sup>1</sup><sub>t</sub> = L1rel(r<sup>1</sup><sub>t</sub>, r<sup>1</sup><sub>tb</sub>) / L1rel(r<sup>1</sup><sub>ta</sub>, r<sup>1</sup><sub>tb</sub>)</div>
+      <ul class="bullets"><li>`ta` and `tb` are recent recomputation timesteps.</li><li>The clean first segment avoids using corrupted later-segment history as the correction direction.</li><li>ERC adds negligible overhead because it works on residuals rather than exhaustive layer-wise feature correction.</li></ul>
+      <div class="cite">Eq.(5)-(7), §3.3 p.5; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h2 class="head">Three ARDM regimes: I2V, T2V, and world models</h2>
+      <table class="bench" style="font-size:.78rem;"><thead><tr><th>Model</th><th>Task</th><th>Eval set</th><th>Generation setting</th><th>Metric family</th></tr></thead><tbody><tr><td>FramePack-F1</td><td>Image-to-video</td><td>1,118 VBench-I2V pairs x 5</td><td>145 frames / 25 steps</td><td>Latency, PSNR/SSIM/LPIPS, VBench-I2V</td></tr><tr><td>SkyReels-V2</td><td>Text-to-video</td><td>946 VBench prompts x 5</td><td>257 frames / 30 steps, 960 x 544</td><td>Latency, PSNR/SSIM/LPIPS, VBench</td></tr><tr><td>Matrix-Game</td><td>World model</td><td>2,432 GameWorld image-action pairs</td><td>113 frames / 50 steps, 1280 x 720</td><td>Latency, PSNR/SSIM/LPIPS, GameWorld Score</td></tr></tbody></table>
+      <p class="note">All experiments use NVIDIA H100 80GB GPUs; baselines include 50% steps, PAB, TeaCache, TaylorSeer.</p>
+      <div class="cite">§4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result · fast mode</div>
+      <h2 class="head">ARCache-fast maximizes speed while preserving competitive task quality</h2>
+      <table class="bench" style="font-size:.78rem;"><thead><tr><th>Model</th><th class="num">ARCache-fast latency</th><th class="num">Speedup</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th><th class="num">Task score</th></tr></thead><tbody><tr class="win"><td>FramePack-F1</td><td class="num">50.81s</td><td class="num best">2.88x</td><td class="num">24.34</td><td class="num">0.7659</td><td class="num">0.1254</td><td class="num">88.81%</td></tr><tr class="win"><td>SkyReels-V2</td><td class="num">191.66s</td><td class="num best">1.87x</td><td class="num">25.70</td><td class="num">0.8389</td><td class="num">0.1223</td><td class="num">77.04%</td></tr><tr class="win"><td>Matrix-Game</td><td class="num">158.51s</td><td class="num best">3.13x</td><td class="num">19.37</td><td class="num">0.7093</td><td class="num">0.3016</td><td class="num">79.07%</td></tr></tbody></table>
+      <div class="takeaway">Fast mode targets serving throughput: up to 3.13x speedup on Matrix-Game while retaining task score near full-step baseline.</div>
+      <div class="cite">Table 1 p.7; §4.2 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result · slow mode</div>
+      <h2 class="head">ARCache-slow is the high-fidelity operating point</h2>
+      <table class="bench" style="font-size:.78rem;"><thead><tr><th>Model</th><th class="num">Latency</th><th class="num">Speedup</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th><th class="num">Task score</th></tr></thead><tbody><tr class="win"><td>FramePack-F1</td><td class="num">96.74s</td><td class="num">1.51x</td><td class="num best">28.13</td><td class="num">0.8408</td><td class="num">0.0770</td><td class="num">88.82%</td></tr><tr class="win"><td>SkyReels-V2</td><td class="num">234.82s</td><td class="num">1.53x</td><td class="num best">29.10</td><td class="num">0.8835</td><td class="num">0.0852</td><td class="num">77.47%</td></tr><tr class="win"><td>Matrix-Game</td><td class="num">304.33s</td><td class="num">1.63x</td><td class="num best">22.77</td><td class="num">0.7811</td><td class="num">0.2306</td><td class="num">79.39%</td></tr></tbody></table>
+      <p class="note">Paper states ARCache-slow attains the highest fidelity among accelerated methods on PSNR/SSIM/LPIPS across all three models.</p>
+      <div class="cite">Table 1 p.7; §4.2 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why this matters for serving</div>
+      <h2 class="head">TaylorSeer’s correction does not scale cleanly to long ARDM sequences</h2>
+      <div class="scorebox"><span class="score score--lo">H100 80GB OOM</span><span class="score">SkyReels-V2</span><span class="score">Matrix-Game</span></div>
+      <ul class="bullets"><li>TaylorSeer reports OOM for SkyReels-V2 and Matrix-Game in Table 1.</li><li>The paper attributes this to layer-wise feature correction overhead plus accumulated drift in long sequences.</li><li>ARCache moves correction to lightweight residual trajectory anchoring, avoiding exhaustive feature-level calculation.</li></ul>
+      <div class="cite">Table 1 p.7; §3.3 p.5; §4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Temporal quality</div>
+      <h2 class="head">Frame-wise curves support the “late-frame drift” story</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure6_p8.jpg" alt="Frame-wise evaluation across FramePack-F1 SkyReels-V2 Matrix-Game"><figcaption>Figure 6: frame-wise evaluation across three ARDMs; dashed lines denote mean values.</figcaption></figure>
+      <ul class="bullets"><li>The text reports PAB / TaylorSeer often show artifacts and temporal inconsistency in later frames.</li><li>ARCache better tracks original outputs across the generation trajectory.</li></ul>
+      <div class="cite">Fig.6 p.8; §4.2 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · cache signal</div>
+      <h2 class="head">History-guided refresh beats input-guided and current-guided alternatives</h2>
+      <table class="bench" style="font-size:.82rem;"><thead><tr><th>Strategy</th><th>delta</th><th class="num">Latency</th><th class="num">Speed</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th></tr></thead><tbody><tr><td>IGC</td><td>0.10</td><td class="num">98.26</td><td class="num">1.49x</td><td class="num">22.93</td><td class="num">0.7953</td><td class="num">0.1323</td></tr><tr><td>CGC</td><td>0.10</td><td class="num">98.48</td><td class="num">1.49x</td><td class="num">22.80</td><td class="num">0.7870</td><td class="num">0.1382</td></tr><tr class="win"><td>HGC</td><td>0.10</td><td class="num">96.40</td><td class="num">1.52x</td><td class="num best">24.13</td><td class="num">0.8169</td><td class="num">0.1159</td></tr></tbody></table>
+      <div class="takeaway">This directly supports the mechanism claim: history is the right cache signal for ARDMs.</div>
+      <div class="cite">Table 2 p.8; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · threshold</div>
+      <h2 class="head">delta trades fidelity for reuse</h2>
+      <table class="bench" style="font-size:.82rem;"><thead><tr><th class="num">HGC delta</th><th class="num">Latency</th><th class="num">Speedup</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th></tr></thead><tbody><tr class="win"><td class="num">0.10</td><td class="num">96.40</td><td class="num">1.52x</td><td class="num best">24.13</td><td class="num">0.8169</td><td class="num">0.1159</td></tr><tr><td class="num">0.20</td><td class="num">56.48</td><td class="num">2.59x</td><td class="num">22.93</td><td class="num">0.7991</td><td class="num">0.1265</td></tr><tr class="win"><td class="num">0.30</td><td class="num">50.80</td><td class="num best">2.88x</td><td class="num">20.89</td><td class="num">0.7413</td><td class="num">0.1815</td></tr></tbody></table>
+      <p class="note">The paper explicitly identifies manual threshold tuning as the main limitation.</p>
+      <div class="cite">Table 2 p.8; §4.3 p.8; §5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · ERC</div>
+      <h2 class="head">Residual correction improves fidelity with almost no latency cost</h2>
+      <table class="bench" style="font-size:.9rem;"><thead><tr><th>ERC</th><th class="num">Latency</th><th class="num">Speedup</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th></tr></thead><tbody><tr><td>w/o</td><td class="num">96.40</td><td class="num">1.52x</td><td class="num">24.13</td><td class="num">0.8169</td><td class="num">0.1159</td></tr><tr class="win"><td>w/</td><td class="num">96.74</td><td class="num">1.51x</td><td class="num best">24.79</td><td class="num">0.8266</td><td class="num">0.1117</td></tr></tbody></table>
+      <ul class="bullets"><li>PSNR: 24.13 -> 24.79</li><li>SSIM: 0.8169 -> 0.8266</li><li>LPIPS: 0.1159 -> 0.1117</li><li>Latency remains comparable: 96.40s -> 96.74s</li></ul>
+      <div class="cite">Table 2 p.8; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Crown insight</div>
+      <p class="big">The right abstraction is not “cache more”; it is <b>keep errors from entering the history loop</b>.</p>
+      <p class="lead">HGC prevents stale reuse when history changes; ERC prevents contaminated residuals from steering later corrections.</p>
+      <div class="cite">§3.2-3.3 p.4-5; Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">What the paper does not solve yet</h2>
+      <ul class="bullets"><li><b>Manual threshold tuning</b>: ARCache still relies on `delta`; authors name threshold-free adaptive caching as future work.</li><li><b>Model scope</b>: evaluated on three representative ARDMs, not a claim for all non-autoregressive / non-diffusion video generators.</li><li><b>Quality-speed policy</b>: high `delta` can reach 2.88x on FramePack-F1 but visibly lowers PSNR / LPIPS in ablation.</li></ul>
+      <div class="takeaway">For production, delta should probably be selected per model, horizon length, and acceptable late-frame degradation.</div>
+      <div class="cite">§5 p.8; Table 2 p.8; §4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineer’s reading</div>
+      <h2 class="head">How I would apply this idea</h2>
+      <ul class="bullets"><li>Instrument ARDM serving with per-segment history-token drift and late-frame fidelity curves; average latency alone hides the failure mode.</li><li>Treat cache refresh as a policy over <b>history state change</b>, not only timestep index or input norm.</li><li>Keep a clean reference trajectory / calibration anchor for early segments; avoid correcting long-horizon states using their own accumulated errors.</li><li>Expose `delta` as an explicit speed-quality control, then autotune against VBench-like task score plus late-frame consistency.</li></ul>
+      <div class="cite">Derived from §3.2-3.3 p.4-5 and §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Original highlight</div>
+      <div class="hl"><p class="hl__en">Unlike SDMs, ARDMs generate each video segment conditioned on previously synthesized content; consequently, any approximation errors introduced by acceleration tend to propagate and accumulate over successive frames.</p><p class="hl__zh">不同於 SDM，ARDM 每個片段都條件於已生成內容；因此加速帶來的任何近似誤差都會沿後續片段傳播並累積。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">Our approach specifically monitors variations within the history tokens to trigger cache refreshes.</p><p class="hl__zh">ARCache 不是看整體輸入變化，而是專門監控 history tokens 的變化來觸發 cache refresh。<span class="hl__src">§3.2 p.4</span></p></div>
+      <div class="cite">Appendix highlights from spec</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Original highlight</div>
+      <div class="hl"><p class="hl__en">Rather than relying on the contaminated trajectory of the current segment, we leverage this inter-segment similarity and use the residual trajectory of the first segment as a clean reference to correct subsequent ones.</p><p class="hl__zh">與其依賴當前片段已被污染的軌跡，ERC 利用跨片段相似性，以第一段 residual trajectory 作乾淨參考來校正後續片段。<span class="hl__src">§3.3 p.5</span></p></div>
+      <div class="hl"><p class="hl__en">Increasing delta from 0.10 to 0.30 significantly improves acceleration (from 1.52x to 2.88x speedup), but this comes at the expense of reduced visual quality.</p><p class="hl__zh">把 delta 從 0.10 提高到 0.30 會讓速度從 1.52x 提升到 2.88x，但代價是畫質下降。<span class="hl__src">§4.3 p.8</span></p></div>
+      <div class="cite">Appendix highlights from spec</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow</h2>
+      <p class="end__sub">週四主題：計算加速（Attention、Kernel、硬體）</p>
+      <div class="end__next">今日結論：對長影片 ARDM，加速策略必須顯式控制 history-loop error propagation。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
