@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P2P: Automated Paper-to-Poster Generation and Fine-Grained Benchmark</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · 2026-07-25 · Saturday: AI Agent / Multimodal Systems</div>
+      <h1 class="title">P2P: Automated Paper-to-Poster Generation and Fine-Grained Benchmark</h1>
+      <div class="authors">Tao Sun, Enhao Pan, Zhengkai Yang, Kaixin Sui, Jiajun Shi, Xianfu Cheng, Tongliang Li, Wenhao Huang, Ge Zhang, Jian Yang, Zhoujun Li</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge">arXiv:2505.17104</span><span class="badge">Multi-agent HTML poster generation</span></div>
+      <p class="lead">一篇把 academic poster generation 拆成 <b>Figure Agent → Section Agent → Orchestrate Agent</b> 的多代理系統論文，並同時提出 instruction dataset 與細粒度評測。</p>
+      <div class="cite">Source: arXiv v1 2025-05-21; OpenReview forum JojyT9niJL; PDF/raw ingested locally.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">P2P 的關鍵不是「讓 LLM 寫海報」，而是把海報製作拆成可檢查、可反思、可評分的 multi-agent workflow。</p>
+      <p class="lead">視覺抽取、內容規劃、HTML/CSS 組版各自有 checker；P2PEval 再用 Universal + Fine-Grained 評測把「像不像官方 poster」量化。</p>
+      <div class="cite">Abstract p.1; Fig.1 and §2.1 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why this paper today?</div>
+      <h2 class="head">週六主題：AI Agent 框架 / 多模態系統</h2>
+      <ul class="bullets"><li><b>Agentic architecture:</b> 三個專門代理 + checker/reflection loops，而不是單次 prompt。</li><li><b>Multimodal document task:</b> 需要同時處理論文文字、圖表、caption、layout 與 HTML rendering。</li><li><b>Evaluation-first:</b> P2PEval 把生成 poster 的 fidelity / layout / visual-text alignment 做成可比較 benchmark。</li><li><b>工程含義:</b> 這篇很適合圖像/文件工程師思考「LLM 產物如何被結構化驗收」。</li></ul>
+      <div class="cite">§1 p.3; §3 p.6-8; §4 p.8-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Academic poster 是一個比摘要更難的 document-to-design 任務</h2>
+      <ul class="bullets"><li>人工製作 poster 同時要求 <b>內容取捨</b>、<b>視覺設計</b> 與 <b>圖文整合</b>，對早期研究者成本高。</li><li>傳統 template / rule-driven 方法常拆成 isolated subtasks，難保留論文的 semantic richness 與 structural nuance。</li><li>既有 datasets / metrics 缺少對 poster quality 的細粒度評估，難以系統比較方法。</li><li>LLM/MLLM 有潛力，但缺少 quality-control mechanism 時，版面與忠實度不穩。</li></ul>
+      <div class="takeaway">任務本質：不是 summarization，而是 <b>faithful multimodal communication design</b>。</div>
+      <div class="cite">§1 p.3; Related Work §5 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">三件事一起交付：系統、資料、評測</h2>
+      <ol class="numbered"><li><b>P2P framework:</b> LLM-based multi-agent paper-to-HTML-poster architecture。</li><li><b>P2PInstruct:</b> 30,460 examples，覆蓋 figure description、section/content generation、HTML generation。</li><li><b>P2PEval:</b> 121 paper-poster pairs + Universal / Fine-Grained dual evaluation。</li><li><b>Large comparison:</b> 33 models / variants，包含 closed-source、open-source、reasoning mode、fine-tuned variants。</li></ol>
+      <div class="cite">§1 p.3; §2.2 p.5; §3 p.6-8; §4 p.8-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System overview</div>
+      <h2 class="head">Figure 1：三代理 + 三 checker 的 closed-loop poster factory</h2>
+      <figure class="full" style="max-height:60vh;"><img src="figures/figure1_p4.jpg" alt="P2P multi-agent architecture"><figcaption>Figure Agent extracts/describes visuals; Section Agent plans and writes poster content; Orchestrate Agent renders HTML/CSS and checks layout.</figcaption></figure>
+      <div class="cite">Fig.1 p.4; §2.1 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Agent 1</div>
+      <h2 class="head">Figure Agent：把圖表從 pixels 變成可引用的 semantic visual units</h2>
+      <div class="two-col"><div><ul class="bullets"><li>DocLayout-YOLO 抽取 figures / tables。</li><li>Caption matching 透過 spatial relation analysis。</li><li>MLLM 生成 description，形成 <b>visual + caption + description</b> bundle。</li></ul></div><div><div class="formula">F<sub>d</sub> = {(v<sub>i</sub>, c<sub>i</sub>, desc<sub>i</sub>)}</div><ul class="bullets"><li>v<sub>i</sub>: visual element</li><li>c<sub>i</sub>: original caption</li><li>desc<sub>i</sub>: MLLM-generated description</li></ul></div></div>
+      <div class="takeaway">Checker 會檢查 duplicate、coverage、visual-caption pairing；count mismatch 時逐步降低 detection threshold 重新對齊。</div>
+      <div class="cite">§2.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Agent 2</div>
+      <h2 class="head">Section Agent：先推 poster schema，再寫帶圖索引的內容</h2>
+      <div class="formula">P<sub>poster_text</sub> = M<sub>text</sub>(D, S, F<sub>d</sub>)</div>
+      <ul class="bullets"><li>Section Generator 從原論文 D 推出 target poster schema S，例如 Introduction / Methods / Results。</li><li>Content Generator 以 D、S、F<sub>d</sub> 產生 poster text。</li><li>在合適位置插入 Markdown-style figure indices，讓文字與視覺素材對齊。</li><li>Section Checker 檢查 coherence、completeness、faithfulness、visual reference correctness。</li></ul>
+      <div class="cite">§2.1 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Agent 3</div>
+      <h2 class="head">Orchestrate Agent：HTML/CSS 是最終可執行 layout</h2>
+      <ul class="bullets"><li>HTML Generator 接收 `P_poster_text` 與 extracted visuals `F_v`，同時拿到 width / height / aspect ratio。</li><li>為了視覺清晰，embedded visuals 不保留原 caption。</li><li>三個 rendering principles：content-structure decoupling、institutional identity alignment、responsive balanced layout。</li><li>Poster Checker 針對 aesthetics / structural integrity 觸發修正。</li></ul>
+      <div class="takeaway">這裡的 insight 很工程化：把 poster 當作 <b>可驗證的前端產物</b>，不是靜態圖片。</div>
+      <div class="cite">§2.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Dataset</div>
+      <h2 class="head">P2PInstruct：把 multi-agent traces 變成 30K+ supervision</h2>
+      <div class="scorebox"><span class="score score--hi">30,460</span><span class="score">16,848</span><span class="score">13,612</span><span class="score">3,300+ tok</span></div>
+      <ul class="bullets"><li><b>30,460</b> instruction-response pairs derived from P2P workflow。</li><li><b>16,848</b> figure-description pairs from Figure Describer，平均 192 tokens / visual element。</li><li><b>13,612</b> examples from Section Generator / Content Generator / HTML Generator。</li><li>Text/content responses 平均超過 <b>3,300 tokens</b>，反映 poster generation 的長輸出與結構複雜度。</li></ul>
+      <div class="cite">§2.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation design</div>
+      <h2 class="head">P2PEval：用 Universal + Fine-Grained 兩條軌道評 poster</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure3_p7.jpg" alt="P2PEval evaluation framework"><figcaption>Universal criteria are calibrated to human overall scores; fine-grained checklists compare generated posters against official poster elements.</figcaption></figure>
+      <div class="cite">Fig.3 p.7; §3 p.6-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Benchmark construction</div>
+      <h2 class="head">P2PEval 的重點是 checklist，而不是泛泛打分</h2>
+      <div class="scorebox"><span class="score score--hi">121 pairs</span><span class="score score--hi">1,738 items</span><span class="score">775 visual</span><span class="score">avg max 4.07</span></div>
+      <ul class="bullets"><li>121 paper-poster pairs，來自 ACL 2022-2024 與 SciPostLayout / F1000Research。</li><li>四位 annotators：三人獨立 review，每個 poster 由第四人 verify。</li><li>Checklist items 以 1-5 importance score 標記 minor / core / critical elements。</li><li>1,738 items 中 775 個關聯 visual elements，直接逼問圖像與內容 fidelity。</li></ul>
+      <div class="cite">§3.1 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Universal evaluation</div>
+      <h2 class="head">Universal score 用人類總分校準，而非單純平均 LLM judge</h2>
+      <div class="two-col"><div><ul class="bullets"><li>10 criteria：title/authorship accuracy、image quality、white space、content fidelity、information flow 等。</li><li>三位 human annotators 對 posters 打 0-50 overall score。</li><li>累積 1,701 independent human annotation scores。</li></ul></div><div><table class="bench"><thead><tr><th>model</th><th class="num">R²</th></tr></thead><tbody><tr class="win"><td>XGBoost</td><td class="num best">0.92</td></tr><tr><td>Regularized methods</td><td class="num">0.89</td></tr><tr><td>Random Forest</td><td class="num">0.83</td></tr><tr><td>OLS</td><td class="num">0.66</td></tr></tbody></table></div></div>
+      <div class="cite">§3.2.1 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fine-Grained evaluation</div>
+      <h2 class="head">Fine-Grained score 衡量「官方 poster 的必要元素被保留下來多少」</h2>
+      <div class="formula">S<sub>fine</sub> = (sum<sub>i=1..n</sub> s<sub>i</sub> / sum<sub>i=1..n</sub> M<sub>i</sub>) x 100</div>
+      <ul class="bullets"><li>s<sub>i</sub> 是 generated poster 對第 i 個 checklist item 拿到的分數。</li><li>M<sub>i</sub> 是該 item 的 maximum possible score，由多位 annotators consensus 得出。</li><li>它不是 generic aesthetics score，而是對 original author communication goals 的 fidelity measure。</li></ul>
+      <div class="cite">§3.2.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main results</div>
+      <h2 class="head">Closed-source strong；P2PInstruct fine-tuning 顯著提升小模型</h2>
+      <table class="bench" style="font-size:.9rem;"><thead><tr><th>method</th><th class="num">FineGrain</th><th class="num">Universal</th><th>source</th></tr></thead><tbody><tr><td>Claude-3.7-Sonnet reasoning</td><td class="num best">65.8848</td><td class="num">35.5062</td><td>Tab.1 p.9</td></tr><tr class="win"><td>Claude-3.7-Sonnet / P2P</td><td class="num">65.3962</td><td class="num best">37.2474</td><td>Tab.1 p.9</td></tr><tr><td>Deepseek-R1 reasoning + Claude figures</td><td class="num">62.5013</td><td class="num">33.9701</td><td>Tab.1 p.9</td></tr><tr><td>Qwen3-P2P-8B</td><td class="num">57.6622</td><td class="num">32.4996</td><td>Tab.1 p.9-10</td></tr><tr><td>Qwen3-8B base</td><td class="num">45.0272</td><td class="num">28.8107</td><td>Tab.1 p.9</td></tr></tbody></table>
+      <div class="cite">Table 1 p.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fine-tuning signal</div>
+      <h2 class="head">P2PInstruct 對開源模型的增益很直接</h2>
+      <table class="bench"><thead><tr><th>model pair</th><th class="num">FineGrain</th><th class="num">Universal</th><th>delta note</th></tr></thead><tbody><tr class="win"><td>Qwen3-P2P-8B</td><td class="num best">57.6622</td><td class="num best">32.4996</td><td>fine-tuned on P2PInstruct</td></tr><tr><td>Qwen3-8B base</td><td class="num">45.0272</td><td class="num">28.8107</td><td>+12.635 FineGrain after FT</td></tr><tr class="win"><td>Qwen2.5-VL-P2P-7B</td><td class="num best">37.3078</td><td class="num best">25.0337</td><td>fine-tuned on P2PInstruct</td></tr><tr><td>Qwen2.5-VL-7B base</td><td class="num">13.7417</td><td class="num">13.0597</td><td>+23.5661 FineGrain after FT</td></tr></tbody></table>
+      <div class="takeaway">作者的解讀：P2PInstruct 不只教格式，也教完整 paper-to-poster transformation process。</div>
+      <div class="cite">Table 1 p.9-10; §4.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Human preference</div>
+      <h2 class="head">P2P 不只是自動評分好看，也被人類偏好</h2>
+      <table class="bench"><thead><tr><th>comparison A / B</th><th class="num">preferred or tied</th><th class="num">strictly preferred</th></tr></thead><tbody><tr class="win"><td>P2P / YuanBao</td><td class="num best">83.05%</td><td class="num best">54.35%</td></tr><tr><td>P2P / Original author poster</td><td class="num">57.63%</td><td class="num">35.59%</td></tr><tr><td>YuanBao / Original author poster</td><td class="num">20.34%</td><td class="num">12.40%</td></tr></tbody></table>
+      <div class="takeaway">最尖銳的結果：P2P 對 original author poster 也有 57.63% preferred-or-tied，代表它至少在一部分案例達到可用品質。</div>
+      <div class="cite">Table 2 p.10; §4.3 p.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Format ablation</div>
+      <h2 class="head">HTML 是最佳 poster target：layout 彈性與 LLM 生成能力同時占優</h2>
+      <table class="bench"><thead><tr><th>output format</th><th class="num">FineGrain</th><th class="num">Universal</th></tr></thead><tbody><tr class="win"><td>HTML</td><td class="num best">65.3962</td><td class="num best">37.2474</td></tr><tr><td>SVG</td><td class="num">52.7408</td><td class="num">30.6648</td></tr><tr><td>LaTeX</td><td class="num">56.8756</td><td class="num">25.2585</td></tr></tbody></table>
+      <ul class="bullets"><li>HTML/CSS 支援 content/presentation separation、flexbox、responsive layout。</li><li>作者觀察 current LLMs 對 HTML code generation 比 SVG/LaTeX 更穩，rendering errors 更少。</li><li>Appendix C 也強調 HTML 的 portability、interactivity、web integration。</li></ul>
+      <div class="cite">Table 3 p.10; §4.3 p.11; Appendix C p.20</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">Ablation 的訊息很清楚：multi-agent 不是包裝，checker / figure descriptions / modular steps 各自提供穩定性。</p>
+      <ul class="bullets"><li>Full: FineGrain 65.3962 / Universal 37.2474。</li><li>No reflection: Universal 下降到 34.2229。</li><li>No Figure Describer: FineGrain 63.7388 / Universal 35.1107。</li><li>Direct reduced pipeline: FineGrain 60.7233 / Universal 34.2554。</li></ul>
+      <div class="cite">Table 4 p.11; §4.3 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Layout analysis</div>
+      <h2 class="head">沒有 reflection 時，layout pathologies 會以欄高與空白顯現</h2>
+      <table class="bench" style="font-size:.86rem;"><thead><tr><th>layout statistic</th><th class="num">Claude</th><th class="num">GPT</th><th>interpretation</th></tr></thead><tbody><tr><td>Total columns</td><td class="num">376</td><td class="num">293</td><td>Claude more fragmented</td></tr><tr><td>Tallest column height</td><td class="num">7272.22</td><td class="num">5794.42</td><td>Claude taller max column</td></tr><tr><td>Height CV</td><td class="num">0.21</td><td class="num best">0.18</td><td>GPT more uniform</td></tr><tr><td>Blank space proportion</td><td class="num">19.16%</td><td class="num best">14.92%</td><td>GPT uses space better</td></tr></tbody></table>
+      <div class="takeaway">作者把「版面不穩」拆成可量測的 layout statistics，這比只看截圖主觀評審更可重現。</div>
+      <div class="cite">Table 5 p.12; §4.3 p.11-12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits / caution</div>
+      <h2 class="head">這篇沒有明列 Limitations；但使用時要記住三個邊界</h2>
+      <ul class="bullets"><li><b>Judge dependency:</b> Universal / Fine-Grained evaluation 使用 GPT-4o / VLLM judges，Universal 又由 1,701 human scores 校準 XGBoost。</li><li><b>Benchmark scope:</b> P2PEval 的 official pairs 主要來自 ACL 2022-2024 與 SciPostLayout / F1000Research。</li><li><b>Hybrid comparison:</b> Table 1 中 text-only LLMs 使用 Claude-3.7-Sonnet 作 Figure Describer provider，部分結果不是純單模型能力。</li></ul>
+      <div class="cite">§3.1 p.6; §3.2.1 p.7-8; Table 1 footnotes p.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h2 class="head">對 agent / multimodal system builder 的三個啟發</h2>
+      <ol class="numbered"><li><b>將中間物件顯式化:</b> visual units、poster schema、poster text、HTML 都是可驗證 artifacts。</li><li><b>讓 checker 成為架構的一部分:</b> 不要只在最終輸出後人工看；每個 agent 的輸出都應有 local acceptance criteria。</li><li><b>評測要貼近任務意圖:</b> P2PEval 用 official poster checklist，而不是只靠 ROUGE/BERTScore 或泛用 aesthetics。</li></ol>
+      <div class="takeaway">如果把這套思路放回日常 agent 工程：每一步都應留下可檢查 spec，而不是只留下漂亮 final。</div>
+      <div class="cite">§2.1 p.4-5; §3 p.6-8; §4.3 p.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight A</div>
+      <h2 class="head">核心架構原文</h2>
+      <div class="hl"><p class="hl__en">P2P employs three specialized agents—the Figure Agent for visual element processing, the Section Agent for content generation, and the Orchestrate Agent for final poster assembly, each paired with a dedicated checker module to enable iterative refinement and ensure output quality.</p><p class="hl__zh">P2P 把任務拆成圖像元素、內容生成、最終組版三個代理，並在每個代理後加 checker/reflection，讓 poster 不是一次性生成，而是可回饋修正的流程。<span class="hl__src">§1 p.3; §2.1 p.4-5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight B</div>
+      <h2 class="head">P2PEval 為何比泛用分數更硬</h2>
+      <div class="hl"><p class="hl__en">The annotation process results in 1738 checklist items, with 775 associated with visual elements. The scoring system yields an average per-item maximum score of 4.07.</p><p class="hl__zh">P2PEval 的細粒度評估不是抽象打分，而是把官方 poster 的圖像、內容、結構與研究重點拆成 1,738 個 checklist item，其中 775 個直接關聯 visual elements。<span class="hl__src">§3.1 p.7</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight C</div>
+      <h2 class="head">Ablation 的作者解讀</h2>
+      <div class="hl"><p class="hl__en">This confirms our hypothesis that poster generation benefits significantly from modularized, specialized processing that mimics the distinct cognitive steps humans undertake when creating posters from research papers.</p><p class="hl__zh">ablation 的真正訊息是：多代理不是裝飾，模組化、figure description、reflection 分別對 fidelity、layout、審美穩定性有貢獻。<span class="hl__src">§4.3 p.11</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow</h2>
+      <p class="end__sub">週日輪轉：火爆 GitHub Repo 或公司技術報告</p>
+      <div class="end__next">今天的重點：P2P 把「生成 poster」變成 multi-agent pipeline + benchmark；真正值得借鑑的是 artifact/checker-driven 的工程方法。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
