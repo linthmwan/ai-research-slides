@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM2CLIP: Powerful Language Model Unlocks Richer Cross-Modality Representation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Daily AI Research · 2026-07-28 · 圖像生成 / 理解</div>
+      <h1 class="title">LLM2CLIP: 用 LLM 重塑 CLIP 的文字端</h1>
+      <div class="authors">Weiquan Huang*, Aoqi Wu*, Yifan Yang†‡, Xufang Luo, Yuqing Yang, Usman Naseem, Chunyu Wang, Qi Dai, Xiyang Dai, Dongdong Chen, Chong Luo, Lili Qiu, Liang Hu</div>
+      <div class="meta-row"><span class="badge tier">AAAI 2026</span><span class="badge tier">Conference Paper Award / Recognition</span><span class="badge date">arXiv:2411.04997v6</span></div>
+      <div class="cite">來源: cover p.1 lines 3-10, 52-53; arXiv v6 25 Feb 2026</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不是「把 LLM 塞進 CLIP」就會變強。</p>
+      <p class="lead">LLM2CLIP 先把 LLM 變成 <b>caption-contrastive embedding model</b>，再凍結 LLM、用小 adaptor 接到 CLIP vision encoder，讓 dense caption 的語義進到 shared space。</p>
+      <div class="scorebox"><span class="score score--hi">+12.0 / +14.8 EVA02 avg I2T/T2I</span><span class="score score--hi">+9.4 / +10.6 SigLIP2 avg I2T/T2I</span></div>
+      <div class="cite">Abstract p.1 lines 19-34; Table 1 p.4; §4.2 p.5 lines 920-927</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem / Why now</div>
+      <h2 class="head">CLIP 已經是多模態系統的地基，但文字端開始拖後腿</h2>
+      <ul class="bullets"><li>CLIP 的 dual-tower embedding 支撐 retrieval、detection、segmentation，也被 Stable Diffusion / Wan / LLaVA 這類系統當作 text / visual backbone。</li><li>原始 CLIP text encoder 對 <b>長句、密集 caption、open-world knowledge</b> 的處理能力不足，這正是現代圖像理解與生成 prompt 的痛點。</li><li>長 caption CLIP work 常靠 summarization、segmentation 或 positional encoding 補丁；LLM2CLIP 問的是：能不能直接把 LLM 的語義能力遷進 CLIP？</li></ul>
+      <div class="cite">Introduction p.1-2 lines 37-47, 90-131; Related Works p.2-3 lines 236-250</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">The trap</div>
+      <h2 class="head">直接拿 raw LLM embedding 做 CLIP contrastive training 會失敗</h2>
+      <div class="two-col"><div><h1 class="title">障礙 1: separability</h1><ul class="bullets"><li>LLM embedding 原本是為 next-token / text tasks 形成，不自然適合 image-caption contrastive matching。</li><li>COCO caption-to-caption top-1 範例顯示 raw LLaMA retrieval 會拿到語義不相干的句子。</li></ul></div><div><h1 class="title">障礙 2: cost</h1><ul class="bullets"><li>CLIP pretraining 已經昂貴；把 LLM 一起端到端訓練，GPU memory 與時間都不可接受。</li><li>所以方案必須讓 LLM 的能力進來，但不要讓 LLM 的訓練成本進來。</li></ul></div></div>
+      <div class="cite">Introduction p.2 lines 132-154; Figure 2 p.2 lines 193-215</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Pipeline overview</div>
+      <h2 class="head">兩階段：先 embedding-ize LLM，再替換 CLIP text encoder</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure1_p1.jpg" alt="LLM2CLIP overview"><figcaption>Figure 1: CC-finetuned LLM 提供 dense caption / open-world knowledge，透過 adaptor/projector 對齊 CLIP vision feature。</figcaption></figure>
+      <div class="cite">Figure 1 p.1 lines 80-86; Introduction p.2 lines 149-171</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Stage 1 / Caption embeddingization</div>
+      <h2 class="head">把 LLM 從 generator 改造成 caption embedding model</h2>
+      <ul class="bullets"><li><b>Average pooling</b> 取代只用 EOS token，實驗上更適合句子表徵。</li><li><b>Bidirectional attention</b>：encoder-focused 場景不需要 causal generation mask。</li><li><b>LoRA</b>：用 PEFT 啟動輸出特徵的文字理解能力，不做全量訓練。</li><li><b>Supervised SimCSE</b>：同一張圖的兩個 caption 作正樣本，讓 caption space 變得可分。</li></ul>
+      <div class="formula">positive: sim(z<sub>cap1</sub>, z<sub>cap2</sub>) ↑ · negatives: sim(z<sub>cap</sub>, z<sub>other</sub>) ↓</div>
+      <div class="cite">Methods §3.1 p.3 lines 266-323</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Stage 1 / Defaults</div>
+      <h2 class="head">預設 recipe 其實很克制：不靠 MNTP，不加 adaptor</h2>
+      <table class="bench"><thead><tr><th>component</th><th>default</th><th>reason</th></tr></thead><tbody><tr><td>LLM</td><td>LLaMA 3.1 8B</td><td>作為新 text encoder 的語義來源</td></tr><tr><td>attention</td><td>bidirectional</td><td>caption understanding > generation</td></tr><tr><td>sentence token</td><td>average pooling</td><td>比 EOS token 更穩</td></tr><tr><td>loss</td><td>supervised SimCSE</td><td>Stage-1 最關鍵 ingredient</td></tr><tr><td>data</td><td>30M DreamLIP captions</td><td>同圖多 caption 形成 positive pairs</td></tr></tbody></table>
+      <div class="cite">Experiments §4.1 p.5 lines 867-876</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Stage 2 / CLIP post-finetuning</div>
+      <h2 class="head">凍結 LLM，訓練 vision encoder + 小 adaptor</h2>
+      <div class="two-col"><div><h1 class="title">What changes</h1><ol class="numbered"><li>移除原本 CLIP text encoder。</li><li>用 CC-finetuned LLM 輸出 sentence embedding。</li><li>LLM 後接四層 linear adaptor/projector。</li><li>開 ViT gradients，做 cross-modal contrastive learning。</li></ol></div><div><h1 class="title">Why cheap</h1><ul class="bullets"><li>LLM gradients 全部 frozen。</li><li>文字特徵可 offline precompute；訓練時不用把 LLM 放進 GPU memory。</li><li>成本接近標準 CLIP fine-tuning，而不是重做 CLIP pretraining。</li></ul></div></div>
+      <div class="cite">Methods §3.2 p.4-5 lines 821-849; Experiments §4.1 p.5 lines 877-888</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Integration choice</div>
+      <h2 class="head">主線不是融合兩個 text encoder，而是直接替換 CLIP-T</h2>
+      <ul class="bullets"><li>作者測過四種選項：只用 LLM、CLIP-T/LLM 雙 loss、額外 CLIP-T↔LLM alignment、以及 concat feature。</li><li>雙 loss 與顯式 alignment 幾乎沒有意義；concat 有提升但複雜，作者留作 future work。</li><li>這讓 pipeline 乾淨：<b>CL(LLM, CLIP-V)</b> 是主目標，不再讓舊 CLIP-T 約束新 space。</li></ul>
+      <div class="cite">Methods §3.2 p.5 lines 837-849; Table 9 p.7 lines 1353-1404; §4.4 p.7 lines 1416-1427</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experiment setup</div>
+      <h2 class="head">評估不是單一 retrieval：它測了 CLIP 作為系統地基的多種角色</h2>
+      <table class="bench"><thead><tr><th>axis</th><th>datasets / protocol</th><th>what it tests</th></tr></thead><tbody><tr><td>English retrieval</td><td>Flickr1K, COCO5K, SG4V, Urban1K, DOCCI</td><td>短 caption + 長 dense caption matching</td></tr><tr><td>multilingual</td><td>Flickr-CN, COCO-CN, XM3600</td><td>跨語言 image-text space</td></tr><tr><td>classification</td><td>ImageNet 0-shot / linear probe</td><td>prompt alignment vs visual feature quality</td></tr><tr><td>seg/det</td><td>COCO-S, ADE, VOC, City, OV-COCO</td><td>text-driven segmentation + pure visual encoder</td></tr><tr><td>MLLM</td><td>LLaVA-1.5 benchmarks</td><td>CLIP as visual tokenizer/encoder</td></tr></tbody></table>
+      <div class="cite">§4.1 p.5 lines 867-889; §4.2 p.5-6 lines 897-1192</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result / Retrieval</div>
+      <h2 class="head">最大收益落在 long dense captions；短 caption 也能加分</h2>
+      <table class="bench"><thead><tr><th>base model</th><th class="num">baseline avg I2T</th><th class="num">baseline avg T2I</th><th class="num">+LLM2CLIP avg I2T</th><th class="num">+LLM2CLIP avg T2I</th><th>delta</th></tr></thead><tbody><tr class="win"><td>EVA02 ViT-L/14 224</td><td class="num">78.4</td><td class="num">71.5</td><td class="num best">90.4</td><td class="num best">86.3</td><td>+12.0 / +14.8</td></tr><tr class="win"><td>SigLIP2 So/14 224</td><td class="num">81.8</td><td class="num">75.8</td><td class="num best">91.2</td><td class="num best">86.4</td><td>+9.4 / +10.6</td></tr><tr><td>SigLIP2 short-caption</td><td>-</td><td>-</td><td>-</td><td>-</td><td>+1.0 / +1.9 reported</td></tr><tr class="win"><td>SigLIP2 long-caption</td><td>-</td><td>-</td><td>-</td><td>-</td><td class="best">+14.8 / +15.8 reported</td></tr></tbody></table>
+      <div class="takeaway">重點：LLM 的長上下文與 dense caption parsing，主要變成 retrieval space 的優勢。</div>
+      <div class="cite">Table 1 p.4 lines 579-775; Introduction p.2 lines 189-192; §4.2 p.5 lines 920-930</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Figure-first / Table 1</div>
+      <h2 class="head">完整 retrieval 表顯示：base 越強，LLM2CLIP 仍可疊上去</h2>
+      <figure class="full" style="max-height:60vh;"><img src="figures/table1_p4.jpg" alt="Table 1 retrieval comparison"><figcaption>Table 1: 多資料集 I2T/T2I top-1；LLM2CLIP 在 CLIP / EVA02 / SigLIP2 上都帶來提升。</figcaption></figure>
+      <div class="cite">Table 1 p.4; text §4.2 p.5 lines 914-933</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Multilingual retrieval</div>
+      <h2 class="head">多語也受益：不是只把英文 prompt 做長</h2>
+      <table class="bench"><thead><tr><th>model</th><th>Flickr-CN I2T/T2I</th><th>COCO-CN I2T/T2I</th><th>XM3600 I2T/T2I</th></tr></thead><tbody><tr><td>EVA-L-224</td><td>4.4 / 0.9</td><td>2.6 / 1.0</td><td>14.0 / 8.0</td></tr><tr class="win"><td>+LLM2CLIP</td><td class="best">90.6 / 75.6</td><td class="best">72.0 / 70.1</td><td class="best">68.3 / 56.0</td></tr><tr><td>SigLIP2</td><td>79.2 / 56.9</td><td>55.3 / 51.7</td><td>59.7 / 48.2</td></tr><tr class="win"><td>+LLM2CLIP</td><td class="best">90.0 / 76.1</td><td class="best">70.8 / 70.2</td><td class="best">69.1 / 56.3</td></tr></tbody></table>
+      <div class="cite">Table 2 p.5 lines 934-979</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Dense spatial understanding</div>
+      <h2 class="head">Segmentation / detection 也提升，暗示 visual feature 被 dense caption 重新塑形</h2>
+      <table class="bench"><thead><tr><th>metric</th><th class="num">EVA02</th><th class="num">+LLM2CLIP</th><th>delta</th></tr></thead><tbody><tr class="win"><td>COCO-S mIoU</td><td class="num">12.9</td><td class="num best">15.3</td><td class="num">+2.4</td></tr><tr class="win"><td>ADE mIoU</td><td class="num">11.5</td><td class="num best">15.8</td><td class="num">+4.3</td></tr><tr class="win"><td>VOC mIoU</td><td class="num">21.0</td><td class="num best">29.1</td><td class="num">+8.1</td></tr><tr class="win"><td>City mIoU</td><td class="num">13.5</td><td class="num best">20.1</td><td class="num">+6.6</td></tr><tr class="win"><td>COCO APbb/APseg</td><td>45.0 / 38.2</td><td class="best">45.6 / 38.7</td><td>+0.6 / +0.5</td></tr></tbody></table>
+      <div class="cite">Table 4 p.5 lines 1004-1040; §4.2 p.6 lines 1167-1180</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">As MLLM visual encoder</div>
+      <h2 class="head">把 LLM2CLIP 接回 LLaVA-1.5：它也像更好的 visual tokenizer</h2>
+      <ul class="bullets"><li>作者沿用 LLaVA-1.5：CLIP-ViT-L-336 + MLP head + Vicuna-7B。</li><li>pretraining 558K image-caption pairs，instruction tuning 665K visual instruction samples。</li><li>+LLM2CLIP 在超過 <b>87.5%</b> benchmarks 上提升，只有兩項小幅下降。</li><li>這支持一個工程解讀：dense caption 對齊不只改善 retrieval，也改善 vision encoder 作為 MLLM token source 的能力。</li></ul>
+      <div class="cite">§4.2 p.6 lines 1181-1192; Table 5 p.6 lines 1053-1124</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">真正 work 的地方：先讓 LLM caption space 變可分。</p>
+      <p class="lead">Raw LLM 大但不等於好 embedding；caption-contrastive fine-tuning 才是把 LLM knowledge 變成 CLIP 可用 supervision 的轉接器。</p>
+      <div class="scorebox"><span class="score score--lo">Raw LLaMA-3.1-8B: 66.5 / 62.5</span><span class="score score--hi">LLaMA-3.1-8B-CC: 84.8 / 81.0</span></div>
+      <div class="cite">Table 7 p.7 lines 1278-1290; discussion p.7 lines 1341-1348</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation / Stage 1</div>
+      <h2 class="head">Supervised SimCSE 是硬骨頭；MNTP 沒救這件事</h2>
+      <table class="bench"><thead><tr><th>Stage-1 variant</th><th class="num">Avg I2T</th><th class="num">Avg T2I</th><th>reading</th></tr></thead><tbody><tr class="win"><td>LoRA + AvgPool + BiAttn + supervised SimCSE</td><td class="num best">80.4</td><td class="num best">77.9</td><td>default</td></tr><tr><td>same + unsupervised SimCSE</td><td class="num">59.2</td><td class="num">57.7</td><td>huge drop</td></tr><tr><td>same + MNTP only</td><td class="num">70.1</td><td class="num">67.0</td><td>not enough</td></tr><tr><td>MNTP + supervised SimCSE</td><td class="num">79.7</td><td class="num">77.2</td><td>no real gain over default</td></tr><tr><td>frozen + linear adaptor</td><td class="num">74.1</td><td class="num">71.3</td><td>LoRA matters</td></tr></tbody></table>
+      <div class="cite">Table 6 p.6 lines 1193-1220; §4.3 p.7 lines 1329-1340</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation / Text encoder choice</div>
+      <h2 class="head">「用更好的 embedding model」仍不如 caption-contrastive LLM</h2>
+      <table class="bench"><thead><tr><th>text encoder</th><th class="num">Avg I2T</th><th class="num">Avg T2I</th></tr></thead><tbody><tr><td>CLIP baseline</td><td class="num">74.4</td><td class="num">72.0</td></tr><tr><td>LLM2Vec-Llama-3-8B</td><td class="num">81.4</td><td class="num">80.2</td></tr><tr><td>NV-Embed-v2</td><td class="num">81.4</td><td class="num">79.9</td></tr><tr><td>VLM2Vec</td><td class="num">78.2</td><td class="num">77.1</td></tr><tr><td>Llama-3.1-8B raw</td><td class="num">66.5</td><td class="num">62.5</td></tr><tr class="win"><td>Llama-3.1-8B-CC</td><td class="num best">84.8</td><td class="num best">81.0</td></tr></tbody></table>
+      <div class="cite">Table 7 p.7 lines 1241-1290</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation / Stage 2 adaptor</div>
+      <h2 class="head">Adaptor 不需要很花：四層 linear 已經足夠</h2>
+      <table class="bench"><thead><tr><th>Stage1 adaptor</th><th>Stage2 adaptor</th><th class="num">Avg I2T</th><th class="num">Avg T2I</th></tr></thead><tbody><tr><td>-</td><td>-</td><td class="num">78.3</td><td class="num">75.5</td></tr><tr><td>-</td><td>Linear x1</td><td class="num">79.2</td><td class="num">76.7</td></tr><tr><td>-</td><td>Linear x2</td><td class="num">80.1</td><td class="num">76.8</td></tr><tr class="win"><td>-</td><td>Linear x4</td><td class="num best">80.4</td><td class="num best">77.9</td></tr><tr><td>Linear x4</td><td>Linear x4</td><td class="num">80.5</td><td class="num">77.7</td></tr><tr><td>Transformer x1</td><td>Transformer x1</td><td class="num">80.5</td><td class="num">77.3</td></tr></tbody></table>
+      <div class="cite">Table 8 p.7 lines 1292-1328; §4.4 p.7 lines 1405-1415</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Trade-off</div>
+      <h2 class="head">同一個方法：retrieval 大幅提升，ImageNet zero-shot 反而可能小跌</h2>
+      <div class="two-col"><div><h1 class="title">What improves</h1><ul class="bullets"><li>linear probe 變好：CLIP L/14-336 84.8 → 85.2，CLIP L/14 83.9 → 84.4。</li><li>segmentation / detection 也提升，說明 visual feature 不是只過度適配 text retrieval。</li></ul></div><div><h1 class="title">What regresses</h1><ul class="bullets"><li>ImageNet zero-shot 有小幅下降；作者認為 shared-space prompt alignment 對細粒度 class nouns 更脆弱。</li><li>更多 finetuning data 可能緩解，但論文沒有驗證。</li></ul></div></div>
+      <div class="cite">Table 3 p.5 lines 980-1003; §4.2 p.6 lines 1143-1166</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">值得保留的三個保留意見</h2>
+      <ol class="numbered"><li><b>Zero-shot classification alignment</b>：ImageNet zero-shot 可下降，prompt/class-name space 不是免費改善。</li><li><b>Data scale question</b>：作者推測更多 LLM2CLIP finetuning data 可補救，但這仍是未驗證命題。</li><li><b>Concat variant</b>：Table 9 的 concatenation 更強，但因複雜度未納入 default；工程上可能值得重跑。</li></ol>
+      <div class="cite">§4.2 p.6 lines 1143-1156; §4.4 p.7 lines 1424-1427</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering read</div>
+      <h2 class="head">對 image / generative pipeline 的啟發</h2>
+      <ul class="bullets"><li>如果 pipeline 依賴 CLIP text/image features，不一定要重訓整個 foundation model；可以用 dense caption + LLM text side 做低成本 post-finetuning。</li><li>對 text-to-image / text-to-video：prompt text encoder 的長上下文理解與 open-world knowledge，可能比單純擴資料更直接改善 dense prompt grounding。</li><li>但 deployment 要分清 retrieval / dense grounding 與 zero-shot class prompt；這兩個目標可能拉扯。</li><li>最該重現的 ablation：raw LLM vs CC-finetuned LLM，這是整篇的因果關鍵。</li></ul>
+      <div class="cite">Conclusion p.7 lines 1438-1448; mechanism from Table 6-9 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix / Original highlight 1</div>
+      <div class="hl"><p class="hl__en">Bringing LLMs into the CLIP framework, however, raises two key challenges: 1. Feature separability... 2. Training cost...</p><p class="hl__zh">把 LLM 放進 CLIP 的真正阻礙是 caption feature separability 與訓練成本，不是單純模型大小。<span class="hl__src">Introduction p.2 lines 132-142</span></p></div>
+      <div class="hl"><p class="hl__en">We perform caption-contrastive(CC) fine-tuning on the LLM... average pooling... bidirectional attention... supervised SimCSE contrastive loss.</p><p class="hl__zh">Stage 1 的本質是把 LLM 重新塑造成 caption embedding 模型。<span class="hl__src">Introduction p.2 lines 149-154</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix / Original highlight 2</div>
+      <div class="hl"><p class="hl__en">freeze all LLM gradients, treat its sentence embeddings as fixed features, and append a small learnable adaptor trained with the CLIP visual encoder.</p><p class="hl__zh">Stage 2 把 LLM 變成離線特徵供應器，避免把 LLM 訓練成本帶進 CLIP。<span class="hl__src">Introduction p.2 lines 160-164</span></p></div>
+      <div class="hl"><p class="hl__en">This minimal design yields an LLM-enhanced cross-modal space while keeping compute cost nearly identical to standard CLIP fine-tuning.</p><p class="hl__zh">這篇的工程價值在「接近標準 CLIP finetuning 成本」下換到 LLM 級文字理解。<span class="hl__src">Introduction p.2 lines 169-171</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix / Original highlight 3</div>
+      <div class="hl"><p class="hl__en">We observe that after applying LLM2CLIP, zero-shot performance on ImageNet shows a modest drop. However, the accuracy from linear probing improves...</p><p class="hl__zh">成功不是無代價；視覺表徵可變強，但 shared-space prompt alignment 可能變差。<span class="hl__src">§4.2 p.6 lines 1143-1153</span></p></div>
+      <div class="hl"><p class="hl__en">Comparing experiments (a)-(b) and (b)-(c) shows that neither optimising two separate losses nor explicitly aligning the two text encoders brings any meaningful benefit.</p><p class="hl__zh">雙 text encoder 對齊不是 magic；最簡單的 replacement 反而是主線。<span class="hl__src">§4.4 p.7 lines 1416-1423</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">明日預告：影片生成 / 時序模型</h2>
+      <p class="end__sub">今天的 takeaway：LLM2CLIP 的重點不是 LLM 變大，而是先把 caption feature space 做對。</p>
+      <div class="end__next">Next rotation: video generation / temporal models</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
