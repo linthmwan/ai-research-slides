@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rethinking Output Alignment For 1-bit Post-Training Quantization of Large Language Models</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Daily AI Research · Model Compression / Efficiency · 2026-07-31</div>
+      <h1 class="title">Rethinking Output Alignment For 1-bit Post-Training Quantization of Large Language Models</h1>
+      <div class="authors">Hoang Anh Dung, Cuong Pham, Cuong Nguyen, Trung Le, Thanh-Toan Do, Jianfei Cai</div>
+      <div class="meta-row"><span class="badge">ICLR 2026 · OpenReview forum</span><span class="badge date">arXiv:2512.21651v3 · 15 May 2026</span><span class="badge tier">1-bit LLM PTQ</span></div>
+      <p class="lead">主角不是「再把 weight 壓低一點」，而是拆開 naive output alignment 在 1-bit regime 為什麼會壞。</p>
+      <div class="cite">cover p.1; arXiv abstract; OpenReview forum abgW71sKIt</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">1-bit PTQ 的真正敵人不是只剩一個 bit；是「target 漂移」加上「token geometry 被 MSE 扭歪」。</p>
+      <p class="lead">這篇用 true-target reconstruction 修 upstream error，再用 AMP mask 只放行不破壞 attention geometry 的 closed-form update。</p>
+      <div class="cite">Abstract p.1-2; §3 p.4; §4 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem framing</div>
+      <h2 class="head">為什麼 1-bit PTQ 不能只沿用「輸出對齊」直覺</h2>
+      <ul class="bullets"><li><b>Weight-driven</b>：最小化 <code>||W - W_hat||</code>，穩定但不直接保模型行為。</li><li><b>Output-driven</b>：最小化 <code>||X_hat W - X_hat W_hat||</code>，看似更 principled。</li><li>在 1-bit regime，naive output-driven 反而會大幅退化，因為每層都在追逐已經被上游量化污染的 pseudo target。</li><li>作者把 failure mode 明確拆成 <b>error accumulation</b> 與 <b>anisotropic representation distortion</b>。</li></ul>
+      <div class="cite">Intro p.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Prior work gap</div>
+      <h2 class="head">前人的修法多在「補償誤差」；這篇回到 quantization stage 本身</h2>
+      <div class="two-col"><div><div class="sub">Moderate precision PTQ</div><ul class="bullets"><li>AWQ / SmoothQuant / GPTQ / QuaRot 等能在 4-bit 或 8-bit 保住性能。</li><li>但 extreme binarization 不是 outlier smoothing 就能處理。</li></ul></div><div><div class="sub">1-bit PTQ</div><ul class="bullets"><li>BiLLM / PB-LLM / ARB 系列已經做 grouping、refinement、residual-aware update。</li><li>ARB-X 用 output alignment，但這篇指出 output objective 自身在 1-bit 下有錯配。</li></ul></div></div>
+      <div class="takeaway">所以貢獻點不是「第一個 output alignment」，而是把 output alignment 改到不被 target drift 和 geometry distortion 反噬。</div>
+      <div class="cite">Related Works p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">四個可以落地檢查的主張</h2>
+      <ol class="numbered"><li>診斷 naive output-driven 1-bit PTQ 的兩個根因：layer-wise/global mismatch 與 representation geometry distortion。</li><li>把 reconstruction target 從 <code>X_hat W</code> 改成 full-precision <code>XW</code>，顯式補上 inherited error。</li><li>提出 <b>Attention Matrix Preservation</b>：用 token Gram geometry regularizer 過濾 closed-form update。</li><li>在 OPT / LLaMA / Qwen families 上驗證 perplexity、zero-shot QA、ablation 與 overhead。</li></ol>
+      <div class="cite">contributions p.3; §5 p.7-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown page</div>
+      <h2 class="head">Figure 1 把兩個 failure mode 放在同一張圖裡</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure1_p4_graphs.jpg" alt="Figure 1 limitations of output-driven optimization"><figcaption>Figure 1 panels: (a) true target error vs pseudo target error; (b) representation geometry distortion drift across layers.</figcaption></figure>
+      <div class="takeaway">MSE 可以讓局部 output error 看起來變小，同時把 attention 依賴的 token-token relation 弄壞。</div>
+      <div class="cite">Fig.1 p.4; §3.1-3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 1 · Error-aware reconstruction</div>
+      <h2 class="head">把 pseudo target 改成 full-precision true target</h2>
+      <div class="formula">Old: L<sub>OA</sub> = ||X_hat W - X_hat W_hat||<sub>F</sub><sup>2</sup></div>
+      <div class="formula">New: L = ||XW - X_hat W_hat||<sub>F</sub><sup>2</sup> = ||X_hat(W-W_hat) + (X-X_hat)W||<sub>F</sub><sup>2</sup></div>
+      <ul class="bullets"><li><code>(X-X_hat)W</code> 是上游量化已留下的 inherited error。</li><li>這讓 layer-wise objective 不再只對 quantized activation stream 自洽。</li><li>代價是 loss landscape 更複雜，因此後面仍要保持 analytic / closed-form update。</li></ul>
+      <div class="cite">§4.1 Eq.(2)(3) p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 2 · Token geometry</div>
+      <h2 class="head">保 output 值還不夠，要保 token relation</h2>
+      <div class="formula">G<sub>q</sub> = (X_hat W_hat)(X_hat W_hat)<sup>T</sup>,  G<sub>f</sub> = (XW)(XW)<sup>T</sup></div>
+      <div class="formula">L<sub>Reg</sub> = -Tr(G<sub>q</sub><sup>T</sup>G<sub>f</sub>)</div>
+      <ul class="bullets"><li>Gram matrix 的每個 entry 是 token pair 的 similarity。</li><li>MSE 會偏向 high-magnitude activation components，低 variance 但結構重要的方向被低估。</li><li>因此 regularizer 的目的，是讓 quantized output 的 relational structure 對齊 full precision。</li></ul>
+      <div class="cite">§3.2 p.4; §4.2 Eq.(4)(5) p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 3 · 1-bit parameterization</div>
+      <h2 class="head">仍保留 analytic-update PTQ 的工程形狀</h2>
+      <div class="formula">W_hat = diag(alpha<sub>r</sub>) B diag(alpha<sub>c</sub>),  B in {-1,+1}<sup>d_in x d_out</sup></div>
+      <ul class="bullets"><li><code>alpha_c</code> 有 closed-form solution。</li><li><code>B</code> 因二值限制，用 row-wise optimal sign update。</li><li><code>alpha_r</code> 用 least-squares solution，實作中採 <code>torch.linalg.lstsq</code> 避免 pseudoinverse 不穩。</li></ul>
+      <div class="takeaway">方法不是 training-heavy；它仍然是 calibration-set 上的一次性 PTQ。</div>
+      <div class="cite">§4.3 Eq.(7)-(10) p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 4 · AMP</div>
+      <h2 class="head">AMP 是「更新方向過濾器」，不是推論時新增模組</h2>
+      <div class="formula">M<sub>AMP</sub> = 1[ G ⊙ Delta <= 0 ]</div>
+      <ul class="bullets"><li>先用 reconstruction objective <code>L</code> 得到候選 closed-form update。</li><li>再看這個 update 是否沿著 geometry regularizer <code>L_Reg</code> 的下降方向。</li><li>不一致的元素直接 mask 掉，避免為了降低 output MSE 而增加 token geometry distortion。</li></ul>
+      <div class="cite">§4.4 Eq.(12)-(14) p.6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Why it should work</div>
+      <p class="big">AMP 把「局部重建更好」改成「局部重建不能破壞 attention geometry」。</p>
+      <p class="lead">Proposition 1 給出非增加 <code>L_Reg</code> 的方向性保證；真正的說服力還是後面的 ablation。</p>
+      <div class="cite">Proposition 1 p.7; Tab.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h2 class="head">評測設計：模型族、資料集、校準協定都對齊 1-bit PTQ baseline</h2>
+      <div class="scorebox"><span class="score">128 C4 calibration samples</span><span class="score">seq len 2048</span><span class="score">block size 128</span><span class="score">15 iterations</span></div>
+      <ul class="bullets"><li>Models: OPT 1.3B / 2.7B / 6.7B; LLaMA-2 7B / 13B; LLaMA-3 8B; Qwen2 / Qwen2.5 / Qwen3。</li><li>Metrics: C4 / WikiText2 perplexity; ARC-E, ARC-C, PIQA, HellaSwag, WinoGrande, OBQA, LAMBADA zero-shot QA。</li><li>Implementation: PyTorch, single NVIDIA GeForce RTX A100; weight-only quantization, activations full precision。</li></ul>
+      <div class="cite">§5.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result · Perplexity</div>
+      <h2 class="head">在核心 OPT/LLaMA 設定，Ours 主要贏在低 perplexity</h2>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">Prior best</th><th class="num">Ours</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>C4 / OPT-1.3B</td><td class="num">27.70</td><td class="num best">24.69</td><td class="num">-3.01</td></tr><tr class="win"><td>WikiText2 / OPT-1.3B</td><td class="num">26.40</td><td class="num best">24.30</td><td class="num">-2.10</td></tr><tr class="win"><td>C4 / LLaMA-2-7B</td><td class="num">20.56</td><td class="num best">19.25</td><td class="num">-1.31</td></tr><tr class="win"><td>WikiText2 / LLaMA-2-7B</td><td class="num">16.36</td><td class="num best">15.42</td><td class="num">-0.94</td></tr></tbody></table>
+      <p class="note">Prior best here is ARB-RC for these rows. Lower PPL is better.</p>
+      <div class="cite">Tab.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Downstream reasoning</div>
+      <h2 class="head">Perplexity 下降之外，zero-shot QA 平均也有增益</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Prior Avg</th><th class="num">Ours Avg</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>LLaMA-2-7B</td><td class="num">47.19</td><td class="num best">48.42</td><td class="num">+1.23</td></tr><tr class="win"><td>LLaMA-2-13B</td><td class="num">53.37</td><td class="num best">55.45</td><td class="num">+2.08</td></tr><tr class="win"><td>LLaMA-3-8B</td><td class="num">44.19</td><td class="num best">45.09</td><td class="num">+0.90</td></tr></tbody></table>
+      <ul class="bullets"><li>作者摘要稱最高有 <b>2.08% average QA</b> gain，單一任務最高 <b>4.76%</b> gain。</li><li>LLaMA-2-13B 的增益最清楚，代表 geometry preservation 不只是在 PPL 上好看。</li></ul>
+      <div class="cite">Tab.2 p.8; §5.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Generalization · Qwen family</div>
+      <h2 class="head">跨到 Qwen2 / Qwen2.5 / Qwen3 時，Qwen3-8B 的收益最乾淨</h2>
+      <table class="bench"><thead><tr><th>Dataset / model</th><th class="num">ARB-RC</th><th class="num">Ours</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>C4 / Qwen3-8B</td><td class="num">32.71</td><td class="num best">27.97</td><td class="num">-4.74</td></tr><tr class="win"><td>WikiText2 / Qwen3-8B</td><td class="num">26.03</td><td class="num best">20.88</td><td class="num">-5.15</td></tr><tr class="win"><td>AveQA / Qwen3-8B</td><td class="num">57.50</td><td class="num best">58.74</td><td class="num">+1.24</td></tr></tbody></table>
+      <div class="takeaway">作者也誠實標出例外：Qwen2-1.5B WikiText2 上 ours 92.34，比 ARB-RC 89.59 差。</div>
+      <div class="cite">Tab.3 p.8; §5.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · AMP</div>
+      <h2 class="head">拿掉 AMP，LLaMA-2-7B 直接崩成另一個量級</h2>
+      <table class="bench"><thead><tr><th>Model / dataset</th><th class="num">No AMP</th><th class="num">AMP</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>LLaMA-2-7B / C4</td><td class="num">29.12</td><td class="num best">19.25</td><td class="num">-9.87</td></tr><tr class="win"><td>LLaMA-2-7B / WikiText2</td><td class="num">26.24</td><td class="num best">15.42</td><td class="num">-10.82</td></tr><tr class="win"><td>OPT-1.3B / C4</td><td class="num">25.29</td><td class="num best">24.69</td><td class="num">-0.60</td></tr><tr class="win"><td>OPT-1.3B / WikiText2</td><td class="num">25.09</td><td class="num best">19.90</td><td class="num">-5.19</td></tr></tbody></table>
+      <div class="cite">Tab.4(a) p.9; §5.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · True target</div>
+      <h2 class="head">Error-aware target 有用，但不是整篇的唯一來源</h2>
+      <table class="bench"><thead><tr><th>Model / dataset</th><th class="num">Pseudo target</th><th class="num">True target</th><th class="num">Gain</th></tr></thead><tbody><tr class="win"><td>LLaMA-2-7B / C4</td><td class="num">19.97</td><td class="num best">19.25</td><td class="num">-0.72</td></tr><tr class="win"><td>LLaMA-2-7B / WikiText2</td><td class="num">15.66</td><td class="num best">15.42</td><td class="num">-0.24</td></tr><tr class="win"><td>OPT-1.3B / C4</td><td class="num">27.20</td><td class="num best">24.69</td><td class="num">-2.51</td></tr><tr class="win"><td>OPT-1.3B / WikiText2</td><td class="num">25.29</td><td class="num best">19.90</td><td class="num">-5.39</td></tr></tbody></table>
+      <div class="takeaway">和 AMP ablation 對照後，故事很清楚：true target 修 drift，AMP 才是保 attention geometry 的重手。</div>
+      <div class="cite">Tab.4(b) p.9; §5.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Visualization</div>
+      <h2 class="head">Figure 2：AMP 的 attention score 更接近 full precision</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure2_p9.jpg" alt="Figure 2 attention mask visualization"><figcaption>Attention scores at final block of LLaMA-2-7B: Full Precision vs No AMP vs With AMP.</figcaption></figure>
+      <ul class="bullets"><li>這頁不是單純可視化裝飾；它對應 §3.2 的 geometry distortion 診斷。</li><li>若 with-AMP heatmap 更貼近 full precision，代表 mask 確實在保 attention relational structure。</li></ul>
+      <div class="cite">Fig.2 p.9; §6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost model</div>
+      <h2 class="head">部署時沒有額外 inference/storage overhead；成本在一次性量化</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">ARB-X</th><th class="num">ARB-RC</th><th class="num">Ours</th></tr></thead><tbody><tr><td>OPT-6.7B</td><td class="num">87m</td><td class="num">65m</td><td class="num">90m</td></tr><tr class="win"><td>LLaMA-2-7B</td><td class="num">91m</td><td class="num">54m</td><td class="num best">73m</td></tr><tr class="win"><td>LLaMA-2-13B</td><td class="num">147m</td><td class="num">100m</td><td class="num best">116m</td></tr></tbody></table>
+      <ul class="bullets"><li>作者聲明 inference-time memory footprint 與 runtime 和 ARB-RC 相同。</li><li>LLaMA-2-7B peak GPU memory: ours 12.1 GB, ARB-X 11.4 GB, ARB-RC 10.8 GB。</li></ul>
+      <div class="cite">Tab.5 p.10; §6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">這篇的邊界要畫清楚，不然會被過度解讀</h2>
+      <ul class="bullets"><li><b>Scope</b>: 1-bit weight-only PTQ；activation 保 full precision。</li><li><b>Not higher-bit</b>: 作者明說 2/4/8-bit 常不全有 analytic solution，通常靠 heuristic rounding 或 gradient optimization，超出本文範圍。</li><li><b>One-time cost</b>: 量化時間比 ARB-RC 高，雖然推論和儲存不加成本。</li><li><b>Exception</b>: Qwen2-1.5B WikiText2 上 ours 92.34，比 ARB-RC 89.59 差。</li></ul>
+      <div class="cite">Intro p.3; Tab.3 p.8; Tab.5 p.10; §6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Engineering read</div>
+      <p class="big">如果要把這篇用到 production quantization pipeline，先看 ablation，不要先看平均表。</p>
+      <p class="lead">AMP 在 LLaMA-2-7B 的差距太大，代表「保 token relation」可能比再微調 MSE target 更關鍵。</p>
+      <div class="cite">Tab.4(a)(b) p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">What to reproduce first</div>
+      <h2 class="head">最小可復現路線</h2>
+      <ol class="numbered"><li>先重現 ARB-RC baseline 的 block size 128、128 C4 calibration samples、15 iterations。</li><li>只替換 reconstruction objective 成 true-target 版本，量化 LLaMA-2-7B 與 OPT-1.3B。</li><li>再加入 AMP mask，優先驗 Tab.4(a) 的 LLaMA-2-7B C4 / WikiText2。</li><li>最後再跑 Qwen，因為 Qwen2-1.5B 有 corpus mismatch 例外，不能拿它當第一個 smoke test。</li></ol>
+      <div class="cite">§5.1 p.7; Tab.4 p.9; §5.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 1</div>
+      <h2 class="head">失敗根因原文</h2>
+      <div class="hl"><p class="hl__en">we show that this failure arises from two fundamental issues: error accumulation across layers and, more critically, anisotropic distortion of the representation space.</p><p class="hl__zh">作者把 naive output-driven 1-bit PTQ 的失敗歸因於兩件事：逐層累積誤差，以及更關鍵的 representation space 各向異性失真。<span class="hl__src">Abstract p.1-2</span></p></div>
+      <div class="cite">Abstract p.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 2</div>
+      <h2 class="head">為什麼 MSE 會壞</h2>
+      <div class="hl"><p class="hl__en">minimizing mean squared error (MSE) in Euclidean space prioritizes high-magnitude activation components while underweighting low-variance but structurally important directions.</p><p class="hl__zh">MSE 會偏向高幅度 activation，忽略低變異但結構重要的方向；token geometry 被扭歪，不是輸出值平均小一點就能補回。<span class="hl__src">§3.2 p.4</span></p></div>
+      <div class="cite">§3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Highlight 3</div>
+      <h2 class="head">AMP 的一句話定義</h2>
+      <div class="hl"><p class="hl__en">This leads to a directional filtering mechanism, where updates are accepted only if they are aligned with the descent direction of the regularizer.</p><p class="hl__zh">AMP 的本質是方向過濾：只有不增加 geometry regularizer 的候選更新會被接受。<span class="hl__src">§4.4 p.6</span></p></div>
+      <div class="cite">§4.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">結論</h2>
+      <p class="end__sub">這篇最值得帶走的是診斷框架：在極低 bit PTQ 裡，output alignment 要同時對齊 true target 與 token geometry。</p>
+      <div class="end__next">明日輪轉主題：AI Agent frameworks / multimodal systems</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
