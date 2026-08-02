@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Native and Compact Structured Latents for 3D Generation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">GitHub Trending · Technical Report · 2026-08-02</div>
+      <h1 class="title">Native and Compact Structured Latents for 3D Generation</h1>
+      <div class="authors">Jianfeng Xiang, Xiaoxue Chen, Sicheng Xu, Ruicheng Wang, Zelong Lv, Yu Deng, Hongyuan Zhu, Yue Dong, Hao Zhao, Nicholas Jing Yuan, Jiaolong Yang</div>
+      <div class="meta-row"><span class="badge tier">microsoft/TRELLIS.2</span><span class="badge date">arXiv:2512.14692v1</span><span class="badge">4B sparse DiT + O-Voxel</span></div>
+      <p class="lead">TRELLIS.2 把 image-to-3D 的主戰場從後處理貼圖拉回 <b>native 3D latent representation</b>：O-Voxel 存拓撲與 PBR 材質，SC-VAE 壓到大型 DiT 可直接生成的 token 數。</p>
+      <figure class="full" style="max-height:18vh;"><img src="figures/figure1_p1.jpg" alt="TRELLIS.2 overview teaser"><figcaption>Figure 1 p.1: 1536³ reconstruction/generation and latent compactness comparison.</figcaption></figure>
+      <div class="cite">Source: arXiv:2512.14692v1; official repo README links paper, project page, and pretrained checkpoints.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不是先把 3D 做出來再補貼圖。<br>它把 <b>幾何、拓撲、PBR 材質</b>一起壓進 native sparse latent，讓 vanilla sparse DiT 可以直接生成完整資產。</p>
+      <div class="scorebox"><span class="score score--hi">16x spatial compression</span><span class="score score--hi">9.6K tokens @1024^3</span><span class="score">~4B params total</span></div>
+      <div class="cite">Abstract; §1 p.1-2; §3.2-3.3 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">現有 3D latent 的瓶頸不是只有模型大小</h2>
+      <ul class="bullets"><li><b>Field / iso-surface</b> 類方法對 open surfaces、non-manifold geometry、enclosed structures 有內在限制。</li><li><b>Unstructured latent</b> 壓縮強，但通常犧牲 reconstruction fidelity。</li><li><b>Shape then multiview texture</b> 會帶來 view inconsistency、baking/post-processing 成本與幾何-材質錯位。</li><li>TRELLIS 的 SLAT 已經很接近，但仍依賴 multiview 2D features / rendering supervision，不是直接從 native 3D asset 學 latent。</li></ul>
+      <div class="takeaway">這篇的核心賭注：表示法先對，generator 才真的能 scale。</div>
+      <div class="cite">§1-2 p.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why this paper today</div>
+      <h2 class="head">週日 GitHub Trending 路徑：repo 本身有 paper + checkpoints</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>microsoft/TRELLIS.2</b> 在 GitHub daily trending Python 清單中出現。</li><li>README 前段明確連到 <b>arXiv paper</b>、Hugging Face pretrained weights、project page。</li><li>這不是單純 demo repo：README citation 標 Tech report，並提供 4B checkpoint / training configs。</li></ul></div><div><div class="scorebox"><span class="score score--hi">Paper</span><span class="score score--hi">Model</span><span class="score score--hi">Code</span><span class="score">Data path</span></div><p class="note">Sunday deck 依 skill 走「熱門 repo + 官方技術來源」；venue 誠實標 technical report / arXiv，而不是硬說頂會 accepted。</p></div></div>
+      <div class="cite">Trending discovery; official README lines with Paper/Model badges and citation block</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method spine</div>
+      <h2 class="head">整條 pipeline：3D assets → O-Voxel → compact SLat → large-scale generation</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure2_p3.jpg" alt="TRELLIS.2 pipeline overview"><figcaption>Figure 2 p.3: O-Voxel for shape/material representation; SC-VAE learns compact latent; large flow models generate assets.</figcaption></figure>
+      <div class="takeaway">這張圖雖然是 overview，但它其實定義了 deck 的三段：representation、compression、generation。</div>
+      <div class="cite">Figure 2 p.3; §3 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">O-Voxel</div>
+      <h2 class="head">O-Voxel：一個 active voxel 同時放 shape tuple 與 material tuple</h2>
+      <div class="two-col"><div><div class="formula">f = {(f<sup>shape</sup><sub>i</sub>, f<sup>mat</sup><sub>i</sub>, p<sub>i</sub>)}<sup>L</sup><sub>i=1</sub></div><ul class="bullets"><li>只存 intersecting asset 的 <b>active voxels</b>，空格不進 latent。</li><li>shape tuple：dual vertex、edge intersection flags、quad splitting weights。</li><li>material tuple：base color、metallic、roughness、opacity。</li></ul></div><div><figure class="full" style="max-height:55vh;"><img src="figures/figure3_p3.jpg" alt="O-Voxel details"><figcaption>Figure 3 p.3: Flexible Dual Grid + volumetric PBR attributes.</figcaption></figure></div></div>
+      <div class="cite">§3.1 p.3-4; Figure 3 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Shape mechanism</div>
+      <h2 class="head">Flexible Dual Grid：不用 SDF，直接從 mesh intersection 解 dual vertices</h2>
+      <ul class="bullets"><li>每個 primal cell 對應一個 dual vertex；每條 primal edge 對應 dual face，連接相鄰 dual vertices。</li><li>mesh→O-Voxel：偵測 mesh-surface edge intersections，直接得到 intersection flags 與 Hermite data。</li><li>O-Voxel→mesh：跨 intersected edge 連 dual vertices，quad 可依 splitting weights 分成 triangles。</li><li>作者強調不需要 SDF evaluation、flood-fill 或 iterative optimization。</li></ul>
+      <div class="formula">e(v)=Σd²<sub>plane</sub> + λ<sub>bound</sub>Σd²<sub>edge</sub> + λ<sub>reg</sub>d²<sub>qbar</sub></div>
+      <div class="takeaway">boundary-edge term 是 open surfaces 對齊的關鍵；regularization 則避免 QEF singularity。</div>
+      <div class="cite">§3.1.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Material mechanism</div>
+      <h2 class="head">材質不是後貼 2D texture，而是 sparse voxel 上的 volumetric PBR attributes</h2>
+      <div class="two-col"><div><ul class="bullets"><li>每個 active voxel 存 `c,m,r,α`：base color RGB、metallic、roughness、opacity。</li><li>Texture→O-Voxel：project voxel center 到 intersecting triangles，按 UV + mip level 取樣，再 weighted-average。</li><li>O-Voxel→Texture：在 mesh vertex 或 texture texel 查詢點做 trilinear interpolation。</li></ul></div><div><div class="scorebox"><span class="score score--hi">Base Color</span><span class="score">Metallic</span><span class="score">Roughness</span><span class="score score--hi">Opacity</span></div><p class="note">Opacity 讓 translucent / glass-like assets 進入表示法；這是許多前作沒有的材料能力。</p></div></div>
+      <div class="cite">§3.1.2 p.4; Algorithm 3-4 p.14-15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Compression</div>
+      <h2 class="head">SC-VAE：把 O-Voxel 壓到 generator 可以負擔的 token 數</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure4_p5.jpg" alt="SC-VAE architecture"><figcaption>Figure 4 p.5: sparse-conv U-shaped VAE with residual autoencoding and early-pruning upsampler.</figcaption></figure>
+      <div class="takeaway">這裡不是把 Transformer 硬塞進 sparse grid；作者選 fully sparse-convolutional VAE，目標是高解析下的效率與跨解析泛化。</div>
+      <div class="cite">§3.2.1 p.5; Appendix Table 4 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SC-VAE internals</div>
+      <h2 class="head">Sparse residual autoencoding：把 space 資訊搬到 channel，再搬回來</h2>
+      <div class="two-col"><div><div class="formula">Down: F<sup>raw</sup><sub>coarse</sub> = stack(F<sub>child1</sub>,...,F<sub>child8</sub>) → avg_groups</div><div class="formula">Up: F<sup>raw</sup><sub>fine</sub> = unstack(F<sub>coarse</sub>) → dup_groups</div></div><div><ul class="bullets"><li>downsampling factor 2 時，把 8 個 child voxels aggregate 到 channel dimension。</li><li>upsampling 時做對稱 channel-to-space shortcut。</li><li>inactive nodes 由 early-pruning mask 跳過，降低 runtime / memory。</li><li>optimized residual block 用 point-wise MLP 取代第二個 sparse conv，改善高 sparsity 下的效率/品質。</li></ul></div></div>
+      <div class="cite">§3.2.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training objective</div>
+      <h2 class="head">兩階段 VAE training：先穩定 latent，再加 render-space perceptual loss</h2>
+      <ol class="numbered"><li>Stage 1：256³ direct O-Voxel regression；shape 用 MSE/BCE，material 用 L1，另有 KL loss。</li><li>Stage 2：提升到 512³，加 mask/depth/normal/material render loss；normal/material 用 L1 + SSIM + LPIPS。</li><li>shape VAE 與 material VAE decoupled；material generation 可以在既有 shape 上單獨執行。</li></ol>
+      <div class="formula">L<sub>s2</sub> = L<sub>s1</sub> + L<sub>render</sub>;  d<sub>p</sub>(a,b)=||a-b||<sub>1</sub> + 0.2·SSIM + 0.2·LPIPS</div>
+      <div class="cite">§3.2.2 p.5; Appendix A.3 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Generator</div>
+      <h2 class="head">三個 sparse DiT：structure → geometry → material</h2>
+      <div class="two-col"><div><ol class="numbered"><li><b>Sparse structure generation</b>：先預測 sparse voxel occupancy layout。</li><li><b>Geometry latent generation</b>：在 active voxels 裡生成 geometry latents。</li><li><b>Material latent generation</b>：condition on image + generated geometry，生成 PBR material latents。</li></ol></div><div><div class="scorebox"><span class="score score--hi">1.3B x 3</span><span class="score">width 1536</span><span class="score">30 blocks</span><span class="score">12 heads</span></div><p class="note">DINOv3-L 提供 image conditioning；DiT 採 AdaLN-single + RoPE。</p></div></div>
+      <div class="cite">§3.3 p.6; §4 p.6; Appendix Table 5 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Flow matching</div>
+      <h2 class="head">生成訓練採 rectified / conditional flow matching</h2>
+      <div class="formula">x(t) = (1-t)x<sub>0</sub> + tε</div>
+      <div class="formula">L<sub>CFM</sub>(θ)=E<sub>t,x0,ε</sub> ||v<sub>θ</sub>(x(t),t) - (ε-x<sub>0</sub>)||²</div>
+      <ul class="bullets"><li>forward path 是 data sample 到 random noise 的線性插值。</li><li>network 學 time-dependent vector field，把 noise distribution 導回 data distribution。</li><li>延續 TRELLIS 策略，採 logitNorm(1,1) timestep sampling 以提升 generation quality。</li></ul>
+      <div class="cite">Appendix A.3 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experiment setup</div>
+      <h2 class="head">評測分成 reconstruction、image-to-3D generation、texture generation</h2>
+      <table class="bench"><thead><tr><th>part</th><th>data / protocol</th><th>compute / metric</th></tr></thead><tbody><tr><td>SC-VAE train</td><td>Filtered TRELLIS-500K from Objaverse-XL, ABO, HSSD</td><td>16 H100, batch 128</td></tr><tr><td>Generator train</td><td>~800K assets + TexVerse; 16 rendered views / asset</td><td>32 H100, batch 256</td></tr><tr><td>Reconstruction</td><td>Toys4K + 90 recent Sketchfab Featured assets</td><td>MD/F1, CD/F1, Normal PSNR/LPIPS</td></tr><tr><td>Generation</td><td>100 AI-generated prompts; ~40 participants user study</td><td>CLIP, CLIP-N, ULIP-2, Uni3D, Pref%</td></tr></tbody></table>
+      <div class="cite">§4 p.6-7; Appendix D.1-D.2 p.17-19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reconstruction result</div>
+      <h2 class="head">同樣 9.6K tokens，TRELLIS.2 的 all-surface MD 差距不是小數點級</h2>
+      <table class="bench" style="font-size:0.78rem;"><thead><tr><th>method</th><th>tokens</th><th class="num">dec</th><th class="num">Toys4K MD↓</th><th class="num">Toys4K PSNR↑</th><th class="num">Sketchfab MD↓</th><th class="num">Sketchfab PSNR↑</th></tr></thead><tbody><tr><td>TRELLIS</td><td class="num">9.6K</td><td class="num">0.108s</td><td class="num">85.07</td><td class="num">30.29</td><td class="num">49.20</td><td class="num">24.31</td></tr><tr><td>SparseFlex 1024</td><td class="num">225K</td><td class="num">3.21s</td><td class="num">0.3132</td><td class="num">37.34</td><td class="num">0.7593</td><td class="num">32.12</td></tr><tr><td>Ours 512</td><td class="num">2.2K</td><td class="num">0.077s</td><td class="num">0.0323</td><td class="num">39.54</td><td class="num">0.1572</td><td class="num">31.00</td></tr><tr class="win"><td>Ours 1024</td><td class="num">9.6K</td><td class="num">0.301s</td><td class="num best">0.0042</td><td class="num best">43.11</td><td class="num best">0.0170</td><td class="num best">35.26</td></tr></tbody></table>
+      <div class="takeaway">MD 是 all-surface metric，內部/封閉結構也算；這正好打到 O-Voxel 的表示法優勢。</div>
+      <div class="cite">Table 1 p.8; MD/CD reported x10^6; runtime on A100</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Generation result</div>
+      <h2 class="head">定量分數小幅領先；user preference 是大幅領先</h2>
+      <table class="bench" style="font-size:0.82rem;"><thead><tr><th>method</th><th class="num">CLIP↑</th><th class="num">CLIP-N↑</th><th class="num">ULIP-2↑</th><th class="num">Uni3D↑</th><th class="num">Pref%↑</th><th class="num">Pref-N%↑</th></tr></thead><tbody><tr><td>TRELLIS</td><td class="num">0.876</td><td class="num">0.748</td><td class="num">0.470</td><td class="num">0.414</td><td class="num">6.40%</td><td class="num">2.82%</td></tr><tr><td>Hunyuan3D 2.1</td><td class="num">0.869</td><td class="num">0.753</td><td class="num">0.474</td><td class="num">0.427</td><td class="num">13.3%</td><td class="num">7.51%</td></tr><tr><td>Step1X-3D</td><td class="num">0.875</td><td class="num">0.738</td><td class="num">0.464</td><td class="num">0.411</td><td class="num">11.8%</td><td class="num">0.469%</td></tr><tr class="win"><td>Ours</td><td class="num best">0.894</td><td class="num best">0.758</td><td class="num best">0.477</td><td class="num best">0.436</td><td class="num best">66.5%</td><td class="num best">69.0%</td></tr></tbody></table>
+      <div class="takeaway">偏好票高到這個程度，說明 PBR material 與細幾何的可見品質比 CLIP-like 指標更能拉開差距。</div>
+      <div class="cite">Table 2 p.8; 100 image prompts, about 40 participants</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative</div>
+      <h2 class="head">生成結果主打 thin / open / translucent / reflective structures</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure5_p7.jpg" alt="Generated 3D assets by TRELLIS.2"><figcaption>Figure 5 p.7: generated assets with intricate geometry and physically accurate materials.</figcaption></figure>
+      <div class="cite">Figure 5 p.7; §4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative comparison</div>
+      <h2 class="head">比較圖裡真正有差的是材質管線：normal / render / base color / metallic / roughness</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure6_p7.jpg" alt="Visual comparison against baselines"><figcaption>Figure 6 p.7: normal, final render, base color, metallic, roughness comparisons.</figcaption></figure>
+      <div class="takeaway">多數 baseline 標了 No PBR；TRELLIS.2 的 claim 是「asset」而不只是「形狀」。</div>
+      <div class="cite">Figure 6 p.7; §4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">Sparse residual autoencoding 不是 implementation detail。<br>拿掉它，32x compression 下 MD 從 <b>1.405</b> 變成 <b>7.394</b>。</p>
+      <div class="scorebox"><span class="score score--lo">+526% MD</span><span class="score score--lo">-1.6 dB PSNR</span><span class="score">32x compression</span></div>
+      <div class="cite">Table 3 and §4.4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h2 class="head">兩個 block 級設計都能在數字上驗到</h2>
+      <table class="bench" style="font-size:0.78rem;"><thead><tr><th>setting</th><th class="num">tokens</th><th class="num">dec ms↓</th><th class="num">MD↓</th><th class="num">F1↑</th><th class="num">PSNR↑</th><th class="num">LPIPS↓</th></tr></thead><tbody><tr class="win"><td>SC-VAE f16c32</td><td class="num">503</td><td class="num">28.6</td><td class="num best">1.032</td><td class="num">0.312</td><td class="num best">27.26</td><td class="num best">0.072</td></tr><tr><td>w/o Residual AE</td><td class="num">503</td><td class="num">28.7</td><td class="num">1.747</td><td class="num">0.268</td><td class="num">26.73</td><td class="num">0.081</td></tr><tr><td>w/o Opt. ResBlock</td><td class="num">503</td><td class="num">29.6</td><td class="num">1.198</td><td class="num">0.285</td><td class="num">26.67</td><td class="num">0.083</td></tr><tr><td>SC-VAE f32c128</td><td class="num">118</td><td class="num">33.9</td><td class="num">1.405</td><td class="num">0.273</td><td class="num">26.65</td><td class="num">0.081</td></tr><tr><td>f32c128 w/o Residual AE</td><td class="num">118</td><td class="num">34.0</td><td class="num">7.394</td><td class="num">0.192</td><td class="num">25.01</td><td class="num">0.102</td></tr></tbody></table>
+      <div class="takeaway">Residual AE 扛 compression；optimized ResBlock 則在 runtime 幾乎不變時提高 reconstruction quality。</div>
+      <div class="cite">Table 3 p.8; §4.4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scaling / systems</div>
+      <h2 class="head">compact latent 讓 test-time compute 與 resolution 可以分開調</h2>
+      <div class="two-col"><div><ul class="bullets"><li>1024³ O-Voxel 可 downsample 成更高解析 sparse structure layout，再重跑 geometry stage 到 1536³。</li><li>在同一 training resolution 內，也可先生成 O-Voxel 再 downsample layout，修正 local errors 並提高清潔度。</li><li>FlexGEMM 用 Triton masked implicit GEMM、Gray-code grouping、Split-K，對 sparse conv benchmark up to 2x speedup。</li></ul></div><div><figure class="full" style="max-height:45vh;"><img src="figures/figure9_p16.jpg" alt="FlexGEMM speed benchmark"><figcaption>Figure 9 p.16: FlexGEMM training speed benchmark.</figcaption></figure></div></div>
+      <div class="cite">§4.5 p.8-9; Appendix B p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure boundary</div>
+      <h2 class="head">作者自承限制：voxel 尺度仍然是邊界</h2>
+      <ul class="bullets"><li><b>Aliasing:</b> 比 voxel size 更細的 geometry 會被平均；非常接近的平行面若落在同一 voxel，QEF 可能把 vertex 放到兩者中間。</li><li><b>Material blur:</b> 同一 voxel 內多個表面的 PBR attributes 會被 volumetric average。</li><li><b>Small holes:</b> sparse decoder 偶爾無法保證 perfectly closed manifold surface，需要 hole filling 等後處理。</li><li><b>No semantics yet:</b> O-Voxel 目前沒有 part-level segmentation 或 graph topology。</li></ul>
+      <div class="takeaway">所以它不是消滅 3D representation 問題，而是把瓶頸從 view-dependent postprocessing 移到可被分析的 voxel-resolution/decoder stability 問題。</div>
+      <div class="cite">Limitations p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering interpretation</div>
+      <h2 class="head">對 AI image / 3D 工程的啟發</h2>
+      <ol class="numbered"><li><b>Representation first:</b> 如果下游要 editable / relightable asset，latent 必須存 PBR/material primitives，不要只靠 rendered RGB supervision。</li><li><b>Compression must be audited:</b> token 數少不是勝利；要用 all-surface MD、normal PSNR、material render metrics 檢查內部結構與材質。</li><li><b>Generator simplicity is a downstream effect:</b> O-Voxel + SC-VAE 壓縮夠好，才讓 vanilla sparse DiT 成立。</li><li><b>Failure cases are geometric:</b> 小 holes、近距雙面、sub-voxel 細節是部署時該優先做 QA 的地方。</li></ol>
+      <div class="cite">Derived from §3-4 and Limitations p.20</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h2 class="head">原文螢光筆：問題定義</h2>
+      <div class="hl"><p class="hl__en">Recent large 3D generation models predominantly leverage iso-surface fields ... which have intrinsic limitations in handling open surfaces, non-manifold geometry, and enclosed interior structures.</p><p class="hl__zh">既有大型 3D 生成多依賴 iso-surface field，對開放面、非流形和內部封閉結構有表示瓶頸。<span class="hl__src"> §1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">Our approach encodes a fully textured asset with 1024³ resolution into only ∼9.6K latent tokens...</p><p class="hl__zh">1024³ 完整貼圖資產壓到約 9.6K latent tokens，是高解析生成效率的核心。<span class="hl__src"> §1 p.2</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h2 class="head">原文螢光筆：速度與限制</h2>
+      <div class="hl"><p class="hl__en">Inference remains highly efficient: it takes only ∼3s for 512³ fully-textured assets generation, ∼17s for the 1024³ resolution, and ∼60s for the 1536³ resolution on a NVIDIA H100 GPU.</p><p class="hl__zh">生成 512³/1024³/1536³ 完整貼圖資產約需 3/17/60 秒（H100）。<span class="hl__src"> §1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">O-Voxel’s representation power is bounded by its spatial resolution.</p><p class="hl__zh">這個方法的失敗邊界仍然是 voxel 尺度；比 voxel 更細或近距雙面會 alias/材質平均。<span class="hl__src"> Limitations p.20</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix visual</div>
+      <h2 class="head">更多 reconstruction / generation examples</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:50vh;"><img src="figures/figure11_p21.jpg" alt="Additional reconstruction results"><figcaption>Figure 11 p.21: reconstruction examples.</figcaption></figure></div><div><figure class="full" style="max-height:50vh;"><img src="figures/figure13_p23.jpg" alt="More image-to-3D results"><figcaption>Figure 13 p.23: more generated PBR assets.</figcaption></figure></div></div>
+      <div class="cite">Appendix Figures 11 and 13</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">今天的結論</h2>
+      <p class="end__sub">TRELLIS.2 的價值在於把 3D asset 生成拆回「native representation + compression + scalable generator」三件事。最值得抄的不是 4B，而是 O-Voxel / SC-VAE 對失敗邊界的重新定義。</p>
+      <div class="end__next">明天輪轉主題：LLM（架構、訓練、對齊）</div>
+      <div class="cite">Deck generated 2026-08-02 Asia/Taipei</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
