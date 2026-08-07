@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PM-KVQ: Progressive Mixed-Precision KV Cache Quantization for Long-CoT LLMs</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Friday theme · Model compression / efficiency</div>
+      <h1 class="title">PM-KVQ: Progressive Mixed-Precision KV Cache Quantization for Long-CoT LLMs</h1>
+      <div class="authors">Tengxuan Liu, Shiyao Li, Jiayi Yang, Tianchen Zhao, Feng Zhou, Xiaohui Song, Guohao Dai, Shengen Yan, Huazhong Yang, Yu Wang</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Conference Paper</span><span class="badge date">arXiv:2505.18610v2</span><span class="badge">KV cache PTQ · long-CoT</span></div>
+      <p class="lead">A practical KV-cache compression method for reasoning models: spend memory early, spend more bits on sensitive blocks, and make short calibration see long RoPE phases.</p>
+      <div class="cite">Source: cover p.1; arXiv 2505.18610v2; OpenReview forum Vem6FQvRvq</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">PM-KVQ treats long-CoT cache compression as a <b>memory scheduling</b> problem, not only a quantizer choice.</p>
+      <p class="lead">It keeps early KV cache at higher precision, lowers bit-width only when the memory budget is full, allocates bits by layer sensitivity, and uses positional interpolation for cheaper long-context calibration.</p>
+      <div class="scorebox"><span class="score">+8.13 pts AIME</span><span class="score score--hi">2.73-5.18x throughput</span><span class="score">7B-70B models</span></div>
+      <div class="cite">Abstract p.1; §3 p.4-6; §4.2-4.3 p.7-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Long-CoT turns KV cache into the deployment bottleneck.</h2>
+      <ul class="bullets"><li>Reasoning LLMs can generate up to <b>128K tokens</b> with multiple rationales, so KV cache grows with the whole generated history.</li><li>The paper reports long-CoT KV cache memory overhead around <b>10GB-100GB</b>, often comparable to or larger than weights.</li><li>Short-context KV quantization methods were mostly tuned for <b>&lt;8K tokens</b>; long outputs expose error accumulation.</li></ul>
+      <div class="takeaway">For long-CoT, memory is not a static capacity constraint; it changes token by token during decoding.</div>
+      <div class="cite">§1 p.1-2; Table 1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure modes</div>
+      <h2 class="head">Two things break when short-context PTQ is copied into long-CoT.</h2>
+      <div class="two-col"><div><div class="sub">1. Cumulative error</div><ul class="bullets"><li>Directly quantizing K/V tensors at every decoding step introduces a new lossy error per generated token.</li><li>As output length grows, the errors compound and reasoning performance drops.</li></ul></div><div><div class="sub">2. Calibration mismatch</div><ul class="bullets"><li>RoPE rotates Key channels by position; low-frequency channels can need far more than 512/2K tokens to reveal their range.</li><li>Short calibration therefore underestimates outlier transfer factors for long-context Key cache.</li></ul></div></div>
+      <div class="cite">§1 p.2 lines 69-80; §3.3 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Core idea</div>
+      <p class="big">Use all available memory before accepting low-bit damage.</p>
+      <ol class="numbered"><li><b>Progressive quantization</b>: start at 16-bit, shrink 16->8->4->Fbit only when memory is full.</li><li><b>Block-wise allocation</b>: assign higher Fbit to more sensitive transformer blocks under the same global budget.</li><li><b>Positional interpolation</b>: make 2,048-token calibration approximate 8,192-token RoPE positions.</li></ol>
+      <div class="cite">§3.1-3.4 p.4-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method overview</div>
+      <h2 class="head">The paper’s Figure 1 is the whole algorithm in one picture.</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure1_p4_cropped.jpg" alt="PM-KVQ method overview"><figcaption>(a) Progressive shrinking; (b) block-wise memory allocation; (c) short-context calibration with positional interpolation.</figcaption></figure>
+      <div class="cite">Figure 1 p.4; caption lines 264-267</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Progressive quantization</div>
+      <h2 class="head">The cache starts high-precision and shrinks only when pressure appears.</h2>
+      <ul class="bullets"><li>For each block, <b>Fbit</b> is the final bit-width after all shrinking is done.</li><li>At generation start, KV cache is stored in <b>16-bit</b> to reduce early accumulated error.</li><li>When memory fills, bit-width follows powers of two: <b>16 -> 8 -> 4 -> 2</b>.</li><li>Short responses may never reach Fbit; long responses still benefit from more accurate early tokens.</li></ul>
+      <div class="formula">schedule: KV<sub>16</sub> -> KV<sub>8</sub> -> KV<sub>4</sub> -> KV<sub>Fbit</sub> as memory fills</div>
+      <div class="cite">§3.1 p.4; Appendix C.8 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Bit shrinking detail</div>
+      <h2 class="head">Equivalent Right Shift preserves the dequantize-then-requantize behavior cheaply.</h2>
+      <div class="two-col"><div><div class="formula">X<sub>b</sub> = ((2<sup>2b</sup> - 2<sup>b</sup> + 1)(X<sub>2b</sub> + 2<sup>b-1</sup>)) >> 3b</div><ul class="bullets"><li>Keeps zero point fixed: Z<sub>b</sub> = Z<sub>2b</sub>.</li><li>Rescales dynamic range: S<sub>b</sub> = (2<sup>b</sup> + 1)S<sub>2b</sub>.</li><li>Implemented with integer addition and shifting, not backpropagation.</li></ul></div><div><table class="bench"><thead><tr><th>strategy</th><th class="num">AIME pass@1</th><th class="num">Voting</th></tr></thead><tbody><tr><td>Direct Right Shift</td><td class="num">12.08</td><td class="num">23.33</td></tr><tr><td>Modified Right Shift</td><td class="num">28.75</td><td class="num">46.67</td></tr><tr class="win"><td>Equivalent Right Shift</td><td class="num best">38.33</td><td class="num">66.67</td></tr></tbody></table><p class="note">DeepSeek-R1-Distill-LLaMA-8B, 4-bit KV cache.</p></div></div>
+      <div class="cite">Eq.3 §3.1 p.4; Table 4 p.9; Appendix D p.18-19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Block-wise memory allocation</div>
+      <h2 class="head">Uniform Fbit wastes the gap between “2-bit fits” and “4-bit OOM”.</h2>
+      <ul class="bullets"><li>PM-KVQ estimates per-block sensitivity to K/V perturbation with a first-order Taylor approximation.</li><li>Then it solves an integer program: one bit-width per layer, minimizing total sensitivity under memory budget M.</li><li>The optional set is B={4,8} for LLaMA-8B and B={2,4} for the other long-CoT models.</li></ul>
+      <div class="formula">min Σ<sub>i,b</sub> x<sub>i,b</sub>s<sub>i,b</sub>  subject to  Σ<sub>i,b</sub> x<sub>i,b</sub>Mem(Q<sub>b</sub>(K<sub>i</sub>,V<sub>i</sub>)) <= M</div>
+      <div class="cite">§3.2 p.5; §4.1.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism evidence</div>
+      <h2 class="head">Sensitivity is visibly layer-dependent, so uniform bit-width is the wrong prior.</h2>
+      <figure class="full" style="max-height:56vh;"><img src="figures/figure3_p10.jpg" alt="Sensitivity by transformer block"><figcaption>Deeper blocks are generally more sensitive; Qwen-7B also has a high-sensitivity first block.</figcaption></figure>
+      <div class="cite">Figure 3 p.10; §4.4.2 p.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Calibration with positional interpolation</div>
+      <h2 class="head">Short calibration fails because RoPE makes Key channels position-periodic.</h2>
+      <ul class="bullets"><li>QServe-style channel reparameterization learns λ<sub>i</sub> from calibration samples.</li><li>But low-frequency RoPE channels can have very long periods; the paper reports <b>54,410 tokens</b> for the lowest-frequency sine curve in Qwen-7B.</li><li>PM-KVQ scales RoPE positions by s during calibration, so 2,048 tokens with <b>s=4</b> approximates 8,192-token coverage.</li></ul>
+      <div class="formula">RoPE PI: cos(s·mθ<sub>i</sub>), sin(s·mθ<sub>i</sub>)  -> effective length = s x calibration length</div>
+      <div class="cite">§3.3 p.5-6; §4.1.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Pipeline</div>
+      <h2 class="head">PM-KVQ separates offline planning from online cache updates.</h2>
+      <div class="two-col"><div><div class="sub">Before inference</div><ol class="numbered"><li>Profile block sensitivity on calibration data.</li><li>Solve integer program for Fbit per transformer block.</li><li>Apply channel-wise reparameterization using PI calibration.</li></ol></div><div><div class="sub">During inference</div><ol class="numbered"><li>Generate while storing new KV at high precision where possible.</li><li>When the memory budget is saturated, shrink existing KV cache.</li><li>Continue until each block reaches its allocated Fbit.</li></ol></div></div>
+      <div class="cite">§3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation setup</div>
+      <h2 class="head">The evaluation targets exactly where cache error hurts: long reasoning outputs.</h2>
+      <table class="bench"><thead><tr><th>dimension</th><th>setting</th></tr></thead><tbody><tr><td>Calibration</td><td>RedPajama arXiv subset; 512 samples x 2,048 tokens; s=4; α grid size 20</td></tr><tr><td>Benchmarks</td><td>AIME-2024/2025, CMIMC-2024, LiveCodeBench Jan-Apr 2025; max output 32,768 tokens</td></tr><tr><td>Models</td><td>DeepSeek-R1-Distill Qwen/LLaMA 7B-70B; QwQ-32B</td></tr><tr><td>Baselines</td><td>RotateKV, KIVI, MiKV; KVTuner in appendix</td></tr><tr><td>Hardware</td><td>Fake quantization on 8 x A100-80G for performance experiments</td></tr></tbody></table>
+      <div class="cite">§4.1.1-4.1.3 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result · Qwen-7B</div>
+      <h2 class="head">At 2-bit KV cache, PM-KVQ recovers reasoning where other baselines collapse.</h2>
+      <table class="bench"><thead><tr><th>method</th><th class="num">AIME-2024</th><th class="num">AIME-2025</th><th class="num">CMIMC</th><th class="num">LiveCode</th></tr></thead><tbody><tr><td>RotateKV</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>MiKV BS=32</td><td class="num">0.00</td><td class="num">0.63</td><td class="num">2.29</td><td class="num">5.86</td></tr><tr><td>KIVI</td><td class="num">32.08</td><td class="num">24.58</td><td class="num">20.83</td><td class="num">19.00</td></tr><tr class="win"><td>PM-KVQ BS=32</td><td class="num best">40.21</td><td class="num">28.96</td><td class="num">25.83</td><td class="num">24.71</td></tr></tbody></table>
+      <div class="takeaway">Same 2-bit regime; the gain is not from avoiding compression but from better memory scheduling and calibration.</div>
+      <div class="cite">Table 2 p.8 lines 614-631</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result · across scales</div>
+      <h2 class="head">The headline gains are largest where KIVI loses reasoning stability.</h2>
+      <table class="bench"><thead><tr><th>case</th><th class="num">baseline</th><th class="num">PM-KVQ</th><th class="num">gain</th></tr></thead><tbody><tr class="win"><td>Qwen-7B AIME-2024</td><td class="num">32.08</td><td class="num best">40.21</td><td class="num">+8.13 pts</td></tr><tr><td>LLaMA-8B AIME-2024</td><td class="num">41.25</td><td class="num">47.71</td><td class="num">+6.46 pts</td></tr><tr class="win"><td>Qwen-14B CMIMC</td><td class="num">27.71</td><td class="num best">47.71</td><td class="num">+20.00 pts</td></tr><tr><td>LLaMA-70B AIME-2024</td><td class="num">51.88</td><td class="num">64.79</td><td class="num">+12.91 pts</td></tr></tbody></table>
+      <div class="cite">Table 2 p.8; §4.2 p.8 lines 823-832</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Result interpretation</div>
+      <p class="big">The accuracy gain is mostly from <b>not quantizing too early</b> and <b>not spending bits uniformly</b>.</p>
+      <p class="lead">PM-KVQ can use the same final low-bit target as KIVI, yet produce higher-quality early states and stronger sensitive layers. That is why it can improve pass@1 while staying in the same memory budget.</p>
+      <div class="cite">§4.2 p.7-8; Appendix C.8 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Efficiency</div>
+      <h2 class="head">Throughput stays close to KIVI and far above BF16.</h2>
+      <table class="bench"><thead><tr><th>model / output</th><th class="num">BF16</th><th class="num">KIVI</th><th class="num">PM-KVQ</th><th>PM-KVQ vs BF16</th></tr></thead><tbody><tr><td>Qwen-7B · 16K</td><td class="num">101.40</td><td class="num">506.72</td><td class="num">424.72</td><td>4.19x</td></tr><tr class="win"><td>Qwen-7B · 32K</td><td class="num">52.06</td><td class="num">284.10</td><td class="num best">269.51</td><td>5.18x</td></tr><tr><td>Qwen-32B · 16K</td><td class="num">12.34</td><td class="num">35.65</td><td class="num">33.74</td><td>2.73x</td></tr><tr><td>Qwen-32B · 32K</td><td class="num">8.92</td><td class="num">31.59</td><td class="num">30.81</td><td>3.45x</td></tr></tbody></table>
+      <div class="cite">Table 3 p.8; §4.3 p.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Accuracy-throughput tradeoff</div>
+      <h2 class="head">The paper accepts a small speed penalty against KIVI to buy much more accuracy.</h2>
+      <ul class="bullets"><li>PM-KVQ has <b>2.45-16.18%</b> lower throughput than KIVI in the tested settings.</li><li>But the paper reports <b>10.57-23.48%</b> relative accuracy improvement over KIVI.</li><li>The extra overhead mainly comes from higher bit-widths during parts of inference; bit-width shrinking itself is described as negligible.</li></ul>
+      <div class="takeaway">This is the right trade for reasoning workloads: a small serving penalty can avoid a large pass@1 collapse.</div>
+      <div class="cite">§4.3 p.9 lines 887-935</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">PM-KVQ wins because it matches <b>precision timing</b>, <b>layer sensitivity</b>, and <b>RoPE phase coverage</b> to the long-CoT setting.</p>
+      <ul class="bullets"><li>Timing: early tokens remain high precision before the budget saturates.</li><li>Sensitivity: later blocks and Qwen-7B block 0 are assigned more memory.</li><li>Calibration: s=4 positional interpolation gives the accuracy of longer calibration at lower cost.</li></ul>
+      <div class="cite">Appendix C.8 p.18; Figure 3 p.10; Table 5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · positional interpolation</div>
+      <h2 class="head">s=4 is the sweet spot; more scaling is not automatically better.</h2>
+      <table class="bench"><thead><tr><th>calib len</th><th class="num">s</th><th class="num">effective len</th><th class="num">AIME pass@1</th><th class="num">Voting</th></tr></thead><tbody><tr><td>2,048</td><td class="num">1</td><td class="num">2,048</td><td class="num">46.67</td><td class="num">60.00</td></tr><tr class="win"><td>2,048</td><td class="num">4</td><td class="num">8,192</td><td class="num best">48.33</td><td class="num">60.00</td></tr><tr><td>2,048</td><td class="num">16</td><td class="num">32,768</td><td class="num">46.67</td><td class="num">53.33</td></tr><tr><td>8,192</td><td class="num">1</td><td class="num">8,192</td><td class="num">48.33</td><td class="num">60.00</td></tr></tbody></table>
+      <div class="cite">Table 5 p.10 lines 1030-1071</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Pre-inference cost</div>
+      <h2 class="head">PI dramatically shortens calibration, but allocation still costs minutes.</h2>
+      <table class="bench"><thead><tr><th>model</th><th class="num">QServe calib</th><th class="num">PM-KVQ calib</th><th class="num">+ allocation</th></tr></thead><tbody><tr><td>Qwen-7B</td><td>52 min</td><td>13 min</td><td>17 min</td></tr><tr><td>Qwen-32B</td><td>187 min</td><td>44 min</td><td>57 min</td></tr><tr><td>LLaMA-70B</td><td>408 min</td><td>93 min</td><td>120 min</td></tr></tbody></table>
+      <div class="takeaway">This is a deployment-prep cost, not per-token runtime, but it matters for frequent model or calibration-data refreshes.</div>
+      <div class="cite">Table 11 p.18 lines 1706-1763</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">The method is strong but not universal yet.</h2>
+      <ul class="bullets"><li>The authors do not evaluate all attention mechanisms; they call out <b>Multi-head Latent Attention (MLA)</b> as different from GQA.</li><li>They do not combine PM-KVQ with other system-level optimization techniques or inference engines.</li><li>OpenReview reviewer JSON was unavailable in this run due to HTTP 403, so no reviewer-score claims are included.</li></ul>
+      <div class="cite">Limitations p.20 lines 1978-1982; ingest log</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h2 class="head">What to copy into a real inference stack.</h2>
+      <ol class="numbered"><li><b>Do not pick one KV bit-width globally.</b> Treat the budget as layer-wise and time-varying.</li><li><b>Profile layer sensitivity.</b> The figure evidence says later blocks may deserve more bits.</li><li><b>Make calibration context-aware.</b> For RoPE models, short calibration without PI can miss low-frequency Key channels.</li><li><b>Measure prep latency separately.</b> PM-KVQ’s runtime win is clear, but model refresh cadence determines whether 17-120 min setup matters.</li></ol>
+      <div class="cite">Synthesis from §3-4 and Appendix C.7-C.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · abstract highlight</div>
+      <div class="hl"><p class="hl__en">Directly applying existing methods to long-CoT LLMs causes significant performance degradation due to ... Large cumulative error ... Short-context calibration.</p><p class="hl__zh">直接把短上下文 KV 量化方法搬到 long-CoT，會因累積誤差與短校準失配而掉性能。<span class="hl__src">Abstract p.1 lines 21-28</span></p></div>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · method highlight</div>
+      <div class="hl"><p class="hl__en">We initially store KV Cache in 16-bit format ... gradually reduce the bit-width ... 16, 8, 4, and 2 bits.</p><p class="hl__zh">先用 16-bit 存 KV，再在記憶體滿時逐步降到 8/4/2-bit；這是 PM-KVQ 的核心動作。<span class="hl__src">§3.1 p.4 lines 285-289</span></p></div>
+      <div class="cite">§3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · RoPE calibration highlight</div>
+      <div class="hl"><p class="hl__en">The lowest frequency sine curve has a period of up to 54,410 tokens.</p><p class="hl__zh">RoPE 低頻通道的週期可達 54,410 tokens，短校準看不到真實長上下文分佈。<span class="hl__src">§3.3 p.6 lines 421-427</span></p></div>
+      <div class="cite">§3.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · benchmark highlight</div>
+      <div class="hl"><p class="hl__en">PM-KVQ achieves a 2.73-5.18x throughput improvement over the original 16-bit LLMs.</p><p class="hl__zh">相比原 16-bit LLM，PM-KVQ 在吞吐上有 2.73-5.18 倍提升。<span class="hl__src">§4.3 p.8-9 lines 887-888</span></p></div>
+      <div class="cite">§4.3 p.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow</h2>
+      <p class="end__sub">AI Agent frameworks / multimodal systems</p>
+      <div class="end__next">The rotation moves from compression to systems: look for an accepted paper with mechanism analysis, not just a benchmark leaderboard.</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
