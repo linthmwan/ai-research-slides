@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CubeComposer: Spatio-Temporal Autoregressive 4K 360° Video Generation from Perspective Video</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 2026-08-19 · Video generation / temporal models</div>
+      <h1 class="title">CubeComposer: Spatio-Temporal Autoregressive 4K 360° Video Generation from Perspective Video</h1>
+      <p class="lead">A CVPR 2026 paper that turns perspective-to-360° video into cubemap face × temporal-window autoregressive diffusion.</p>
+      <div class="authors">Lingen Li, Guangzhi Wang, Xiaoyu Li, Zhaoyang Zhang, Qi Dou, Jinwei Gu, Tianfan Xue, Ying Shan · CUHK + ARC Lab, Tencent PCG</div>
+      <div class="meta-row"><span class="badge tier">arXiv:2603.04291</span><span class="badge tier">Accepted to CVPR 2026</span><span class="badge date">Native 4K 360°</span></div>
+      <figure class="full" style="max-height:24vh;"><img src="figures/figure1_p1.jpg" alt="Figure 1: CubeComposer generates native 4K 360° output without the SR stage used by prior methods."><figcaption>Figure 1: CubeComposer generates native 4K 360° output without the SR stage used by prior methods.</figcaption></figure>
+      <div class="cite">Source: arXiv:2603.04291v1, cover / Fig.1 p.1; arXiv comments: Accepted to CVPR 2026</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <p class="big">The key move is not a bigger video DiT; it is changing the sequence: generate one cubemap face over one temporal window, with context.</p>
+      <div class="sub">That converts a 4K 360° video from one memory-heavy full-attention denoising problem into a planned spatio-temporal AR process.</div>
+      <div class="cite">Abstract p.1; §1 pp.1–3; Fig.2 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Native 4K is where previous perspective-to-360° systems hit the wall</h2>
+      <ul class="bullets"><li>VR wants 3840 × 1920 equirectangular video; prior methods run natively at ≤1K because full-attention diffusion over the whole panorama is too expensive.</li><li>A post SR model such as VEnhancer can upsample to 2K, but the paper argues this lacks intrinsic generative reasoning and can amplify artifacts.</li><li>Perspective input is partial and rotating, so the generator must both preserve observed regions and hallucinate unseen regions consistently.</li></ul>
+      <div class="takeaway">The paper’s target is not just sharper frames; it is native high-resolution generation with geometry and motion coherence.</div>
+      <div class="cite">§1 pp.1–2; Fig.1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why temporal models alone are insufficient</div>
+      <h2 class="head">For 360° video, autoregression has a spatial axis too</h2>
+      <div class="two-col"><div><p class="col-hint">Temporal AR</p><ul class="bullets"><li>Long-video methods mainly decide <b>which future frames</b> to generate next.</li><li>History context is the natural conditioning signal.</li></ul></div><div><p class="col-hint">Spatio-temporal AR</p><ul class="bullets"><li>CubeComposer must decide <b>which cube face</b> and <b>which time window</b> to generate.</li><li>Sparse future observations from the perspective video are useful context, not forbidden leakage.</li></ul></div></div>
+      <div class="cite">§2.3 p.3; §3.3–3.4 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">The paper stacks four engineering choices around one representation choice</h2>
+      <ol class="numbered"><li>Cubemap representation and face-window AR generation for native 4K 360° output.</li><li>Coverage-guided order planning tied to the input camera trajectory.</li><li>History + current + future-fragment context with sparse context attention.</li><li>Cube-aware positional encoding, padding, and blending to suppress seams.</li><li>4K360Vid: 11,832 high-resolution 360° clips with global and face-wise captions.</li></ol>
+      <div class="cite">§1 p.3; §4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Pipeline</div>
+      <h2 class="head">Figure-first view: the whole system is a cubemap generation loop</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure3_p4.jpg" alt="Figure 3: masked perspective video → cubemap context → planned face/window generation → sparse context attention → 4K equirectangular output."><figcaption>Figure 3: masked perspective video → cubemap context → planned face/window generation → sparse context attention → 4K equirectangular output.</figcaption></figure>
+      <div class="cite">Fig.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Representation</div>
+      <h2 class="head">Cubemap avoids equirectangular distortion and creates six controllable subproblems</h2>
+      <ul class="bullets"><li>Input perspective frames with camera rotations are projected into masked equirectangular video, then converted to six cubemap faces F/R/B/L/U/D.</li><li>Each step synthesizes one face over a fixed temporal window, then the completed cubemap video is assembled back into 4K equirectangular output.</li><li>The representation matches existing foundation-model priors better than directly denoising the distorted equirectangular frame.</li></ul>
+      <div class="formula">(X<sup>cond</sup><sub>f,t</sub>, M<sub>f,t</sub>) = Π<sub>cube</sub>(I<sup>pers</sup><sub>t</sub>; φ, R<sub>t</sub>)</div>
+      <div class="cite">§3.1 pp.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Order planning</div>
+      <h2 class="head">Generate the most observed face first, then let evidence propagate</h2>
+      <div class="two-col"><div><div class="formula">c<sub>f,w</sub> = (1/T<sub>win</sub>) Σ mean(M<sub>f,t</sub>)</div><div class="formula">σ<sub>w</sub> = argsort<sub>f∈F</sub>(-c<sub>f,w</sub>)</div></div><div><ul class="bullets"><li>Temporal windows remain causal to preserve time consistency.</li><li>Within a window, faces are sorted by descending coverage from the input perspective video.</li><li>High-certainty faces reduce early uncertainty and pass geometry / appearance / motion cues to later faces.</li></ul></div></div>
+      <div class="cite">§1 p.2; §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Context mechanism</div>
+      <h2 class="head">Context is a three-part memory, not just previous frames</h2>
+      <figure class="full" style="max-height:44vh;"><img src="figures/figure4_p4.jpg" alt="Figure 4: per-step context combines history windows, current-window tokens, and nearest future fragments from adjacent faces."><figcaption>Figure 4: per-step context combines history windows, current-window tokens, and nearest future fragments from adjacent faces.</figcaption></figure>
+      <ul class="bullets"><li>History tokens: up to H previously generated windows.</li><li>Current-window tokens: generated faces plus perspective conditions for ungenerated faces.</li><li>Future fragments: nearest valid conditional segments from current or adjacent faces above threshold r.</li></ul>
+      <div class="cite">§3.4 pp.5–6; Fig.4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Context formula</div>
+      <h2 class="head">The future fragment is chosen by coverage, not by a fixed frame index</h2>
+      <div class="formula">u<sub>w,f</sub> = [u<sup>hist</sup><sub>w</sub>; u<sup>curr</sup><sub>w,f</sub>; u<sup>fut</sup><sub>w,f</sub>]</div>
+      <div class="formula">τ<sup>*</sup><sub>g</sub> = arg min<sub>τ ≥ e<sub>w</sub></sub> { τ | c̄<sub>g</sub>(τ; T<sub>frag</sub>) ≥ r }</div>
+      <ul class="bullets"><li>The selected future fragments come from the current face and adjacent faces N(f).</li><li>This gives the generator temporal foresight when the perspective video later observes the region being hallucinated now.</li><li>It is a 360°-specific difference from pure causal next-frame generation.</li></ul>
+      <div class="cite">§3.4 pp.5–6; Eq.5–8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <p class="big">Sparse context attention is the enabling trick: keep context, remove the C² blow-up.</p>
+      <div class="sub">Generation tokens fully self-attend; context tokens attend to generation and only locally to themselves with a diagonal-banded mask.</div>
+      <div class="scorebox"><span class="score score--lo">full: O((G+C)²)</span><span class="score score--hi">SCA: O(G² + G·C + K·C)</span></div>
+      <div class="cite">§3.4 p.6; Fig.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Seam control</div>
+      <h2 class="head">Cubemap AR creates boundaries; topology-aware generation repairs them</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure5_p6.jpg" alt="Figure 5: cube-aware positional embedding plus adjacent-face padding/blending align information across shared cube boundaries."><figcaption>Figure 5: cube-aware positional embedding plus adjacent-face padding/blending align information across shared cube boundaries.</figcaption></figure>
+      <ul class="bullets"><li>Positions are remapped according to flattened cubemap topology, not each face’s isolated tensor layout.</li><li>Current-face latents are padded with rotated/flipped strips from adjacent faces.</li><li>After decoding, overlaps are blended back into adjacent faces to smooth boundary transitions.</li></ul>
+      <div class="cite">§3.5 p.6; Fig.5 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training</div>
+      <h2 class="head">The model reuses Wan 2.2 5B priors and trains on simulated perspective views</h2>
+      <ul class="bullets"><li>Training samples a temporal window and cube face, constructs the §3.4 context, and predicts velocity with flow matching.</li><li>Random perspective trajectories use 3–5 anchor points and FoV 60–120°.</li><li>Global prompts and optional face-wise prompts teach the model controllability in regions not covered by the input perspective video.</li></ul>
+      <div class="formula">L = E || v<sub>θ</sub>(z<sub>t</sub>, t; u<sub>w,f</sub>, y) − v<sub>t</sub> ||<sup>2</sup></div>
+      <div class="cite">§3.6 p.6; §4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main results</div>
+      <h2 class="head">Native 4K wins on temporal quality and imaging quality</h2>
+      <table class="bench" style="font-size:.78rem;"><thead><tr><th>Method</th><th>Res.</th><th class="num">4K360Vid FVD↓</th><th class="num">4K360Vid I.Q.↑</th><th class="num">ODV360 FVD↓</th><th class="num">ODV360 I.Q.↑</th></tr></thead><tbody><tr><td>Argus</td><td>1K</td><td class="num">4.0755</td><td class="num">0.4266</td><td class="num">12.7548</td><td class="num">0.3988</td></tr><tr><td>Argus + VEnhancer</td><td>2K SR</td><td class="num">6.1337</td><td class="num">0.4286</td><td class="num">14.1573</td><td class="num">0.3671</td></tr><tr><td>Imagine360 + VEnhancer</td><td>2K SR</td><td class="num">10.2088</td><td class="num">0.4270</td><td class="num">7.3203</td><td class="num">0.4052</td></tr><tr><td>CubeComposer</td><td>2K native</td><td class="num">3.9035</td><td class="num best">0.5214</td><td class="num">4.2592</td><td class="num">0.5144</td></tr><tr class="win"><td>CubeComposer</td><td>4K native</td><td class="num best">2.2205</td><td class="num best">0.5618</td><td class="num best">3.5054</td><td class="num best">0.5543</td></tr></tbody></table>
+      <div class="takeaway">The authors evaluate at each method’s target resolution; higher resolution is harder because ground truth is resized to that target.</div>
+      <div class="cite">Table 1 p.7; §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative comparison</div>
+      <h2 class="head">Super-resolution is not a substitute for native generation</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure6_p7.jpg" alt="Figure 6: CubeComposer preserves more visual detail than Argus / Imagine360 / ViewPoint and their VEnhancer-upsampled outputs."><figcaption>Figure 6: CubeComposer preserves more visual detail than Argus / Imagine360 / ViewPoint and their VEnhancer-upsampled outputs.</figcaption></figure>
+      <div class="cite">Fig.6 p.7; §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Context ablation</div>
+      <h2 class="head">Future fragments buy temporal coherence without paying full-context cost</h2>
+      <table class="bench" style="font-size:.86rem;"><thead><tr><th>Context type</th><th>TFLOPs</th><th class="num">FVD↓</th><th class="num">FID↓</th><th class="num">LPIPS↓</th><th class="num">CLIP↑</th></tr></thead><tbody><tr class="win"><td>Ours</td><td>350.64</td><td class="num best">4.2592</td><td class="num">125.5510</td><td class="num">0.4249</td><td class="num">0.8911</td></tr><tr><td>w/o future tokens</td><td>224.89</td><td class="num">6.0369</td><td class="num">128.3274</td><td class="num">0.4517</td><td class="num">0.8878</td></tr><tr><td>Full tokens</td><td>376.03</td><td class="num">5.2265</td><td class="num best">116.6476</td><td class="num best">0.4162</td><td class="num best">0.8961</td></tr></tbody></table>
+      <ul class="bullets"><li>Removing future tokens worsens FVD from 4.2592 to 6.0369.</li><li>Full context costs more TFLOPs but has worse FVD than the proposed context.</li></ul>
+      <div class="cite">Table 2 p.8; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Continuity ablation</div>
+      <h2 class="head">Seam reduction needs both position topology and padding/blending</h2>
+      <div class="two-col"><div><table class="bench" style="font-size:.68rem;"><thead><tr><th>Pos. enc.</th><th>Pad+blend</th><th class="num">FVD↓</th><th class="num">FID↓</th><th class="num">LPIPS↓</th><th class="num">CLIP↑</th></tr></thead><tbody><tr><td>off</td><td>on</td><td class="num">4.3683</td><td class="num">190.3326</td><td class="num">0.5600</td><td class="num">0.8409</td></tr><tr><td>on</td><td>off</td><td class="num">4.4650</td><td class="num">201.4123</td><td class="num">0.5504</td><td class="num best">0.8547</td></tr><tr class="win"><td>on</td><td>on</td><td class="num best">4.1961</td><td class="num best">157.1220</td><td class="num best">0.5142</td><td class="num best">0.8590</td></tr></tbody></table></div><div><figure class="full" style="max-height:32vh;"><img src="figures/figure7_p8.jpg" alt="Figure 7: qualitative ablation shows full model reducing cross-face discontinuities."><figcaption>Figure 7: qualitative ablation shows full model reducing cross-face discontinuities.</figcaption></figure><ul class="bullets"><li>Both components mitigate seam and temporal discontinuity artifacts.</li><li>Best overall metrics occur when both are enabled.</li></ul></div></div>
+      <div class="cite">Table 3 p.8; Fig.7 p.8; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <p class="big">Mechanism insight: CubeComposer uses observation strength to define causality.</p>
+      <div class="sub">Instead of an arbitrary face order, coverage from the moving perspective camera determines which part of the panorama becomes reliable context for the next parts.</div>
+      <div class="cite">§3.3 p.5; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">The next bottleneck is serving, not just quality</h2>
+      <ul class="bullets"><li>The conclusion names reducing diffusion steps and moving toward streaming 360° generation as future directions.</li><li>The main paper compresses extra analysis and user studies into the supplementary.</li><li>Fair comparison is complicated by baselines supporting different camera-rotation ranges and native resolutions.</li></ul>
+      <div class="takeaway">For product deployment, the story after 4K is latency: can the face/window AR loop become streamable?</div>
+      <div class="cite">§5 p.8; §4.2–4.3 pp.6–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering read</div>
+      <h2 class="head">What to borrow for other temporal generation systems</h2>
+      <ol class="numbered"><li>Turn geometry into scheduling: use input coverage/observability to decide generation order.</li><li>Separate context composition from attention sparsification: first decide what evidence matters, then make it cheap.</li><li>For multi-view outputs, handle seams as first-class model design, not only post-processing.</li><li>Treat future conditional fragments as valid evidence when the task is completion from a known input sequence.</li></ol>
+      <div class="cite">Derived from §3.3–3.5 pp.5–6 and ablations Table 2–3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · abstract highlight</div>
+      <h2 class="head">Why the cubemap AR decomposition matters</h2>
+      <div class="hl"><p class="hl__en">By decomposing videos into cubemap representations with six faces, CubeComposer autoregressively synthesizes content in a well-planned spatio-temporal order, reducing memory demands while enabling high-resolution output.</p><p class="hl__zh">將影片拆成六面 cubemap 後，CubeComposer 依規劃好的時空順序自回歸合成內容，降低記憶體需求並支援高解析輸出。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · order planning</div>
+      <h2 class="head">Generate high-certainty faces first</h2>
+      <div class="hl"><p class="hl__en">This prioritizes well-conditioned faces with more context input, which reduces early uncertainty and effectively propagates geometry, appearance, and motion cues to subsequent faces.</p><p class="hl__zh">先生成條件較充分的面，可降低早期不確定性，並把幾何、外觀與動作線索傳遞給後續面。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="cite">§1 p.2; §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · sparse context attention</div>
+      <h2 class="head">The key scaling claim</h2>
+      <div class="hl"><p class="hl__en">This constrains context self-attention to O(C · K) operations… from square w.r.t. the context length C to linear.</p><p class="hl__zh">對 context 的自注意力只保留帶狀局部區域，使複雜度由 context 長度的平方降為線性。<span class="hl__src">§3.4 p.6</span></p></div>
+      <div class="cite">§3.4 p.6; Fig.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · ablation quote</div>
+      <h2 class="head">Context design beats full-token brute force on FVD</h2>
+      <div class="hl"><p class="hl__en">The proposed mechanism attains LPIPS, CLIP, and FID comparable to the full-context variant and achieves slightly better FVD, while incurring fewer TFLOPs.</p><p class="hl__zh">所提 context 機制在 LPIPS/CLIP/FID 接近 full-context，FVD 更好且 TFLOPs 更低。<span class="hl__src">§4.3 p.8; Table 2 p.8</span></p></div>
+      <div class="cite">§4.3 p.8; Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">CubeComposer</h2>
+      <p class="end__sub">Native 4K 360° video by making time and space autoregressive.</p>
+      <div class="end__next">Next rotation: compute acceleration / attention, kernels, hardware.</div>
+      <div class="cite">Daily AI Research deck · 2026-08-19</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
