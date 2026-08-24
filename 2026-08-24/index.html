@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GVPO: Group Variance Policy Optimization for Large Language Model Post-Training</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · LLM post-training / alignment</div>
+      <h1 class="title">GVPO: 用 group variance 穩住 LLM post-training</h1>
+      <div class="authors">Kaichen Zhang, Yuzhong Hong, Junwei Bao, Hongfei Jiang, Yang Song, Dingqian Hong, Hui Xiong</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2025 poster</span><span class="badge date">arXiv:2504.19599v3</span><span class="badge date">2026-08-24 · Monday LLM</span></div>
+      <p class="lead">主問題很直接：GRPO 類 LLM RL 好用，但 off-policy / clipping / KL 係數讓訓練脆。GVPO 把 KL-constrained optimal policy 的閉式解塞進 group-wise 權重，試圖同時拿到穩定性與 sampling 彈性。</p>
+      <div class="cite">Sources: arXiv 2504.19599v3; OpenReview NeurIPS 2025 poster; raw p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">GVPO 把「reward 差距」改寫成「group 內 centered implicit reward 要貼近 centered actual reward」。</p>
+      <div class="sub">結果是：partition function 會被 zero-sum weights 抵消；sampling distribution 不必綁死 on-policy；Var/Cov 兩個正則項由推導自然長出來。</div>
+      <div class="cite">Abstract p.1; §3.1-§3.3 p.5-p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">GRPO 的吸引力：省掉 value model；GRPO 的麻煩：訓練不穩</h2>
+      <ul class="bullets"><li>GRPO 用 group relative reward 直接做 advantage，不需要另外訓練 value model，這是 DeepSeek-R1 類 RLVR 管線有吸引力的原因。</li><li>但 paper 指出 GRPO 對 <b>clip threshold</b> 和 <b>KL coefficient</b> 敏感；negative likelihood / clipping / KL 約束都會讓穩定性變成工程調參問題。</li><li>off-policy 時若用 importance weight <code>πθ/πold</code>，policy drift 會造成 gradient explosion；clip 又會引入 bias。</li></ul>
+      <div class="takeaway">GVPO 的設計目標不是再調一個更好的 clipping trick，而是換掉權重設計本身。</div>
+      <div class="cite">Introduction p.1-p.3; §2.1 p.3; §3.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Unifying lens</div>
+      <h2 class="head">把 SFT / GRPO / DPO 都看成 weighted log-likelihood gradient</h2>
+      <div class="formula">∇L = - Σ<sub>i</sub> w<sub>i</sub> ∇ log π<sub>θ</sub>(y<sub>i</sub>|x)</div>
+      <ul class="bullets"><li>SFT：一個標準答案，weight = 1。</li><li>GRPO：同一 prompt 下多個 response，用 standardized reward score 當 weight。</li><li>DPO：preferred / dispreferred pair 的 weight 互為正負。</li><li>所以 GVPO 的切入點是：<b>直接設計 w<sub>i</sub></b>，而不是先訓 reward model 再套傳統 RL。</li></ul>
+      <div class="cite">§2.3 Unified framework of post-training p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core trick</div>
+      <h2 class="head">zero-sum group weights 讓 partition function 消失</h2>
+      <div class="formula">R<sub>θ</sub>(x,y) = β log(π<sub>θ</sub>(y|x) / π<sub>θ′</sub>(y|x)) + β log Z(x)</div>
+      <ul class="bullets"><li>DPO 的成功來自把 KL-regularized reward maximization 的 closed-form optimal policy 放進 loss。</li><li>問題是 <code>Z(x)</code> 需要對所有 response 求期望，實務上不可估。</li><li>GVPO 要求每個 prompt group 的 weights 滿足 <code>Σ<sub>i</sub>w<sub>i</sub> = 0</code>。</li><li>因此 <code>Σ<sub>i</sub>w<sub>i</sub> β log Z(x) = 0</code>，partition function 在 update rule 裡自然抵消。</li></ul>
+      <div class="cite">§3.1 Motivation p.5; §3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method</div>
+      <h2 class="head">GVPO 權重 = centered actual reward - centered implicit reward</h2>
+      <div class="formula">w<sub>i</sub> = (R<sub>i</sub> - mean(R)) - β[(log ratio<sub>i</sub>) - mean(log ratio)]</div>
+      <ul class="bullets"><li><code>log ratio<sub>i</sub></code> 是 <code>log π<sub>θ</sub>(y<sub>i</sub>|x) / π<sub>θ′</sub>(y<sub>i</sub>|x)</code>，對應 implicit reward。</li><li>同一 prompt group 內做 centering，保證 <code>Σw<sub>i</sub>=0</code>。</li><li>高 reward response 被推高 likelihood；低 reward response 被壓低，但 weight 同時受到目前 policy ratio 的校正。</li></ul>
+      <div class="cite">§3.2 Eq. 8 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Figure-first</div>
+      <h2 class="head">Figure 1 把 GVPO 的三種讀法放在同一張圖</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure1_p2.jpg" alt="GVPO equivalent loss functions"><figcaption>Negative log-likelihood / MSE / RL decomposition 三種視角，其實是同一個 GVPO objective 的不同解讀。</figcaption></figure>
+      <div class="cite">Figure 1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Algorithm</div>
+      <h2 class="head">訓練 loop 跟 GRPO 很像，但 loss 裡多了 old/current log-prob 幾何</h2>
+      <ol class="numbered"><li>抽一批 prompts <code>D<sub>b</sub></code>。</li><li>把 old policy 更新成目前 policy：<code>π<sub>θold</sub> ← π<sub>θ</sub></code>。</li><li>對每個 prompt 從 sampling policy <code>π<sub>s</sub></code> 抽 k 個 responses。</li><li>計算每個 response 的 reward。</li><li>用 Eq. 8 的 GVPO loss 反覆更新 policy，通常設 <code>π<sub>θ′</sub> = π<sub>θold</sub></code>。</li></ol>
+      <div class="takeaway">最重要的自由度是 <code>π<sub>s</sub></code>：它不必等於目前 policy。</div>
+      <div class="cite">Algorithm 1 p.4; §4 setup p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">GVPO 的穩定性來自一個 MSE：讓 policy ratio 隱含出的相對 reward 幾何，貼近真實 reward 幾何。</p>
+      <div class="sub">如果 implicit reward 和 actual reward 只差 group-level constant，loss 就最小；這剛好避開了不可估的 partition function。</div>
+      <div class="cite">§3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Theory</div>
+      <h2 class="head">唯一最優解 = KL-constrained reward maximization 的最優 policy</h2>
+      <div class="formula">π* (y|x) = (1 / Z(x)) π<sub>θ′</sub>(y|x) exp(R(x,y)/β)</div>
+      <ul class="bullets"><li>Theorem 3.1：最小化 GVPO surrogate 的唯一 policy，就是上面這個 KL-constrained optimal policy。</li><li>唯一性讓 objective 不只是 heuristic；它在理論上對齊原本的 constrained reward maximization。</li><li>DPO 也利用 closed-form solution，但 Bradley-Terry pairwise model 可能帶來 multiple minimizers；GVPO 用 group zero-sum 走另一條路。</li></ul>
+      <div class="cite">Theorem 3.1 §3.3 p.6; §3.4 p.6-p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Off-policy</div>
+      <h2 class="head">Theorem 3.2：sampling distribution 可以換，只要 support 覆蓋 reference</h2>
+      <div class="formula">support(π<sub>θ′</sub>) ⊆ support(π<sub>s</sub>)</div>
+      <ul class="bullets"><li>這個條件對 softmax LLM policy 通常溫和：只要 reference 可能產生的 response，sampling distribution 也不能完全排除。</li><li>因此 GVPO 能用 reusable / mixed / historical data，而不用每次都從 current policy 取 fresh trajectories。</li><li>它也不需要 <code>πθ/πs</code> importance ratio，所以避免 ratio explosion 與 clipping bias。</li></ul>
+      <div class="cite">Theorem 3.2 §3.3 p.6; §3.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RL decomposition</div>
+      <h2 class="head">GVPO = advantage + Cov trust-region + Var balance</h2>
+      <ul class="bullets"><li><b>Advantage term</b>：<code>(R - mean R) log πθ</code>，推高 group 內高 reward response。</li><li><b>Cov term</b>：<code>Cov(log πθ, log πθ′)</code>，約束 policy 不要偏離 old/reference，類似 trust-region。</li><li><b>Var term</b>：<code>Var(log πθ)</code>，在 exploration/exploitation 間取得穩定平衡，不靠手調 entropy coefficient。</li></ul>
+      <div class="takeaway">後面的 ablation 顯示：這兩個 regularizer 不是裝飾，拿掉就壞。</div>
+      <div class="cite">§3.5 Eq. 10 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result</div>
+      <h2 class="head">Qwen2.5-Math-7B：GVPO 在五個 math benchmark 全部最高</h2>
+      <table class="bench" style="compact"><thead><tr><th>Method</th><th class="num">AIME24</th><th class="num">AMC</th><th class="num">MATH500</th><th class="num">Minerva</th><th class="num">Olympiad</th></tr></thead><tbody><tr><td>Base</td><td class="num">14.68</td><td class="num">38.55</td><td class="num">64.00</td><td class="num">27.20</td><td class="num">30.66</td></tr><tr><td>+GRPO</td><td class="num">14.79</td><td class="num">55.42</td><td class="num">80.00</td><td class="num">41.17</td><td class="num">42.07</td></tr><tr><td>+Dr.GRPO</td><td class="num">16.56</td><td class="num">48.19</td><td class="num">81.20</td><td class="num">44.48</td><td class="num">43.40</td></tr><tr><td>+Remax</td><td class="num">17.19</td><td class="num">60.24</td><td class="num">82.00</td><td class="num">40.44</td><td class="num">45.19</td></tr><tr><td>+Reinforce++</td><td class="num">16.67</td><td class="num">54.22</td><td class="num">80.40</td><td class="num">43.01</td><td class="num">41.78</td></tr><tr class="win"><td>+GVPO</td><td class="num best">20.72</td><td class="num best">62.65</td><td class="num best">83.80</td><td class="num best">45.95</td><td class="num best">46.96</td></tr></tbody></table>
+      <div class="cite">Table 1 p.8-p.9; setup §4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation overview</div>
+      <h2 class="head">β / k / πs 三個 ablation 都在檢查「穩定且可伸縮」</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:24vh;"><img src="figures/figure2_p9.jpg" alt="beta ablation"><figcaption>β ablation：performance fluctuation 小。</figcaption></figure><figure class="full" style="max-height:24vh;"><img src="figures/figure3_p9.jpg" alt="k ablation"><figcaption>k ablation：GVPO across k 優於 GRPO。</figcaption></figure></div><div><figure class="full" style="max-height:24vh;"><img src="figures/figure4_p9.jpg" alt="sampling distribution ablation"><figcaption>πs ablation：混入 historical responses 仍保持 robust。</figcaption></figure><ul class="bullets"><li>β：降低 exhaustive tuning 壓力。</li><li>k：1.5B 模型透過更大 k 可接近 7B 的 AIME2024 表現。</li><li>πs：historical + old-policy mix 可能降低 sampling cost。</li></ul></div></div>
+      <div class="cite">Figures 2-4 and §4 ablations p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism ablation</div>
+      <h2 class="head">拿掉 Var 或 Cov：模型直接 failed to converge / incoherent outputs</h2>
+      <table class="bench" style="compact"><thead><tr><th>Variant</th><th class="num">AIME24</th><th class="num">AMC</th><th class="num">MATH500</th><th class="num">Minerva</th><th class="num">Olympiad</th></tr></thead><tbody><tr class="win"><td>GVPO</td><td class="num best">20.72</td><td class="num best">62.65</td><td class="num best">83.80</td><td class="num best">45.95</td><td class="num best">46.96</td></tr><tr><td>GVPO - Var</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>GVPO - Cov</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>GVPO - Var - Cov</td><td class="num">7.19</td><td class="num">39.76</td><td class="num">73.00</td><td class="num">34.93</td><td class="num">35.70</td></tr><tr><td>Var replaced by Entropy</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr></tbody></table>
+      <div class="takeaway">Var/Cov 是 objective 的結構性支撐，不是可以隨便拔掉的 regularization garnish。</div>
+      <div class="cite">Table 2 p.9-p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Robustness</div>
+      <h2 class="head">換 seed、換 foundation model，GVPO 仍比 GRPO 高</h2>
+      <table class="bench" style="compact"><thead><tr><th>Check</th><th>GRPO</th><th>GVPO</th><th>Observation</th></tr></thead><tbody><tr class="win"><td>10 seeds · AIME24</td><td>13.59±1.11</td><td class="best">15.56±1.05</td><td>平均更高，std 同量級</td></tr><tr class="win"><td>10 seeds · MATH500</td><td>76.30±1.35</td><td class="best">77.36±0.98</td><td>穩定略高</td></tr><tr class="win"><td>Llama-3.1 · AIME24</td><td>8.54</td><td class="best">11.56</td><td>換 base model 仍提升</td></tr><tr class="win"><td>Llama-3.1 · MATH500</td><td>52.60</td><td class="best">56.60</td><td>generalization check</td></tr></tbody></table>
+      <div class="cite">Table 3 p.10; Table 4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Alignment appendix</div>
+      <h2 class="head">Summarization task：GVPO 也贏 DPO，不只 math RLVR</h2>
+      <table class="bench" style="compact"><thead><tr><th>Method</th><th class="num">Reward</th><th class="num">Win rate</th><th class="num">Accuracy</th><th class="num">GPT-4o</th><th class="num">Human</th></tr></thead><tbody><tr><td>SFT</td><td class="num">2.84</td><td class="num">41.85%</td><td>-</td><td>-</td><td>-</td></tr><tr><td>+DPO</td><td class="num">4.83</td><td class="num">68.28%</td><td class="num">60.43%</td><td class="num">31%</td><td class="num">34%</td></tr><tr class="win"><td>+GVPO</td><td class="num best">5.75</td><td class="num best">79.49%</td><td class="num best">64.93%</td><td class="num best">69%</td><td class="num best">66%</td></tr></tbody></table>
+      <div class="takeaway">作者把這當作「policy search 改善會正相關於 alignment quality」的補充證據，但範圍仍只是一個 summarization setup。</div>
+      <div class="cite">Appendix C Table 5 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Implementation</div>
+      <h2 class="head">最小可行實作：在 GRPO loss 裡替換幾行權重邏輯</h2>
+      <div class="formula">loss = -β · score · [adv - β((score<sub>new</sub>-mean) - (score<sub>old</sub>-mean))]</div>
+      <ul class="bullets"><li>Appendix 的 verl snippet 只改 policy loss：取 sequence log-prob / old log-prob、做 group mean centering、乘上 reward advantage。</li><li>作者特別註明：input batch 要對應同一 prompt 的 k responses；GRPO advantage calculation 的 std normalizer 要拿掉。</li><li>這使 GVPO 比「重新搭一套 RLHF 框架」更像是現有 GRPO pipeline 的 loss-level 替換。</li></ul>
+      <div class="cite">Appendix A.2 Listing 1 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost and scope</div>
+      <h2 class="head">不要把它讀成輕量技巧：實驗仍是高算力 post-training</h2>
+      <div class="scorebox"><span class="score score--hi">8x H800 80GB</span><span class="score">6-8 min / step</span><span class="score">~12h / 7B experiment</span></div>
+      <ul class="bullets"><li>主實驗是 Qwen2.5-Math-7B、k=5，每個 experiment 約 12 小時。</li><li>1.5B ablation 為了速度和 GPU memory 限制使用原 Qwen chat template。</li><li>所以 GVPO 的工程價值在於穩定與 sample reuse 的可能性，不代表單機微調就能低成本複現。</li></ul>
+      <div class="cite">Appendix A.1 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">這篇最該小心的三個邊界</h2>
+      <ul class="bullets"><li><b>任務範圍窄：</b>主實驗集中在 math reasoning；summarization 只是 appendix 補充，沒有覆蓋 tool-use / multi-turn / safety red-teaming。</li><li><b>reward 仍是前提：</b>GVPO 改的是 policy optimization objective，不解決 reward model / verifier 本身的品質和偏誤。</li><li><b>reviewer 視角缺席：</b>本次 ingest 抓 OpenReview reviewer JSON 被 403 擋下，所以不能報 reviewer score 或爭點。</li></ul>
+      <div class="cite">§4 p.9; Appendix C p.16; ingest output HTTP 403</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Engineering read</div>
+      <p class="big">如果你已經有 GRPO/RLVR 管線，GVPO 最值得測的是「是否能用 replay / mixed sampling 降低 rollout 成本而不炸」。</p>
+      <div class="sub">這比單純追 AIME 分數更有工程含金量：Theorem 3.2 給它一個 off-policy sampling 的理論入口。</div>
+      <div class="cite">Theorem 3.2 p.6; Fig. 4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 1</div>
+      <h2 class="head">Partition function cancellation</h2>
+      <div class="hl"><p class="hl__en">“when the sum of assigned response weights within a prompt group equals zero, the partition function becomes invariant across compared responses, effectively canceling out in the policy update rule.”</p><p class="hl__zh">當同一 prompt group 的權重和為 0，閉式最優策略裡最麻煩的 partition function 會在比較中抵消，這是 GVPO 可實作的關鍵。<span class="hl__src">Introduction p.2 / §3.1 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 2</div>
+      <h2 class="head">MSE interpretation</h2>
+      <div class="hl"><p class="hl__en">“GVPO’s gradient mathematically equals that of a mean squared error loss measuring the discrepancy between implicit and actual reward central distances.”</p><p class="hl__zh">GVPO 不是只調一個 heuristic 權重；它等價於讓 policy ratio 隱含出的相對 reward 幾何去貼近真實 reward 幾何。<span class="hl__src">§3.2 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 3</div>
+      <h2 class="head">Sampling flexibility</h2>
+      <div class="hl"><p class="hl__en">“GVPO retains the theoretical guarantee of a unique optimal solution under any sampling distribution that satisfies a mild condition.”</p><p class="hl__zh">只要 sampling distribution 的 support 蓋住 reference policy，GVPO 就保有唯一最優解，這讓 off-policy / replay / 混合資料成為理論上合理的選項。<span class="hl__src">§3.3 p.6</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight 4</div>
+      <h2 class="head">Regularizers are necessary</h2>
+      <div class="hl"><p class="hl__en">“In both cases, the model fails to converge and generates incoherent outputs, indicating that each term plays a crucial role in stabilizing training.”</p><p class="hl__zh">拿掉 Var 或 Cov 都直接訓練失敗，表示穩定性不是加分項，而是 GVPO 這個 objective 站得住的必要結構。<span class="hl__src">Table 2 analysis p.10</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow: image generation / VLM</h2>
+      <p class="end__sub">今天的 takeaway：GVPO 的 claim 不是「更會調 GRPO」，而是把 optimal policy 的 closed-form geometry 變成 group-wise weights。</p>
+      <div class="end__next">下一輪看 Diffusion / VLM / CLIP 類主題。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
