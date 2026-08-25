@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>There is No VAE: End-to-End Pixel-Space Generative Modeling via Self-Supervised Pre-Training</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · Tue / Image Generation</div>
+      <h1 class="title">There is No VAE</h1>
+      <p class="lead">End-to-End Pixel-Space Generative Modeling via <b>Self-Supervised Pre-Training</b></p>
+      <div class="authors">Jiachen Lei, Keli Liu, Julius Berner, Haiming Yu, Hongkai Zheng, Jiahong Wu, Xiangxiang Chu · AMAP, Alibaba Group / Caltech</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge">arXiv:2510.12586</span><span class="badge date">Announced 2026-01-26</span></div>
+      <figure class="full" style="max-height:28vh;"><img src="figures/figure1_p1.jpg" alt="EPG headline ImageNet efficiency and samples"><figcaption>Fig.1 p.1: pixel-space EPG reaches SOTA quality while retaining sampling efficiency.</figcaption></figure>
+      <div class="cite">Source: paper cover / OpenReview ICLR 2026 Poster</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Pixel-space diffusion was not doomed by pixels; it was missing <b>noise-consistent semantic pretraining</b>.</p>
+      <p class="lead">EPG first trains an encoder to preserve semantics along the same diffusion trajectory, then fine-tunes encoder+decoder end-to-end for generation.</p>
+      <div class="cite">§1 p.2-3; Fig.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">The VAE made latent diffusion efficient, but also fixed its ceiling</h2>
+      <ul class="bullets"><li>A pretrained VAE is hard to train because it must balance compression and high-fidelity reconstruction.</li><li>Even a good VAE creates a fixed-capacity bottleneck: the generator can only adapt within that representation.</li><li>Pixel-space training removes the VAE but historically pays with backbone cost or slow convergence.</li><li>So the real target is not “pixels vs latents”; it is <b>how to get semantics before denoising</b>.</li></ul>
+      <div class="takeaway">EPG attacks the representation bottleneck, not just the architecture.</div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure mode</div>
+      <h2 class="head">Plain SSL collapses on heavily noised diffusion inputs</h2>
+      <div class="two-col"><div><div class="sub">Why standard SSL is not enough</div><ul class="bullets"><li>Augmented clean views teach semantics near the data manifold.</li><li>Diffusion training asks the encoder to handle points far along a noise schedule.</li><li>Direct SSL pretraining becomes ineffective because representation collapse appears under strong noise.</li></ul></div><div><div class="sub">EPG’s reframing</div><ul class="bullets"><li>Use deterministic PF-ODE trajectories as the geometry for positives / negatives.</li><li>Same trajectory means same semantic endpoint; different trajectory means different sample identity.</li><li>Semantics become temporally consistent across noise levels.</li></ul></div></div>
+      <div class="cite">§1 p.2-3; §3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">What the paper actually adds</h2>
+      <ol class="numbered"><li>A two-stage End-to-end Pixel-space Generative model: pretrain encoder, then attach a fresh decoder and fine-tune.</li><li>Representation Consistency Learning: contrastive semantics + PF-ODE trajectory alignment.</li><li>SOTA pixel-space ImageNet generation: FID <b>1.58</b> at 256 and <b>2.35</b> at 512.</li><li>A strong one-step pixel-space consistency model without pretrained VAE or pretrained diffusion model: FID <b>8.82</b>.</li><li>Training efficiency: EPG-XL/16 beats DiT-XL/2 using 139h vs 506h on 8xH200.</li></ol>
+      <div class="cite">§1 p.3; Tab.1 p.7; Tab.2 p.8; Tab.4 p.8; Tab.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method overview</div>
+      <h2 class="head">Two stages: learn semantics first, generate pixels second</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure2_p4.jpg" alt="EPG pretraining and fine-tuning overview"><figcaption>Fig.2 p.4: pretraining uses semantic learning plus trajectory alignment; fine-tuning predicts clean pixels from noisy inputs.</figcaption></figure>
+      <ul class="bullets"><li>Projector is used only during pretraining and discarded before generation training.</li><li>Decoder starts randomly initialized, so final generator is not constrained by a pretrained VAE decoder.</li></ul>
+      <div class="cite">Fig.2 p.4; §3.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core objective</div>
+      <h2 class="head">Representation Consistency Learning = clean-view SSL + trajectory SSL</h2>
+      <div class="formula">L = NT-Xent(L<sub>θ</sub>(E<sub>θ</sub>(y<sub>1</sub>)), L<sub>θ-</sub>(E<sub>θ-</sub>(y<sub>2</sub>))) + NT-Xent(E<sub>θ</sub>(x<sub>tn</sub>), E<sub>sg(θ)</sub>(x<sub>tn-1</sub>))</div>
+      <ul class="bullets"><li><b>Contrastive term</b>: augmented clean views are positives; batch samples are negatives.</li><li><b>Trajectory term</b>: adjacent points on the same PF-ODE path are positives.</li><li>Adjacent points from different trajectories become negatives, so semantics stay separable under noise.</li></ul>
+      <div class="cite">Eq.7-8 p.5; §3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Stabilization</div>
+      <h2 class="head">Temperature controls how tightly noisy points are forced to align</h2>
+      <div class="formula">τ(t) = τ<sub>1</sub>(1 - t) + τ<sub>2</sub>t, with τ<sub>1</sub>=0.1 and τ<sub>2</sub>=0.2</div>
+      <ul class="bullets"><li>Small τ gives stronger separability and tighter same-trajectory alignment.</li><li>Early training uses looser alignment for large-noise samples because the encoder has not yet learned meaningful features.</li><li>The schedule is independent of brittle EMA hyperparameter coupling in the earlier rRCM framework.</li></ul>
+      <div class="takeaway">The schedule makes noisy-semantics learning trainable without hand-tuned collapse-prone coupling.</div>
+      <div class="cite">§3.2 p.5-6; Tab.10 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fine-tuning</div>
+      <h2 class="head">Same pretrained encoder supports diffusion and one-step consistency</h2>
+      <div class="two-col"><div><div class="sub">Diffusion model</div><ul class="bullets"><li>Denoising objective in pixel space.</li><li>EDM-style SDE and x-prediction.</li><li>Main runs: batch 1024, 1M/2M steps on ImageNet-256.</li></ul></div><div><div class="sub">Consistency model</div><ul class="bullets"><li>Trains with consistency objective plus auxiliary semantic loss.</li><li>Auxiliary target uses frozen pretrained encoder W<sub>φ</sub>, not an external model.</li><li>Reported as one-step ImageNet-256 generation.</li></ul></div></div>
+      <div class="cite">§3.3 p.6; Tab.9 p.15; Tab.11 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture detail</div>
+      <h2 class="head">Keep token length stable by scaling patch size with resolution</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:45vh;"><img src="figures/figure4_p14.jpg" alt="EPG downstream architecture"><figcaption>Fig.4 p.14: ViT encoder and decoder with residual links and adaLN-Zero time conditioning.</figcaption></figure></div><div><ul class="bullets"><li>ImageNet-256 uses 16x16 patches; ImageNet-512 uses 32x32 patches.</li><li>Encoder/decoder blocks are separated by configuration; XL and larger models enlarge decoder width.</li><li>The design keeps GFLOPs low when scaling resolution.</li></ul><div class="scorebox"><span class="score">256: patch 16x16</span><span class="score score--hi">512: patch 32x32</span></div></div></div>
+      <div class="cite">§1 p.3; §4 p.6; Tab.7 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 1 / ImageNet-256</div>
+      <h2 class="head">Pixel-space EPG reaches FID 1.58 with 75 NFE</h2>
+      <table class="bench"><thead><tr><th>Model</th><th>Space</th><th class="num">FID</th><th class="num">NFE</th><th class="num">GFLOPs</th></tr></thead><tbody><tr><td>SiT-XL/2</td><td>latent</td><td class="num">2.06</td><td class="num">250x2</td><td class="num">312+119</td></tr><tr><td>RAE</td><td>latent</td><td class="num best">1.28</td><td class="num">50x2</td><td class="num">107+146</td></tr><tr><td>JiT-G/16</td><td>pixel</td><td class="num">1.82</td><td class="num">191</td><td class="num">383</td></tr><tr class="win"><td>EPG-G/16</td><td>pixel</td><td class="num best">1.58</td><td class="num best">75</td><td class="num">321</td></tr></tbody></table>
+      <div class="takeaway">EPG does not beat the best latent RAE, but it sets a very strong pixel-space point and uses fewer NFEs than JiT.</div>
+      <div class="cite">Tab.1 p.7; §4.1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 2 / ImageNet-512</div>
+      <h2 class="head">At higher resolution, patch scaling keeps compute unusually low</h2>
+      <table class="bench"><thead><tr><th>Model</th><th>Space</th><th class="num">FID</th><th class="num">NFE</th><th class="num">GFLOPs</th></tr></thead><tbody><tr><td>DiT-XL/2</td><td>latent</td><td class="num">3.04</td><td class="num">250x2</td><td class="num">1260+524.6</td></tr><tr><td>SiT-XL/2</td><td>latent</td><td class="num">2.62</td><td class="num">250x2</td><td class="num">1260+524.6</td></tr><tr><td>PixelNerd</td><td>pixel</td><td class="num">2.84</td><td class="num">100x2</td><td class="num">583</td></tr><tr class="win"><td>EPG-L/32</td><td>pixel</td><td class="num best">2.35</td><td class="num best">75</td><td class="num best">113</td></tr></tbody></table>
+      <div class="cite">Tab.2 p.8; §4.1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 3 / training efficiency</div>
+      <h2 class="head">The pretraining stage is cheaper than the common sd-vae-mse training run</h2>
+      <table class="bench"><thead><tr><th>Component / model</th><th class="num">FID</th><th class="num">Cost hours</th><th>Params</th></tr></thead><tbody><tr><td>sd-vae-mse</td><td>-</td><td class="num">160</td><td>84M</td></tr><tr class="win"><td>Our pre-train</td><td>-</td><td class="num best">57</td><td>106M</td></tr><tr><td>DiT-XL/2</td><td class="num">2.27</td><td class="num">506</td><td>675M</td></tr><tr class="win"><td>EPG-XL/16</td><td class="num best">2.04</td><td class="num best">139</td><td>583M</td></tr><tr><td>EPG-XXL/16</td><td class="num best">1.87</td><td class="num">160</td><td>789M</td></tr></tbody></table>
+      <div class="takeaway">The paper’s efficiency claim is not “free pretraining”; it is that semantic pretraining pays back during generator training.</div>
+      <div class="cite">§4 p.7; Tab.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result 4 / one-step generation</div>
+      <h2 class="head">Pixel-space consistency model reaches FID 8.82 in one step</h2>
+      <table class="bench"><thead><tr><th>Model</th><th>Space</th><th class="num">FID</th><th class="num">NFE</th><th class="num">Epochs</th></tr></thead><tbody><tr><td>iCT-XL/2</td><td>latent</td><td class="num">34.24</td><td class="num">1</td><td>-</td></tr><tr><td>Shortcut-XL/2</td><td>latent</td><td class="num">10.60</td><td class="num">1</td><td class="num">250</td></tr><tr><td>IMM</td><td>latent</td><td class="num best">8.05</td><td class="num">1</td><td class="num">6395</td></tr><tr class="win"><td>EPG-L/16</td><td>pixel</td><td class="num">8.82</td><td class="num best">1</td><td class="num best">560</td></tr></tbody></table>
+      <div class="takeaway">IMM is slightly better in FID, but EPG uses roughly 11x less training compute according to the authors.</div>
+      <div class="cite">Tab.4 p.8; §4.1 p.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation / pretraining loss</div>
+      <h2 class="head">Contrastive semantics and trajectory consistency both matter</h2>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">DM FID</th><th class="num">CM FID</th><th>Interpretation</th></tr></thead><tbody><tr class="win"><td>EPG-B/16</td><td class="num best">52.67</td><td class="num best">46.99</td><td>full objective</td></tr><tr><td>w/o consistency</td><td class="num">58.18</td><td class="num">56.41</td><td>semantics not temporally aligned</td></tr><tr><td>w/o contrast</td><td class="num">115.48</td><td class="num">117.63</td><td>semantic collapse</td></tr><tr><td>Scratch</td><td class="num">77.25</td><td>NaN</td><td>unstable CM training</td></tr></tbody></table>
+      <div class="cite">Tab.12b-c p.16; Appendix C p.16-17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation / consistency auxiliary loss</div>
+      <h2 class="head">The one-step model needs semantic supervision during CM fine-tuning</h2>
+      <table class="bench"><thead><tr><th>CM setting</th><th class="num">FID</th><th>Meaning</th></tr></thead><tbody><tr><td>Scratch</td><td>NaN</td><td>fails</td></tr><tr><td>w/o aux</td><td class="num">129.16</td><td>consistency signal alone too weak</td></tr><tr><td>w/o RCM</td><td class="num">65.05</td><td>aux exists, but no strong pretrained encoder</td></tr><tr class="win"><td>EPG-B/16</td><td class="num best">36.75</td><td>RCM + aux loss</td></tr></tbody></table>
+      <div class="takeaway">For CM, pretraining is not just initialization; it becomes the teacher signal used by Eq.9.</div>
+      <div class="cite">Eq.9 p.6; Tab.12a p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scaling</div>
+      <h2 class="head">Downstream generation improves with pretraining budget and encoder size</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure3_p9.jpg" alt="Downstream FID scales with pretraining compute and model parameters"><figcaption>Fig.3 p.9: DM/CM performance improves as pretraining batch size and encoder parameters increase.</figcaption></figure>
+      <ul class="bullets"><li>Batch size scales from 256 to 1024 in the first two columns.</li><li>Encoder scales from 64M to 107M to 225M; decoder scales accordingly during fine-tuning.</li><li>This supports the authors’ argument that the remaining gap to leading latent models is partly compute-limited.</li></ul>
+      <div class="cite">§4.2 p.9; Fig.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">The key object is not the pixel, but the <b>trajectory-stable semantic identity</b> behind the pixel.</p>
+      <p class="lead">EPG makes two noisy samples positive only when they belong to the same deterministic path back to the same clean image.</p>
+      <div class="cite">§3.2 p.5; §E p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanistic evidence</div>
+      <h2 class="head">The encoder must adapt from semantics back toward reconstruction</h2>
+      <div class="two-col"><div><table class="bench"><thead><tr><th>Encoder update</th><th class="num">FID</th></tr></thead><tbody><tr class="win"><td>Default</td><td class="num best">12.46</td></tr><tr><td>Layer-wise LR decay 0.5</td><td class="num">18.56</td></tr><tr><td>Frozen</td><td class="num">22.44</td></tr></tbody></table><p class="note">Default end-to-end encoder updates win over frozen semantic features.</p></div><div><figure class="full" style="max-height:34vh;"><img src="figures/figure8_p19.jpg" alt="Per-channel std across noise levels"><figcaption>Fig.8 p.19: RCM maintains non-collapsed feature variance under noise.</figcaption></figure><ul class="bullets"><li>RCM output std approximates 1/sqrt(d).</li><li>Contrastive-only encoder approaches near-zero std across noisy inputs.</li></ul></div></div>
+      <div class="cite">Tab.13 p.19; §E p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative check</div>
+      <h2 class="head">One-step samples are not just a table entry</h2>
+      <figure class="full" style="max-height:58vh;"><img src="figures/figure9_p19.jpg" alt="One-step EPG-L samples"><figcaption>Fig.9 p.19: images generated by EPG-L via one-step sampling.</figcaption></figure>
+      <div class="cite">Fig.9 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">The paper is honest about where pixel-space still loses</h2>
+      <ul class="bullets"><li>EPG currently underperforms leading latent-space REPA and RAE on the headline ImageNet-256 table.</li><li>The authors argue the gap is largely due to training compute disparity, not a fundamental limit.</li><li>The method still requires large GPU budgets: e.g. 57h pretraining plus 139h or 160h diffusion fine-tuning on 8xH200 for XL/XXL.</li><li>Evidence is ImageNet-centric; high-resolution multi-modal or open-domain generation is left as future work.</li></ul>
+      <div class="takeaway">This is a strong argument against the VAE bottleneck, not a claim that latent diffusion is obsolete tomorrow.</div>
+      <div class="cite">§6 p.10; Appendix B.4 p.15; Tab.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering read</div>
+      <h2 class="head">What to steal for image-generation systems</h2>
+      <ol class="numbered"><li>Treat generator encoders as representation learners first, denoisers second.</li><li>Define positives using generative trajectories, not only data augmentation.</li><li>Let the encoder update during pixel reconstruction; frozen semantics are too high-level.</li><li>Measure total system cost: VAE pretraining, generator fine-tuning, NFE, and GFLOPs all change the conclusion.</li><li>For one-step models, reuse the pretrained encoder as internal semantic supervision instead of relying on a separate teacher model.</li></ol>
+      <div class="cite">Synthesis from §3-4 and Appendix C</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reviewer / external critique</div>
+      <h2 class="head">Reviewer JSON was unavailable in cron, so no scores are fabricated</h2>
+      <ul class="bullets"><li>Venue was confirmed by OpenReview metadata: ICLR 2026 Poster.</li><li>The OpenReview forum was identified, but reviewer JSON fetch returned HTTP 403.</li><li>All technical claims and numbers in this deck therefore come from the PDF/raw text, not from hidden review material.</li></ul>
+      <div class="cite">OpenReview forum HbUoKPIZmp; ingest log for 2026-08-25</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h2 class="head">The key decomposition, in the authors’ words</h2>
+      <div class="hl"><p class="hl__en">“we argue encoders in diffusion-based generative models primarily learn high-level visual semantics from noisy inputs and the decoders act as low-level pixel generators conditioned on encoder representations.”</p><p class="hl__zh">作者把生成模型拆成「噪聲輸入上的語意編碼器」與「條件化像素生成解碼器」；EPG 的兩階段訓練就是從這個判斷長出來的。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">“The representation consistency loss uses temporally adjacent points along the ODE trajectory as positive pairs … while adjacent points from different trajectories serve as negatives.”</p><p class="hl__zh">RCL 的正負樣本不是普通 augmentation，而是由同一條或不同條生成軌跡決定。<span class="hl__src">§3.2 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight</div>
+      <h2 class="head">The claim and the caveat</h2>
+      <div class="hl"><p class="hl__en">“By further increasing model parameters to 1391M, our EPG-G/16 model achieves 1.58 FID with class-balanced sampling, outperforming JiT-G/16 by a large margin.”</p><p class="hl__zh">最大 EPG-G/16 在 ImageNet-256 達到 FID 1.58，這是 deck 的 headline 結果。<span class="hl__src">§4.1 p.8</span></p></div>
+      <div class="hl"><p class="hl__en">“Our EPGs currently under-perform leading latent-space methods like REPA and RAE. However, the performance gap can be largely explained by a significant disparity in training compute.”</p><p class="hl__zh">作者沒有宣稱 latent-space 已經被全面取代；他們把剩餘差距定位成 scaling / compute 問題。<span class="hl__src">§6 p.10</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow</h2>
+      <p class="end__sub">Video generation / temporal models</p>
+      <div class="end__next">Next deck will look for a paper where time, memory, or long-horizon consistency is the central mechanism.</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
