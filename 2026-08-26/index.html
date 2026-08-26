@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FixAnything: 3D-Consistent Rendering Refinement via Video Generative Priors · AI Research Daily 2026-08-26</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · 2026-08-26 · Video / Temporal Models</div>
+      <h1 class="title">FixAnything: 3D-Consistent Rendering Refinement via Video Generative Priors</h1>
+      <div class="authors">Khiem Vuong · Deva Ramanan · Srinivasa Narasimhan · Carnegie Mellon University</div>
+      <div class="meta-row"><span class="badge tier">ECCV 2026</span><span class="badge">arXiv:2608.23549</span><span class="badge date">Announced 2026-08-24</span></div>
+      <p class="lead">Single video prior + LoRA + mask + geometry-aware DPO for cleaning renderings from NeRF, 3DGS, mesh, and sparse point clouds.</p>
+      <figure class="full" style="max-height:31vh;"><img src="figures/figure1_p1.jpg" alt="Fig.1 p.1: one FixAnything model cleans artifacts across four 3D representations."><figcaption>Fig.1 p.1: one FixAnything model cleans artifacts across four 3D representations.</figcaption></figure>
+      <div class="cite">Source: arXiv:2608.23549 · project page on paper cover p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把 rendering cleanup 當成 <b>video-to-video translation</b>，而不是替每種 3D representation 重做一套 specialist pipeline。</p>
+      <p class="lead">Renderer supplies camera path and coarse structure; pretrained video model supplies natural-video completion; mask and Flow-DPO keep it anchored and 3D-consistent.</p>
+      <div class="cite">Abstract pp.1-2; §1 pp.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Sparse-view / far-view artifacts look different, but fail for the same reason</h2>
+      <ul class="bullets"><li><b>3DGS</b>: floaters; <b>NeRF</b>: fog / blur; <b>mesh</b>: holes; <b>sparse points</b>: scattered patches.</li><li>All four still expose a camera trajectory and rough scene layout; all deviate from the manifold of natural videos.</li><li>The paper asks whether one generalist video prior can replace a growing family of representation-specific cleanup systems.</li></ul>
+      <figure class="full" style="max-height:42vh;"><img src="figures/figure3_p7.jpg" alt="Fig.3 p.7: artifact modes across NeRF, 3DGS, mesh, sparse point cloud."><figcaption>Fig.3 p.7: artifact modes across NeRF, 3DGS, mesh, sparse point cloud.</figcaption></figure>
+      <div class="cite">§1 p.2; §3.1 pp.5-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Prior work trap</div>
+      <h2 class="head">Generative priors help, but most systems specialize too hard</h2>
+      <div class="two-col"><div><div class="sub">Sparse-view reconstruction</div><ul class="bullets"><li>RegNeRF / FreeNeRF / DNGaussian / FSGS regularize geometry, but stay constrained by weak observations.</li><li>They reduce artifacts without truly hallucinating plausible missing content.</li></ul></div><div><div class="sub">Post-hoc enhancement</div><ul class="bullets"><li>3DGS-Enhancer, Xu et al., Difix3D/Difix3D+ use generative priors.</li><li>But many process views independently or in small sets; cross-view consistency is left to the 3D representation.</li></ul></div></div>
+      <div class="takeaway">The gap: a representation-agnostic cleanup model that processes the full rendering video at once.</div>
+      <div class="cite">§2 pp.4-5; §4.2 p.11; Fig.7 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core formulation</div>
+      <h2 class="head">Any renderer becomes a structural scaffold</h2>
+      <div class="formula">input video x in R<sup>T x 3 x H x W</sup>, mask m in {0,1}<sup>T</sup> -> clean video y = cleanup(x,m)</div>
+      <ul class="bullets"><li>m_i = 1 means the frame is clean / near a training viewpoint; m_i = 0 means it needs fixing.</li><li>The output should preserve scene content and camera motion while repairing degraded frames.</li><li>This is representation-agnostic because the model only requires rendered video + clean-frame mask, not renderer internals.</li></ul>
+      <div class="cite">§3.1 pp.5-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture</div>
+      <h2 class="head">Minimal changes: concatenate conditioning latents, train LoRA only</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure2_p6.jpg" alt="Fig.2 p.6: Stage I supervised finetuning, Stage II geometry-aware preference optimization."><figcaption>Fig.2 p.6: Stage I supervised finetuning, Stage II geometry-aware preference optimization.</figcaption></figure>
+      <div class="takeaway">Base Wan2.1-I2V-14B and VAE stay frozen; LoRA rank 64 updates <1% of parameters.</div>
+      <div class="cite">§3.2 pp.5-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Latent conditioning</div>
+      <h2 class="head">The model sees noisy target latent + degraded rendering latent + trust/fix mask</h2>
+      <div class="two-col"><div><div class="formula">z_t = (1-t) z_0 + t epsilon</div><div class="formula">z_hat_t = [ z_t ; z_cond ; m ]</div><div class="formula">L_FM = E || v - v_theta(z_hat_t,t) ||<sup>2</sup></div></div><div><ul class="bullets"><li>z_cond = E(x) carries camera trajectory and coarse scene layout.</li><li>m is spatially broadcast and concatenated channel-wise.</li><li>Velocity target: v = epsilon - z_0; training follows rectified-flow matching.</li></ul></div></div>
+      <p class="note">Formula is simplified into HTML-safe notation; no MathJax dependency in this deck renderer.</p>
+      <div class="cite">Eq.(1)-(3), §3.2 pp.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mask-aware conditioning</div>
+      <h2 class="head">Without a trust/fix mask, the model may hallucinate over correct frames</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure4_p8.jpg" alt="Fig.4 p.8: setting m_30=1 preserves the clean frame and prevents propagated hallucination."><figcaption>Fig.4 p.8: setting m_30=1 preserves the clean frame and prevents propagated hallucination.</figcaption></figure>
+      <div class="scorebox"><span class="score score--lo">No mask: 16.37 PSNR</span><span class="score score--hi">With mask: 17.65 PSNR</span><span class="score score--hi">+1.3 dB</span></div>
+      <div class="cite">Fig.4 p.8; Tab.3 p.12; §4.4 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training data</div>
+      <h2 class="head">DL3DV-10K trajectories teach conditioning, not video generation from scratch</h2>
+      <ol class="numbered"><li>Sample k in [3,12] training frames per scene, then extract <b>61-frame</b> trajectories passing through at least two clean views.</li><li>Render each trajectory as NeRF, underfit 3DGS (7K iterations), MapAnything mesh, and sparse COLMAP keypoints.</li><li>Replace training-view frames with original images for mesh / sparse-point inputs to provide dense clean anchors.</li><li>SFT: 500 paired videos, 288x512 then 480x832, 3000 iterations on one H100; DPO adds 2000 iterations.</li></ol>
+      <div class="cite">§3.3 pp.8-9; §4.1 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Geometry-aware preference optimization</div>
+      <h2 class="head">Reward the videos that downstream SfM can reconstruct</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure5_p10.jpg" alt="Fig.5 p.10: Flow-DPO suppresses moving hallucinated structures and improves pose AUC@5."><figcaption>Fig.5 p.10: Flow-DPO suppresses moving hallucinated structures and improves pose AUC@5.</figcaption></figure>
+      <ul class="bullets"><li>For 1,000 separate scenes, sample five outputs with different seeds.</li><li>Rank candidates using COLMAP + SuperPoint + LightGlue pose recovery; metric is RRA/RTA AUC@5.</li><li>Keep preference pairs with AUC gap >= 0.2 and train Flow-DPO against the SFT reference checkpoint.</li></ul>
+      <div class="cite">§3.4 pp.9-10; §4.3 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">Image realism is not enough. FixAnything optimizes for whether geometry can be recovered from the generated video.</p>
+      <p class="lead">That is the paper’s most important move: use SfM pose accuracy as a preference signal, then bake it into LoRA so inference stays unchanged.</p>
+      <div class="scorebox"><span class="score score--hi">AUC@5: 61.12 -> 68.32</span><span class="score score--hi">+7.2</span><span class="score">0 extra inference cost</span></div>
+      <div class="cite">Tab.2 p.12; §3.4 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Inference</div>
+      <h2 class="head">Default 50 steps, but the speed-quality curve is unusually forgiving</h2>
+      <ul class="bullets"><li>Sampling starts from Gaussian noise at t=1 and integrates toward t=0 using `[z_t ; z_cond ; m]`.</li><li>Default is 50 denoising steps; long videos use overlapping 61-frame chunks.</li><li>Ablation shows 5 steps can generate a 61-frame 480x832 clip in 31s on one H100, versus 309s at 50 steps.</li></ul>
+      <div class="cite">§3.5 p.10; Tab.5 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experiment setup</div>
+      <h2 class="head">DL3DV sparse-view evaluation with image and geometry metrics</h2>
+      <div class="two-col"><div><div class="sub">Data / protocol</div><ul class="bullets"><li>20 held-out DL3DV-10K scenes.</li><li>3, 6, or 9 uniformly selected training frames.</li><li>Remaining non-training frames sampled every 8th frame as query set.</li></ul></div><div><div class="sub">Metrics / baselines</div><ul class="bullets"><li>PSNR, SSIM, LPIPS for image quality.</li><li>RRA/RTA AUC@5 for geometric consistency.</li><li>Baselines: 3DGS, RegNeRF, FreeNeRF, DNGaussian, FSGS, 3DGS-Enhancer, Xu et al., Difix3D/Difix3D+.</li></ul></div></div>
+      <div class="cite">§4.1 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result</div>
+      <h2 class="head">One model is competitive with specialists, and mesh / sparse SfM are not far behind</h2>
+      <table class="bench" style="font-size:.74rem;"><thead><tr><th>Method</th><th class="num">3v PSNR</th><th class="num">6v PSNR</th><th class="num">9v PSNR</th><th class="num">6v LPIPS</th></tr></thead><tbody><tr><td>3DGS-Enhancer†</td><td class="num">14.33</td><td class="num">16.94</td><td class="num">18.50</td><td class="num">0.356</td></tr><tr><td>Xu et al.†</td><td class="num">14.62</td><td class="num">17.35</td><td class="num">19.19</td><td class="num">0.396</td></tr><tr><td>Difix3D+</td><td class="num">12.37</td><td class="num">14.41</td><td class="num">16.39</td><td class="num">0.400</td></tr><tr class="win"><td>FixAnything / 3DGS</td><td class="num">15.18</td><td class="num">17.65</td><td class="num">19.76</td><td class="num best">0.289</td></tr><tr class="win"><td>FixAnything / mesh</td><td class="num best">15.74</td><td class="num best">17.95</td><td class="num best">19.86</td><td class="num best">0.269</td></tr><tr class="win"><td>FixAnything / sparse SfM</td><td class="num">15.52</td><td class="num">17.74</td><td class="num">19.72</td><td class="num">0.271</td></tr></tbody></table>
+      <div class="cite">Tab.1 p.12; metrics shown: PSNR higher better, LPIPS lower better</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Surprise</div>
+      <h2 class="head">Sparse COLMAP points can be enough to expose the camera path</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure6_p13.jpg" alt="Fig.6 p.13: same model cleans sparse point clouds and meshes into photorealistic outputs."><figcaption>Fig.6 p.13: same model cleans sparse point clouds and meshes into photorealistic outputs.</figcaption></figure>
+      <div class="takeaway">The rendering may only need to provide trajectory / scaffold; the video prior fills plausible content.</div>
+      <div class="cite">§4.2 p.11; Fig.6 p.13; §6 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation: Flow-DPO</div>
+      <h2 class="head">DPO mostly improves geometry, not just pixel metrics</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th><th class="num">AUC@5</th></tr></thead><tbody><tr><td>SFT only</td><td class="num">17.51</td><td class="num">0.554</td><td class="num">0.296</td><td class="num">61.12</td></tr><tr class="win"><td>SFT + Flow-DPO</td><td class="num best">17.65</td><td class="num best">0.561</td><td class="num best">0.289</td><td class="num best">68.32</td></tr></tbody></table>
+      <ul class="bullets"><li>Image metrics move modestly.</li><li>Pose AUC jumps by 7.2 points, matching the stated goal of multi-view consistency.</li><li>No extra inference-time COLMAP step is required.</li></ul>
+      <div class="cite">Tab.2 p.12; §4.3 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation: mask + data</div>
+      <h2 class="head">Two practical knobs: explicit anchors and surprisingly little paired data</h2>
+      <div class="two-col"><div><div class="sub">Mask-aware conditioning</div><table class="bench" style="font-size:.74rem;"><thead><tr><th>Variant</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th></tr></thead><tbody><tr><td>No mask</td><td class="num">16.37</td><td class="num">0.525</td><td class="num">0.311</td></tr><tr class="win"><td>With mask</td><td class="num best">17.65</td><td class="num best">0.561</td><td class="num best">0.289</td></tr></tbody></table></div><div><div class="sub">Training videos</div><table class="bench" style="font-size:.74rem;"><thead><tr><th class="num">Videos</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th></tr></thead><tbody><tr><td class="num">20</td><td class="num">16.70</td><td class="num">0.531</td><td class="num">0.309</td></tr><tr><td class="num">50</td><td class="num">17.20</td><td class="num">0.548</td><td class="num">0.297</td></tr><tr><td class="num">100</td><td class="num">17.45</td><td class="num">0.556</td><td class="num">0.292</td></tr><tr class="win"><td class="num">500</td><td class="num best">17.65</td><td class="num best">0.561</td><td class="num best">0.289</td></tr></tbody></table></div></div>
+      <div class="cite">Tab.3 p.12; Tab.4 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation: runtime</div>
+      <h2 class="head">5 denoising steps trade a little LPIPS for 10x speed</h2>
+      <table class="bench"><thead><tr><th class="num">Steps</th><th class="num">PSNR</th><th class="num">SSIM</th><th class="num">LPIPS</th><th class="num">Time</th></tr></thead><tbody><tr class="win"><td class="num">5</td><td class="num">18.02</td><td class="num">0.574</td><td class="num">0.313</td><td class="best">31s</td></tr><tr><td class="num">10</td><td class="num">17.91</td><td class="num">0.570</td><td class="num">0.296</td><td>62s</td></tr><tr><td class="num">25</td><td class="num">17.75</td><td class="num">0.564</td><td class="num">0.289</td><td>155s</td></tr><tr><td class="num">50</td><td class="num">17.65</td><td class="num">0.561</td><td class="num">0.289</td><td>309s</td></tr></tbody></table>
+      <div class="takeaway">For product pipelines, this suggests distillation / low-step sampling is a real path, not just a footnote.</div>
+      <div class="cite">Tab.5 p.14; 61-frame 480x832 clip on one H100</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Qualitative comparison</div>
+      <h2 class="head">Sharpening each frame independently can amplify cross-view inconsistency</h2>
+      <figure class="full" style="max-height:49vh;"><img src="figures/figure7_p13.jpg" alt="Fig.7 p.13: Difix3D/Difix3D+ sharpen details but struggle with temporal coherence; FixAnything processes the full video."><figcaption>Fig.7 p.13: Difix3D/Difix3D+ sharpen details but struggle with temporal coherence; FixAnything processes the full video.</figcaption></figure>
+      <ul class="bullets"><li>This is exactly where video priors matter: full-sequence cleanup gives temporal context.</li><li>The claim is not just prettier frames; it is fewer view-to-view contradictions.</li></ul>
+      <div class="cite">§4.2 p.11; Fig.7 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Uncertainty</div>
+      <h2 class="head">Hallucination is unavoidable; uncertainty maps can expose where it happens</h2>
+      <figure class="full" style="max-height:44vh;"><img src="figures/figure8_p15.jpg" alt="Fig.8 p.15: per-pixel std across five runs correlates with error and unobserved regions."><figcaption>Fig.8 p.15: per-pixel std across five runs correlates with error and unobserved regions.</figcaption></figure>
+      <div class="scorebox"><span class="score score--hi">confident 25%: 25.7 dB</span><span class="score score--lo">least-confident 25%: 14.4 dB</span><span class="score">N=5 seeds</span></div>
+      <div class="cite">§5 p.14; Fig.8 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Interpretation</div>
+      <p class="big">The paper quietly demotes 3D representations from “final answer” to “conditioning scaffold”.</p>
+      <p class="lead">If sparse SfM points + clean anchors can match 3DGS after generative cleanup, the expensive dense representation may not always be the central object.</p>
+      <div class="cite">§1 p.3; §4.2 p.11; §6 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">Strong result, but not a solved deployment story</h2>
+      <ul class="bullets"><li><b>Hallucination remains</b>: useful completion becomes failure when it contradicts observed content.</li><li><b>Uncertainty is preliminary</b>: five stochastic runs and per-pixel std are not a calibrated safety guarantee.</li><li><b>Compute remains real</b>: Wan2.1-I2V-14B, H100 training, and 31s even at 5 steps for a 61-frame clip.</li><li><b>Temporal window</b>: long videos are chunked into overlapping 61-frame windows; very long-horizon consistency is not fully established.</li><li><b>Main tables center on DL3DV</b>; MipNeRF-360 / LLFF are mentioned as supplementary results in the extracted main text.</li></ul>
+      <div class="cite">§3.5 p.10; §4.1 p.11; §5 p.14; §6 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering read</div>
+      <h2 class="head">What an image/video engineer should steal from this</h2>
+      <ol class="numbered"><li>Use existing renderers to expose motion / layout, then let the video model do perceptual completion.</li><li>Do not let generative cleanup overwrite known-good frames; pass an explicit trust mask.</li><li>Optimize for downstream reconstructability, not only PSNR / LPIPS.</li><li>Keep adaptation disposable: LoRA on top of new video backbones should be cheaper than redesigning a custom 3D architecture.</li><li>Report uncertainty maps when you hallucinate content; users need to know which pixels are guesses.</li></ol>
+      <div class="cite">Synthesis from §3-§6; metrics from Tab.2-5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · highlighted source lines</div>
+      <div class="hl"><p class="hl__en">“Despite looking visually distinct, artifacts from different representations share a common property: they all deviate from the manifold of natural videos, while preserving the underlying camera trajectory and coarse scene layout.”</p><p class="hl__zh">「不同 representation 的 artifact 外觀不同，但共同點是偏離自然影片流形，同時還保留相機軌跡與粗略場景結構。」<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">“A per-frame binary mask distinguishes clean reference frames ... from degraded frames ..., anchoring each restoration to known high-quality views.”</p><p class="hl__zh">「逐幀 binary mask 把可信任的 clean frames 和需要修復的 degraded frames 分開，讓修復錨定在已知高品質視角。」<span class="hl__src">Abstract pp.1-2</span></p></div>
+      <div class="hl"><p class="hl__en">“The mean PSNR over the most-confident 25% of pixels is 25.7 dB versus 14.4 dB over the least-confident 25%.”</p><p class="hl__zh">「最有信心 25% 像素平均 PSNR 是 25.7 dB，最低信心 25% 是 14.4 dB。」<span class="hl__src">§5 p.14</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · exact benchmark citations</div>
+      <h2 class="head">Numbers used in the deck</h2>
+      <ul class="bullets"><li>Tab.1 p.12: DL3DV 3/6/9-view PSNR, SSIM, LPIPS for baselines and FixAnything input representations.</li><li>Tab.2 p.12: Flow-DPO ablation; SFT only 17.51 / 0.554 / 0.296 / 61.12 vs +DPO 17.65 / 0.561 / 0.289 / 68.32.</li><li>Tab.3 p.12: mask ablation; No mask 16.37 / 0.525 / 0.311 vs With mask 17.65 / 0.561 / 0.289.</li><li>Tab.4 p.14: training data volume; 20 to 500 paired videos.</li><li>Tab.5 p.14: denoising steps; 5 steps 31s vs 50 steps 309s for 61-frame 480x832 on one H100.</li></ul>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow: Compute acceleration</h2>
+      <p class="end__sub">週四輪轉會看 Attention, kernel, hardware, or serving-side acceleration.</p>
+      <div class="end__next">今天的核心：FixAnything 用 video prior 把 3D rendering cleanup 從 specialist system 變成 generalist conditioning problem。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
