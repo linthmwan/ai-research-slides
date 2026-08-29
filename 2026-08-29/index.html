@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decoupling Planning and Control for Instructable Agents</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Agent / Multimodal Systems · 2026-08-29</div>
+      <h1 class="title">Decoupling Planning and Control for Instructable Agents</h1>
+      <div class="authors">Zineng Tang · Kelsey R. Allen · Sjoerd van Steenkiste · Ishita Dasgupta · Alane Suhr</div>
+      <div class="meta-row"><span class="badge tier">COLM 2026 conference paper</span><span class="badge date">arXiv 2608.26788v1 · 2026-08-27</span><span class="badge">Embodied VLM agents</span></div>
+      <p class="lead">把 <b>slow VLM planning</b> 和 <b>fast world-model control</b> 分開：VLM 只產生稀疏語言指令，controller 以控制頻率執行。</p>
+      <div class="cite">Source: cover p.1; Abstract p.1; Intro p.2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">這篇的核心不是「讓 VLM 直接操控」，而是把 VLM 降成 <b>planner</b>，把低延遲動作交給可訓練的 <b>controller</b>。</p>
+      <div class="takeaway">結果：planner 可替換、multi-agent 可用語言協調，且不用把 VLM fine-tune 到每個低階 action space。</div>
+      <div class="cite">Abstract p.1; Intro p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">VLM 會想，但低階控制太慢；world model 會動，但抽象指令太弱</h2>
+      <ul class="bullets"><li>VLM/VLA 能從視覺和任務文字產生 decomposition/subgoals，但直接輸出高頻、環境特定 action stream 很吃力。</li><li>Dreamer-style world-model controller 能從 pixels 做穩定控制，卻不容易用 open-ended language steering。</li><li>多智能體任務還需要角色協商與溝通；純 controller 不處理語言，中央 planner 又容易成為瓶頸。</li><li>作者的切入點：不要把「理解任務」和「每一步操作」塞進同一個模型。</li></ul>
+      <div class="cite">Intro p.1–2; Overview p.3; §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">Instruct-to-Act 的四個工程主張</h2>
+      <ol class="numbered"><li><b>Planner-controller interface:</b> pretrained VLM planner 產生自然語言 instruction；RSSM controller 接 observations + instruction embedding 產生 actions。</li><li><b>Post-hoc instruction supervision:</b> 用 VLM summarizer 替 on-policy replay segments 產生 instruction label，和 Dreamer losses 一起訓練。</li><li><b>Asynchronous online inference:</b> planner 在背景更新 draft plan；controller 不等 VLM，每一步照常執行。</li><li><b>Language multi-agent coordination:</b> controller 共享參數、各自 recurrent state；planner 透過 chatroom 協調。</li></ol>
+      <div class="cite">Overview p.3; Method §3.1–3.4 p.3–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System overview</div>
+      <h2 class="head">Figure-first：Planner 只下語言任務，Controller 負責 action stream</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure1_p2.jpg" alt="Instruct-to-Act overview"><figcaption>Inference with a VLM planner and trained controller. Planner emits sparse instructions; controller maps observations + instruction to low-level actions.</figcaption></figure>
+      <div class="takeaway">這個 split 讓慢速 reasoning 不再卡住每個 environment step。</div>
+      <div class="cite">Figure 1 p.2; §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Formal interface</div>
+      <h2 class="head">用語言 instruction X 當 planner 和 controller 的邊界</h2>
+      <div class="formula">π<sub>p</sub>: Ω → ΔX &nbsp;&nbsp; / &nbsp;&nbsp; π<sub>c</sub>: Ω × X → ΔA</div>
+      <div class="formula">x ~ π<sub>p</sub>(·|o), &nbsp; a<sub>i</sub> ~ π<sub>c</sub>(·|o<sub>i</sub>, x)</div>
+      <ul class="bullets"><li>X 是所有自然語言 utterances；planner 不需要知道環境的 primitive action vocabulary。</li><li>controller 在 instruction 尚未更新時可用 learned null embedding 或上一個 instruction 繼續行動。</li><li>額外的 instruction-completion action/head 讓 controller 表示「現在可以要下一個 instruction」。</li></ul>
+      <div class="cite">Overview p.3; §3.1–3.2 p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">真正的效率增益來自 <b>時間解耦</b>：VLM latency 只影響「下一個高階指令」，不再影響「每一步控制」。</p>
+      <div class="takeaway">這也是為什麼 online planning 可以提高 throughput，卻不必犧牲 low-level execution。</div>
+      <div class="cite">§3.1 p.4; Table 9 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Asynchronous inference</div>
+      <h2 class="head">Online planner 在背景思考；controller 沒有 blocking step</h2>
+      <div class="two-col"><div><div class="sub">Offline / blocking</div><ul class="bullets"><li>controller 完成 instruction 後，等待 planner 產生下一個 instruction。</li><li>每個 instruction boundary 都繼承 VLM latency。</li><li>Minecraft Diamond blocking steps mean = 35.4。</li></ul></div><div><div class="sub">Online / asynchronous</div><ul class="bullets"><li>planner 持續更新 memory bank + partial plan。</li><li>controller 完成時，planner 只需吐出少量 tokens。</li><li>Minecraft Diamond blocking steps mean = 0.0。</li></ul></div></div>
+      <div class="cite">§3.1 p.4; Table 9 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Multi-agent</div>
+      <h2 class="head">多智能體不是訓練 centralized critic，而是讓 planners 用語言分工</h2>
+      <ul class="bullets"><li>每個 agent 有自己的 planner instance 和 controller latent state；controller 參數共享。</li><li>planner 可收 peer messages、向 controller 下 instruction，也可對其他 agent 發訊息。</li><li>controllers 不讀 planner 間的 chat；協調壓力留在語言層。</li><li>Pico Park 中 decentralized communication 提升 task performance，同時維持與 centralized control 等同 throughput。</li></ul>
+      <div class="cite">§3.1 p.4; §4.4 p.7; A.7 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Controller architecture</div>
+      <h2 class="head">Language-conditioned DreamerV3-style RSSM</h2>
+      <div class="two-col"><div><div class="sub">Inputs / encoders</div><ul class="bullets"><li>Visual features: CLIP-base-224 + DINOv2-base。</li><li>Language embeddings: MiniLM-L6-H384-uncased。</li><li>Frozen text encoder maps x<sub>t</sub> → e<sub>t</sub>。</li></ul></div><div><div class="sub">Policy/value conditioning</div><ul class="bullets"><li>e<sub>t</sub> 被投影後與 RSSM latent features concatenated。</li><li>policy/value heads 都 conditioned on `(s<sub>t</sub>, e<sub>t</sub>)`。</li><li>no-instruction path 使用 learned null embedding。</li></ul></div></div>
+      <div class="formula">π(a|s<sub>t</sub>, e<sub>t</sub>) = Softmax(ℓ(s<sub>t</sub>, e<sub>t</sub>)/τ)<sub>a</sub></div>
+      <div class="cite">§3.2 p.4; §4.1 p.6; A.3 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Stop head</div>
+      <h2 class="head">controller 何時完成 instruction，由一個 completion head 學出來</h2>
+      <div class="formula">p<sup>stop</sup><sub>t</sub> = σ(g(s<sub>t</sub>, e<sub>t</sub>))</div>
+      <ul class="bullets"><li>actor output space 增加「instruction completed」indicator。</li><li>每個被標註 replay interval 只有最後一步 `complete=1`。</li><li>這個 head 是 asynchronous planner 的觸發點：完成時才要求下一個 instruction。</li></ul>
+      <div class="cite">§3.2 p.4; §3.4 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training</div>
+      <h2 class="head">Post-hoc annotation：不用 expert demos，把自己的 rollout 轉成 instruction labels</h2>
+      <ol class="numbered"><li>收集 on-policy rollouts 到 FIFO replay buffer，capacity |D|=1024。</li><li>抽取不重疊、可變長 interval；給 VLM summarizer 看 frames + action-sequence text。</li><li>VLM 產生高階 instruction x；整段 interval 的 tuple 都配上 e，最後一步標 complete=1。</li><li>50% replay segments annotated；剩下未標註，保留 autonomous reward learning。</li></ol>
+      <div class="formula">L = L<sub>model</sub> + λ<sub>V</sub>L<sub>value</sub> + λ<sub>A</sub>L<sub>actor</sub> + L<sub>BC</sub> + L<sub>stop</sub></div>
+      <div class="cite">§3.4 p.5–6; §4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h2 class="head">七個環境測的是「可插拔 VLM planner」而不是單一 domain trick</h2>
+      <ul class="bullets"><li>Environments: Atari, MineRL Minecraft Diamond, Crafter, DMLab, Overcooked, Pico Park, MindCraft。</li><li>每組 100 episodes 或使用該任務標準 protocol；no exploration noise，temperature τ=0.8。</li><li>Main controller: 800M variant；GPT-4o annotates 50% replay segments。</li><li>平均每環境訓練約 23 GPU-hours on 4 RTX A6000；annotation 額外 +17% GPU-hours / +12% slowdown。</li></ul>
+      <div class="cite">§4.1–4.2 p.6; A.4 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result</div>
+      <h2 class="head">同樣 observation/action space 下，planner+controller 明顯勝過 direct VLM / controller-only</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Atari</th><th class="num">MC-Dia</th><th class="num">Crafter</th><th class="num">DML</th><th class="num">MindC</th></tr></thead><tbody><tr class="win"><td>Ours + GPT-4o</td><td class="num best">891</td><td class="num best">11.7</td><td class="num best">14.1</td><td class="num">76</td><td class="num best">70.2</td></tr><tr><td>Ours + Qwen-VL-2.5-72B</td><td class="num">878</td><td class="num">11.1</td><td class="num">13.4</td><td class="num best">77</td><td class="num">58.5</td></tr><tr><td>GPT-4o w/o controller</td><td class="num">670</td><td class="num">10.4</td><td class="num">8.7</td><td class="num">56</td><td class="num">50.2</td></tr><tr><td>Controller-only</td><td class="num">809</td><td class="num">8.2</td><td class="num">12.6</td><td class="num">67</td><td class="num">40.0</td></tr><tr><td>DreamerV3</td><td class="num">811</td><td class="num">8.6</td><td class="num">10.5</td><td class="num">65</td><td class="num">-</td></tr></tbody></table>
+      <p class="note">表中只摘單智能體與 MindCraft 核心欄位；完整 Table 1 還含 Overcooked / Pico Park。</p>
+      <div class="cite">Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Claim boundary</div>
+      <h2 class="head">控制 claim 在 matched ablations：不是說它打爆每個專用系統</h2>
+      <ul class="bullets"><li>作者把 baselines 分成 reproduced、domain-adapted、contextual，避免把不公平比較當主張。</li><li>最乾淨的證據是：同樣 planner 或 controller 條件下，移除 controller / 移除 instruction 都掉分。</li><li>GPT-4o sparse instructions + trained controller 在所有任務上優於 GPT-4o 直接產生低階 actions。</li><li>與 JARVIS-1 等 Minecraft-specific 系統相比仍有競爭力，但論文主張重點是跨異質環境的 reusable recipe。</li></ul>
+      <div class="cite">§4.3 p.6–7; Table 1 p.7; A.6 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scaling / efficiency</div>
+      <h2 class="head">Figure 2：agent scaling 與 online planning 都在測 performance-throughput frontier</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure2_p7.jpg" alt="Performance and efficiency scaling"><figcaption>Per-setting performance and efficiency for agent scaling in Pico Park and planning modes in Minecraft Diamond.</figcaption></figure>
+      <div class="takeaway">離線 VLM planning 的瓶頸會直接反映在 throughput；online split 把這個瓶頸削掉。</div>
+      <div class="cite">Figure 2 p.7; §4.4 p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Online vs offline</div>
+      <h2 class="head">Table 9 把 asynchronous gain 量化：Minecraft 2.8x、Overcooked 1.8x</h2>
+      <table class="bench"><thead><tr><th>Environment</th><th class="num">Online steps/s</th><th class="num">Offline steps/s</th><th class="num">Gain</th><th class="num">Staleness mean</th></tr></thead><tbody><tr><td>Minecraft Diamond</td><td class="num best">37.5</td><td class="num">13.4</td><td class="num best">2.8x</td><td class="num">51.2 steps</td></tr><tr><td>Overcooked</td><td class="num best">169.9</td><td class="num">92.7</td><td class="num best">1.8x</td><td class="num">165.1 steps</td></tr></tbody></table>
+      <ul class="bullets"><li>Minecraft offline 有 35.4 mean blocking steps；online 是 0.0。</li><li>staleness 只影響下一個 high-level instruction；controller 仍持續 low-level control。</li></ul>
+      <div class="cite">Table 9 p.17; A.6 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Annotation quality</div>
+      <h2 class="head">語義 instruction 真的有用；random strings 幾乎退回 no-instruction</h2>
+      <table class="bench"><thead><tr><th>Train-time instruction type</th><th class="num">Diamond score</th></tr></thead><tbody><tr class="win"><td>Environment-derived labels</td><td class="num best">11.4</td></tr><tr><td>VLM-generated</td><td class="num">11.1</td></tr><tr><td>Template-based instructions</td><td class="num">9.9</td></tr><tr><td>Clustered action labels</td><td class="num">8.9</td></tr><tr><td>Random strings</td><td class="num">8.3</td></tr><tr><td>No instructions</td><td class="num">8.2</td></tr></tbody></table>
+      <div class="takeaway">environment-derived labels 稍高，但要環境 metadata；VLM annotation 只需 raw observations，比較可遷移。</div>
+      <div class="cite">Table 2 p.8; §4.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Planner transfer</div>
+      <h2 class="head">Cross-planner matrix：controller 沒有嚴重 overfit annotator 的語氣</h2>
+      <table class="bench"><thead><tr><th>Annotator → Eval</th><th class="num">Gemma</th><th class="num">Qwen</th><th class="num">GPT</th></tr></thead><tbody><tr><td>Gemma</td><td class="num">9.6</td><td class="num">9.2</td><td class="num best">10.2</td></tr><tr><td>Qwen</td><td class="num">9.7</td><td class="num">9.9</td><td class="num">9.9</td></tr><tr><td>GPT</td><td class="num">9.8</td><td class="num">9.6</td><td class="num">10.0</td></tr></tbody></table>
+      <div class="takeaway">9.2–10.2 的範圍支持「語言 interface」不是單一 planner prompt 的 memorization。</div>
+      <div class="cite">Table 3 p.8; §4.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Planner timing</div>
+      <h2 class="head">讓 VLM 決定何時換 instruction，比固定 cadence 更好</h2>
+      <table class="bench"><thead><tr><th>Planner</th><th class="num">Fixed cadence</th><th class="num">Fully VLM-controlled</th><th class="num">VLM proactiveness</th></tr></thead><tbody><tr><td>Gemma</td><td class="num">8.86</td><td class="num">9.89</td><td class="num best">10.12</td></tr><tr><td>Qwen</td><td class="num">9.32</td><td class="num">10.12</td><td class="num best">10.23</td></tr><tr class="win"><td>GPT-4o</td><td class="num">9.60</td><td class="num">10.52</td><td class="num best">10.75</td></tr></tbody></table>
+      <p class="note">Minecraft Diamond；VLM-decided proactiveness 使用 uncertainty threshold 且 minimum gap 32 steps。</p>
+      <div class="cite">Table 6 p.16; A.5 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Controller ablation</div>
+      <h2 class="head">不是只有 RSSM 可行，但 world-model structure 仍是關鍵</h2>
+      <table class="bench"><thead><tr><th>Controller architecture</th><th class="num">Diamond score</th></tr></thead><tbody><tr class="win"><td>Transformer world model</td><td class="num best">11.2</td></tr><tr><td>Dreamer-V3-style RSSM (ours)</td><td class="num">11.0</td></tr><tr><td>Value-only world model</td><td class="num">10.2</td></tr><tr><td>RNN policy (model-free)</td><td class="num">9.7</td></tr></tbody></table>
+      <div class="takeaway">機制不是某個 RSSM 實作魔法，而是「instruction-conditioned world-model control」這個類別。</div>
+      <div class="cite">Table 7 p.16; A.5 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reliability</div>
+      <h2 class="head">Controller instruction-following accuracy 大約 86–97%，但 vague instruction 仍會壞</h2>
+      <table class="bench"><thead><tr><th>Task</th><th class="num">Gemma</th><th class="num">Qwen</th><th class="num">GPT-4o</th></tr></thead><tbody><tr class="win"><td>Minecraft Diamond</td><td class="num">193/200</td><td class="num">190/200</td><td class="num best">194/200</td></tr><tr><td>Pico Park</td><td class="num">186/200</td><td class="num">180/200</td><td class="num">189/200</td></tr><tr><td>Atari</td><td class="num">181/200</td><td class="num">172/200</td><td class="num">185/200</td></tr></tbody></table>
+      <p class="note">常見失敗來自 “explore a bit more” 這類 vague / underspecified instructions。</p>
+      <div class="cite">Table 8 p.16; A.5 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Throughput</div>
+      <h2 class="head">與緊耦合 VLA / Minecraft agents 相比，sparse planner query 保住 env steps/s</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Throughput</th></tr></thead><tbody><tr class="win"><td>Instruct-to-Act (Qwen-2.5-VL-72B)</td><td class="num best">31.7</td></tr><tr><td>JARVIS-1</td><td class="num">26.0</td></tr><tr><td>LS-Imagine</td><td class="num">23.7</td></tr><tr><td>DEPS</td><td class="num">20.5</td></tr><tr><td>RT-2</td><td class="num">16.2</td></tr></tbody></table>
+      <div class="takeaway">controller 每步執行、planner 稀疏查詢，是 throughput ranking 的主因。</div>
+      <div class="cite">Table 5 p.15; A.5 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training dynamics</div>
+      <h2 class="head">Composite loss 沒有崩：BC 後期變主導，但 world model 仍穩定</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure4_p19.jpg" alt="Training loss curves"><figcaption>Training curves of world-model reward, behavior cloning, policy and dynamics objectives for a 200M-parameter controller.</figcaption></figure>
+      <div class="takeaway">作者觀察到 policy 與 behavior-cloning objectives 持續改善，沒有單一 component collapse/diverge。</div>
+      <div class="cite">Figure 4 p.19; A.10 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure mode</div>
+      <h2 class="head">Multi-agent bottleneck 已經從 controller 轉移到 planner coordination</h2>
+      <div class="scorebox"><span class="score score--lo">96/100</span><span class="score score--hi">3/100</span></div>
+      <ul class="bullets"><li><b>96/100</b> failure windows：near-duplicate sub-task assignments across agents。</li><li><b>3/100</b> windows：controller instruction-following failures。</li><li>這很重要：系統真正剩下的痛點不是低階 actuator，而是 planner 層的協調策略。</li></ul>
+      <div class="cite">A.7 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">這條路可用，但還不是 general-purpose embodied agent</h2>
+      <ul class="bullets"><li>每個 environment 仍需訓練一個 800M controller；平均約 23 GPU-hours，一次 joint controller 在 Minecraft Diamond 掉 1.12 points。</li><li>asynchrony 帶來 instruction staleness：Minecraft 約 51 steps，Overcooked 約 165 steps。</li><li>vague instruction 會造成 locally suboptimal behavior，planner-controller alignment 還有空間。</li><li>多智能體主要失敗來自 duplicated subgoals；語言溝通本身不是完整協調演算法。</li></ul>
+      <div class="cite">§4.5 p.8; Table 9 p.17; A.5–A.7 p.16–17; Conclusion p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Engineering read</div>
+      <p class="big">如果要做可落地的 agent system，這篇提醒的是：<b>把 interface 做薄</b>，不要讓 foundation model 卡在控制迴路最內層。</p>
+      <div class="takeaway">把 VLM 放在「可慢、可替換、可觀察」的位置；把高頻控制交給專門 controller。這比把所有能力硬塞進單一模型更可 debug。</div>
+      <div class="cite">Related Work p.9; §3.1–3.4 p.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · key passage</div>
+      <h2 class="head">Planner-controller split 的一句話</h2>
+      <div class="hl"><p class="hl__en">The VLM planner plans and issues instructions concurrently with low-level execution, without the need for finetuning.</p><p class="hl__zh">VLM planner 在低階控制執行的同時規劃並發出指令，不需要 fine-tuning。<span class="hl__src">Intro p.2</span></p></div>
+      <div class="cite">Intro p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · key passage</div>
+      <h2 class="head">為什麼只標 50% replay segments</h2>
+      <div class="hl"><p class="hl__en">We annotate intervals covering 50% of the buffer, leaving the remaining unannotated so that the controller also learns to act autonomously from the environment reward R.</p><p class="hl__zh">只標註 replay buffer 的 50% 區間，其餘保留未標註，讓 controller 也能從環境 reward 學到自主行動。<span class="hl__src">§3.4 p.5</span></p></div>
+      <div class="cite">§3.4 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · key passage</div>
+      <h2 class="head">核心 controlled comparison</h2>
+      <div class="hl"><p class="hl__en">Using GPT-4o to generate sparse instructions executed by a trained controller, rather than directly producing low-level actions, improves performance on every task.</p><p class="hl__zh">讓 GPT-4o 產生稀疏指令並交給訓練過的 controller 執行，而不是直接產生低階動作，在所有任務上都提升表現。<span class="hl__src">§4.3 p.6</span></p></div>
+      <div class="cite">§4.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · key passage</div>
+      <h2 class="head">Asynchrony 的收益與代價</h2>
+      <div class="hl"><p class="hl__en">Online planning achieves 2.8× higher throughput on Minecraft Diamond and 1.8× on Overcooked.</p><p class="hl__zh">online planning 在 Minecraft Diamond 達到 2.8x throughput，在 Overcooked 達到 1.8x。<span class="hl__src">A.6 p.17</span></p></div>
+      <div class="hl"><p class="hl__en">Planner-level coordination failure dominates: 96 of 100 failure windows show near-duplicate sub-task assignments...</p><p class="hl__zh">主要失敗不是 controller，而是 planner 協調：100 個失敗窗口中有 96 個出現近似重複的子任務分派。<span class="hl__src">A.7 p.17</span></p></div>
+      <div class="cite">A.6–A.7 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">明日輪轉</h2>
+      <p class="end__sub">週日：火爆 GitHub Repo 或公司技術報告</p>
+      <div class="end__next">今天的 takeaway：agent system 的瓶頸不只在模型能力，也在你把模型放進迴圈的哪一層。</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
