@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JavisDiT++: Unified Modeling and Optimization for Joint Audio-Video Generation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 2026-09-02 · Video / Temporal Models</div>
+      <h1 class="title">JavisDiT++: Unified Modeling and Optimization for Joint Audio-Video Generation</h1>
+      <div class="authors">Kai Liu, Yanhao Zheng, Kai Wang, Shengqiong Wu, Rongjunchen Zhang, Jiebo Luo, Dimitrios Hatzinakos, Ziwei Liu, Hao Fei, Tat-Seng Chua</div>
+      <p class="lead">ICLR 2026 poster · Native text-to-audio-video generation built on Wan2.1-1.3B-T2V.</p>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge">arXiv:2602.19163</span><span class="badge">JAVG</span><span class="badge">Wan2.1 backbone</span></div>
+      <div class="cite">Source: cover p.1; Abstract pp.1-2; project page listed in paper</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">A 2.1B open JAVG model beats larger prior systems by making <b>time shared</b>, <b>modalities separated</b>, and <b>preference pairs modality-aware</b>.</p>
+      <div class="sub">The interesting part is not one module; it is the decomposition: attention exchanges audio-video information, FFNs preserve modality-specific detail, RoPE locks time, and AV-DPO cleans preference alignment.</div>
+      <div class="cite">Abstract pp.1-2; Intro pp.2-3; Tab.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">Open JAVG was stuck between quality, synchrony, and system simplicity</h2>
+      <ul class="bullets"><li>Existing open-source JAVG lags Veo3-like proprietary systems in <b>quality</b>, <b>temporal synchrony</b>, and <b>human preference alignment</b>.</li><li>Unified-latent designs may erase modality-specific information; two-stream / intermediate-fusion designs add architectural complexity and inference cost.</li><li>Audio and video have incompatible native coordinates: video is temporal-height-width, audio is time-frequency.</li><li>Averaged preference scores can select a “winner” that improves video while worsening audio, which is a bad signal for joint generation.</li></ul>
+      <div class="takeaway">The paper reframes JAVG as a coordination problem across architecture, position encoding, and preference data.</div>
+      <div class="cite">Abstract p.1; Related Work p.3; §3.1-3.4 pp.4-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Design target</div>
+      <h2 class="head">Do not stitch two models; extend a strong T2V backbone carefully</h2>
+      <div class="two-col"><div><h1 class="title">What they keep</h1><ul class="bullets"><li>Wan2.1-1.3B-T2V DiT backbone</li><li>Wan2.1 video VAE</li><li>AudioLDM2 audio VAE</li><li>umT5-xxl text encoder with 512 context length</li></ul></div><div><h1 class="title">What they add</h1><ol class="numbered"><li><b>MS-MoE</b>: modality-specific FFN experts after shared attention</li><li><b>TA-RoPE</b>: audio-video time alignment by position IDs</li><li><b>AV-DPO</b>: modality-aware preference alignment for rectified flows</li></ol></div></div>
+      <div class="cite">§3.2 p.5; App. B.1 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">Three moves, each attacking a different failure mode</h2>
+      <ol class="numbered"><li><b>Unified but modality-aware DiT</b>: concatenate tokens for full self-attention, then route audio/video tokens into separate FFNs.</li><li><b>Temporally aligned RoPE</b>: audio tokens share a video-time axis but avoid position-ID collisions in non-time axes.</li><li><b>AV-DPO</b>: select winner-loser pairs only when rewards improve consistently across modality-aware dimensions.</li><li><b>Efficient recipe</b>: about 1M public entries, 2-5s and 240p-480p support, final 2.1B model.</li></ol>
+      <div class="cite">Intro p.3; §3.2-3.4 pp.4-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture</div>
+      <h2 class="head">Shared attention exchanges information; modality-specific FFNs prevent interference</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure3_p4.jpg" alt="Architecture of JavisDiT++"><figcaption>Figure 3: JavisDiT++ architecture. Audio/video tokens interact through self-attention, then gather into separate Audio FFN and Video FFN branches.</figcaption></figure>
+      <div class="cite">Fig.3 p.4; §3.2 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MS-MoE mechanism</div>
+      <h2 class="head">Deterministic expert routing is enough because modality is known</h2>
+      <div class="two-col"><div><h1 class="title">Why not one FFN?</h1><ul class="bullets"><li>Shared-DiT + LoRA lacks trainable capacity for audio adaptation.</li><li>Shared-DiT + Full-FT shifts too many pretrained parameters and degrades video priors.</li><li>A single FFN forces audio and video tokens to fight for the same intra-modal modeling space.</li></ul></div><div><h1 class="title">Why MS-MoE?</h1><ul class="bullets"><li>Attention handles cross-modal exchange.</li><li>FFNs specialize after interaction, not before.</li><li>Total params grow 1.3B -> 2.1B, but activated params per token stay 1.3B.</li></ul></div></div>
+      <div class="takeaway">This is MoE as architectural separation, not MoE as learned routing.</div>
+      <div class="cite">§3.2 p.5; Tab.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TA-RoPE</div>
+      <h2 class="head">Audio tokens borrow the video time axis, then move away in the other axes</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure4_p5.jpg" alt="TA-RoPE timeline and position IDs"><figcaption>Figure 4: temporal-aligned RoPE maps video frames and audio windows onto a unified timeline while separating the remaining coordinates.</figcaption></figure>
+      <div class="cite">Fig.4 p.5; §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TA-RoPE formula</div>
+      <h2 class="head">The formula encodes two constraints: shared time, non-overlap elsewhere</h2>
+      <div class="formula">R<sub>a</sub>(t,m) = (round(t·T<sub>v</sub>/T<sub>a</sub>), t + H, m + W)</div>
+      <ul class="bullets"><li><b>round(t·T<sub>v</sub>/T<sub>a</sub>)</b>: aligns audio timestamp to the corresponding video temporal ID.</li><li><b>t + H, m + W</b>: offsets the audio time-frequency plane away from video height-width IDs.</li><li>Full attention means they can emulate temporal interleaving with IDs; physical token reorder is unnecessary.</li></ul>
+      <div class="takeaway">Synchrony is handled by geometry in position space, not by a separate slow alignment block.</div>
+      <div class="cite">Eq.(4) p.5; §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">AV-DPO pipeline</div>
+      <h2 class="head">Preference data is built from multimodal reward dimensions, not a single scalar</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure5_p6.jpg" alt="AV-DPO data collection and training pipeline"><figcaption>Figure 5: reward models score audio quality, video quality, text alignment, AV alignment, and AV synchrony before forming winning-losing pairs.</figcaption></figure>
+      <div class="cite">Fig.5 p.6; §3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Preference construction</div>
+      <h2 class="head">The subtle part: chosen pairs must be modality-consistent</h2>
+      <ol class="numbered"><li>Collect a 30K prompt pool outside the SFT training data.</li><li>Reference model generates N=3 audio-video candidates per prompt; ground-truth pairs are added as candidates.</li><li>Reward models cover audio quality, video/motion quality, text-audio/text-video alignment, AV semantic alignment, and temporal synchrony.</li><li>Keep a winner-loser pair only when modality-aware reward sums rank the winner higher across relevant dimensions.</li></ol>
+      <div class="scorebox"><span class="score score--hi">30K prompts</span><span class="score">N=3 candidates</span><span class="score score--hi">~25K pairs</span><span class="score">~30% generated winners</span></div>
+      <div class="cite">§3.4 p.6; Eq.(5) p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training recipe</div>
+      <h2 class="head">Three stages keep the base video model stable while adding audio and preference alignment</h2>
+      <table class="bench"><thead><tr><th>Stage</th><th class="num">Trainable params</th><th class="num">Samples</th><th class="num">LR</th><th class="num">Epochs</th><th class="num">GPU-days</th></tr></thead><tbody><tr><td>Audio PreTrain</td><td class="num">794M</td><td class="num">780K</td><td class="num">1e-4</td><td class="num">50</td><td class="num">16</td></tr><tr><td>Audio-Video SFT</td><td class="num">121M</td><td class="num">330K</td><td class="num">1e-4</td><td class="num">2</td><td class="num">16</td></tr><tr><td>Audio-Video DPO</td><td class="num">121M</td><td class="num">25K</td><td class="num">1e-5</td><td class="num">1</td><td class="num">3</td></tr></tbody></table>
+      <div class="takeaway">Most cost is spent before DPO; preference alignment is a small final stage, not the whole method.</div>
+      <div class="cite">Tab.A1 p.18; App. B.2 pp.18-19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result</div>
+      <h2 class="head">JavisDiT++ is smaller, faster, and stronger on the key JAVG metrics</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Size</th><th class="num">FVD↓</th><th class="num">FAD↓</th><th class="num">JavisScore↑</th><th class="num">DeSync↓</th><th class="num">Runtime↓</th></tr></thead><tbody><tr><td>JavisDiT</td><td class="num">3.1B</td><td class="num">204.1</td><td class="num">7.2</td><td class="num">0.154</td><td class="num">1.039</td><td class="num">30s</td></tr><tr><td>UniVerse-1</td><td class="num">6.4B</td><td class="num">194.2</td><td class="num">8.7</td><td class="num">0.077</td><td class="num">0.929</td><td class="num">13s</td></tr><tr class="win"><td>JavisDiT++</td><td class="num">2.1B</td><td class="num best">141.5</td><td class="num best">5.5</td><td class="num best">0.159</td><td class="num best">0.832</td><td class="num best">10s</td></tr></tbody></table>
+      <div class="cite">Tab.1 p.7; §4.2 pp.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result interpretation</div>
+      <h2 class="head">The win is not just quality; it is the full frontier</h2>
+      <div class="two-col"><div><h1 class="title">Quality / consistency</h1><ul class="bullets"><li>FVD 141.5 vs 194.2 for UniVerse-1 and 204.1 for JavisDiT.</li><li>FAD 5.5 beats the open JAVG baselines in Tab.1.</li><li>CLIP 0.316 and CLAP 0.424 indicate stronger text-video/text-audio consistency.</li></ul></div><div><h1 class="title">Synchrony / runtime</h1><ul class="bullets"><li>JavisScore 0.159 and DeSync 0.832 are the best shown among T2AV models in Tab.1.</li><li>Runtime 10s is faster than JavisDiT 30s and UniVerse-1 13s.</li><li>Qualitative page reports only 1.6% extra inference cost over Wan2.1 backbone.</li></ul></div></div>
+      <div class="cite">Tab.1 p.7; Fig.6 and §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation: architecture</div>
+      <h2 class="head">MS-MoE is the best compromise between audio capacity and video preservation</h2>
+      <table class="bench"><thead><tr><th>Design</th><th class="num">FVD↓</th><th class="num">FAD↓</th><th class="num">AV-IB↑</th><th class="num">JavisScore↑</th><th class="num">DeSync↓</th></tr></thead><tbody><tr><td>Shared-DiT + LoRA</td><td class="num">227.6</td><td class="num">6.51</td><td class="num">0.127</td><td class="num">0.098</td><td class="num">0.934</td></tr><tr><td>Shared-DiT + Full-FT</td><td class="num">269.3</td><td class="num">5.66</td><td class="num">0.164</td><td class="num">0.137</td><td class="num">0.945</td></tr><tr class="win"><td>MS-MoE</td><td class="num best">221.3</td><td class="num best">5.51</td><td class="num best">0.194</td><td class="num best">0.153</td><td class="num best">0.807</td></tr></tbody></table>
+      <div class="takeaway">Full finetuning improves audio less than expected and damages video; separate FFNs protect the pretrained T2V prior.</div>
+      <div class="cite">Tab.2 p.8; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation: synchrony</div>
+      <h2 class="head">TA-RoPE gets almost all the synchrony benefit with zero latency penalty</h2>
+      <table class="bench"><thead><tr><th>Mechanism</th><th class="num">JavisScore↑</th><th class="num">DeSync↓</th><th class="num">Latency↓</th></tr></thead><tbody><tr><td>None</td><td class="num">0.142</td><td class="num">0.942</td><td class="num">1m4s</td></tr><tr><td>ST-Prior</td><td class="num">0.145</td><td class="num">0.863</td><td class="num">1m10s</td></tr><tr><td>FrameAttn</td><td class="num">0.124</td><td class="num">0.850</td><td class="num">1m22s</td></tr><tr class="win"><td>TA-RoPE</td><td class="num best">0.153</td><td class="num best">0.807</td><td class="num best">1m4s</td></tr><tr><td>TA-RoPE + FrameAttn</td><td class="num">0.151</td><td class="num">0.802</td><td class="num">1m22s</td></tr></tbody></table>
+      <div class="cite">Tab.3 p.9; §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">The core insight is <b>coordinate hygiene</b>: share only the temporal axis, never let audio frequency coordinates collide with video spatial coordinates.</p>
+      <div class="sub">Appendix D.1 confirms the mechanism: fractional audio IDs hurt audio quality; overlapping IDs hurt video; missing temporal alignment hurts synchrony.</div>
+      <div class="cite">§3.3 p.5; App. D.1 pp.22-24; Tab.A2 p.24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation: AV-DPO reward design</div>
+      <h2 class="head">Average ranking is too blunt for joint generation</h2>
+      <table class="bench" style="font-size:.86em;"><thead><tr><th>Reward design</th><th class="num">FVD↓</th><th class="num">FAD↓</th><th class="num">TV-IB↑</th><th class="num">TA-IB↑</th><th class="num">AV-IB↑</th><th class="num">JavisScore↑</th><th class="num">DeSync↓</th></tr></thead><tbody><tr><td>None baseline</td><td class="num">221.3</td><td class="num">5.51</td><td class="num">0.283</td><td class="num">0.163</td><td class="num">0.194</td><td class="num">0.153</td><td class="num">0.807</td></tr><tr><td>Average-Micro</td><td class="num">199.7</td><td class="num">5.28</td><td class="num">0.281</td><td class="num">0.166</td><td class="num">0.199</td><td class="num">0.154</td><td class="num">0.810</td></tr><tr class="win"><td>Modality-Micro</td><td class="num best">198.5</td><td class="num">5.32</td><td class="num best">0.284</td><td class="num best">0.168</td><td class="num best">0.201</td><td class="num best">0.156</td><td class="num best">0.776</td></tr><tr><td>Modality-Micro w/o gt</td><td class="num">234.7</td><td class="num">5.43</td><td class="num">0.281</td><td class="num">0.164</td><td class="num">0.197</td><td class="num">0.154</td><td class="num">0.833</td></tr></tbody></table>
+      <div class="cite">Tab.4 p.10; §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Human evaluation</div>
+      <h2 class="head">Subjective preference agrees with the objective tables</h2>
+      <div class="scorebox"><span class="score">100 prompts</span><span class="score">3 volunteers / pair</span><span class="score score--hi">>70% win vs baselines</span><span class="score score--hi">+25% preferred with DPO</span></div>
+      <ul class="bullets"><li>Annotators perform blind win-tie-lose comparisons over generated outputs.</li><li>Ours wins more than 70% against both JavisDiT and UniVerse-1.</li><li>AV-DPO gives a visible subjective lift even when objective metrics improve modestly.</li></ul>
+      <div class="cite">Fig.8-Fig.9 p.10; §4.4 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scaling lesson</div>
+      <h2 class="head">For JAVG, “more data” and “higher quality data” both fail alone</h2>
+      <div class="two-col"><div><h1 class="title">Ablation finding</h1><ul class="bullets"><li>120K high-quality samples lack enough diversity for the hard audio-video transfer.</li><li>720K low-quality samples degrade the strong Wan2.1 prior.</li><li>330K medium-quality samples become the practical SFT trade-off.</li></ul></div><div><h1 class="title">Engineering implication</h1><ul class="bullets"><li>Do not blindly scale noisy sounding-video data.</li><li>Keep enough diversity before applying stronger quality thresholds.</li><li>Treat backbone prior preservation as a data-curation objective.</li></ul></div></div>
+      <div class="cite">App. D.2 pp.23-24; Tab.A3 p.24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h2 class="head">The paper is strong, but not a general multimodal generator yet</h2>
+      <ul class="bullets"><li>Training data is around 1M entries, which may limit scaling compared with proprietary systems.</li><li>The backbone is still 1.3B with parameter-efficient adaptation; larger backbones may capture subtler semantic-temporal correlations.</li><li>Full-parameter finetuning is not deeply explored because cost rises.</li><li>Fine-grained controllability over music, speech, rhythm, pitch, timbre, or lexical content remains future work.</li><li>A2V, V2A, and audio-image-to-video are named as future directions rather than solved tasks.</li></ul>
+      <div class="cite">App. A.1 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">For image / video engineers</div>
+      <h2 class="head">What is reusable beyond this paper</h2>
+      <ol class="numbered"><li><b>Separate interaction from specialization</b>: use shared attention for mixing, then separate FFNs for modality-specific refinement.</li><li><b>Encode alignment in coordinates when possible</b>: a good positional scheme can replace a slow alignment module.</li><li><b>Preference data must respect output structure</b>: if output has multiple coupled modalities, one scalar reward can be misleading.</li><li><b>Protect pretrained priors</b>: low-quality multimodal data can damage a strong visual backbone faster than it teaches synchrony.</li></ol>
+      <div class="cite">Synthesis from §3.2-3.4 and App. D.1-D.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight · architecture</div>
+      <div class="hl"><p class="hl__en">“we introduce a modality-specific mixture-of-experts (MS-MoE) design that enables cross-modal interaction efficacy while enhancing single-modal generation quality.”</p><p class="hl__zh">作者把音訊與影片的互動交給共享 attention，把各自的細節建模交給 modality-specific FFN。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">“although the total parameter size increases from 1.3B to 2.1B, the number of activated parameters per token remains 1.3B.”</p><p class="hl__zh">容量增加，但每個 token 實際啟用的參數量不變；這是 MS-MoE 的效率關鍵。<span class="hl__src">§3.2 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight · TA-RoPE</div>
+      <div class="hl"><p class="hl__en">“absolute temporal alignment is enforced along the first dimension (dimension 0) of the 3D position IDs for both audio and video tokens.”</p><p class="hl__zh">音訊與影片共享同一條時間軸，讓同步關係直接進入 RoPE 座標。<span class="hl__src">§3.3 p.5</span></p></div>
+      <div class="hl"><p class="hl__en">“we offset the original mel-spectrogram dimensions (Ta and M) by adding H and W, respectively.”</p><p class="hl__zh">非時間座標被刻意錯開，避免音訊頻率座標和影片空間座標互相污染。<span class="hl__src">§3.3 p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight · AV-DPO</div>
+      <div class="hl"><p class="hl__en">“winning pairs from our generated samples occupy around 30% of the total preference data.”</p><p class="hl__zh">參考模型本身已不弱，所以偏好資料不能只靠生成候選之間的微小差異；混入 ground truth 能穩定信號。<span class="hl__src">§3.4 p.6</span></p></div>
+      <div class="hl"><p class="hl__en">“applying modality-agnostic strategies like Average-Micro and Average-Macro fails to achieve consistent improvements.”</p><p class="hl__zh">JAVG 的偏好排序如果只平均成單一分數，很容易選到跨 modality 互相矛盾的勝者。<span class="hl__src">§4.3 p.9</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow: compute acceleration</h2>
+      <p class="end__sub">Attention, kernels, serving systems, or hardware-aware tricks — if discovery cooperates better than arXiv did today.</p>
+      <div class="end__next">Source artifacts: /Users/wanchanglin/projects/ai-research-slides-src/2026-09-02/</div>
+      <div class="cite">Daily rotation table: Thursday = compute acceleration</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
