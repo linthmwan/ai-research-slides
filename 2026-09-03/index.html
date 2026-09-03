@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BLASST: Dynamic BLocked Attention Sparsity via Softmax Thresholding</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · 2026-09-03 · Thursday / Compute Acceleration</div>
+      <h1 class="title">BLASST: Dynamic BLocked Attention Sparsity via Softmax Thresholding</h1>
+      <div class="authors">Jiayi Yuan*, Cameron Shinn*, Kai Xu, Jingze Cui, George Klimiashvili, Guangxuan Xiao, Perkz Zheng, Bo Li, Yuxin Zhou, Zhouhai Ye, Weijie You, Tian Zheng, Dominic Brown, Pengbo Wang, Markus Hoehnerbach, Richard Cai, Julien Demouth, John D. Owens, Xia Hu, Song Han, Timmy Liu, Huizi Mao</div>
+      <div class="meta-row"><span class="badge tier">MLSys 2026 Research Track</span><span class="badge">arXiv:2512.12087v3</span><span class="badge">Attention Kernel / Sparse Inference</span><span class="badge date">Announced 2026-04-28</span></div>
+      <p class="lead">A one-threshold sparse-attention gate that reuses FlashAttention online-softmax statistics to skip negligible blocks in both prefill and decode.</p>
+      <div class="cite">Source: Abstract / §1 p.1-2; MLSys 2026 official paper index.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">BLASST makes sparse attention feel like a kernel flag, not a new model.</p>
+      <div class="sub">One scalar threshold decides which attention blocks are too small after softmax; the kernel skips softmax, BMM2, and for decode the Value load from HBM.</div>
+      <div class="scorebox"><span class="score">1.52x prefill @ 71.9%</span><span class="score">1.48x decode @ 73.2%</span><span class="score">no pre-pass</span><span class="score">no retraining required</span></div>
+      <div class="cite">Source: Abstract p.1; §3.1.2 p.4; Table 5 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h2 class="head">FlashAttention optimized memory traffic, but it still computes dense attention.</h2>
+      <ul class="bullets"><li>Long-context LLMs push attention into the dominant latency and memory bottleneck; sequence lengths now reach 128K to 1M tokens.</li><li>FlashAttention improves tiling and kernel fusion, but the full QK<sup>T</sup> attention matrix is still evaluated.</li><li>Sparse methods promise relief, yet practical deployment often gets blocked by pre-computation, retraining, phase-specific support, or missing modern-GPU kernels.</li></ul>
+      <div class="takeaway">The paper is really about adoption friction: a sparse method must fit the serving stack, not just look good asymptotically.</div>
+      <div class="cite">Source: §1 p.1-2.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Prior work landscape</div>
+      <h2 class="head">BLASST positions itself as the only method in the comparison with all four deployment boxes checked.</h2>
+      <table class="bench"><thead><tr><th>Method</th><th>Prefill</th><th>Decode</th><th>No training</th><th>No pre-compute</th></tr></thead><tbody><tr><td>H2O / SnapKV</td><td>no</td><td>yes</td><td>yes</td><td>yes</td></tr><tr><td>MInference</td><td>yes</td><td>no</td><td>yes</td><td>no</td></tr><tr><td>XAttention</td><td>yes</td><td>no</td><td>yes</td><td>no</td></tr><tr><td>SpargeAttention</td><td>yes</td><td>no</td><td>yes</td><td>no</td></tr><tr class="win"><td>BLASST</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr></tbody></table>
+      <p class="note">The comparison is not just accuracy; it is whether the method can sit inside TensorRT-LLM / FlashInfer without an extra selection pass.</p>
+      <div class="cite">Source: Table 1 p.3; §2.1-2.3 p.3.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Core algorithm</div>
+      <h2 class="head">The skip condition is a softmax bound, evaluated at block granularity.</h2>
+      <div class="formula">Attention(Q,K,V)=softmax((QK<sup>T</sup>)/√d<sub>k</sub>)V</div>
+      <div class="formula">skip block if&nbsp; m̃<sub>block</sub> - m<sub>running</sub> &lt; ln(λ)  ⇒  exp(m̃<sub>block</sub> - m<sub>running</sub>) &lt; λ</div>
+      <ul class="bullets"><li>FlashAttention already keeps row-wise running maxima during online softmax.</li><li>BLASST adds one threshold comparison per block using local block maximum and running maximum.</li><li>If the block is far below the current maximum, its post-softmax contribution is bounded and treated as negligible.</li></ul>
+      <div class="cite">Source: §3.1.1 p.3-4; Algorithm 1 p.4.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">The gate is cheap because it does not predict importance; it observes a statistic the kernel already had.</p>
+      <div class="sub">That single design choice removes the proxy-score path, avoids extra passes, and makes the method compatible with tiled online softmax.</div>
+      <ul class="bullets"><li>Ideal score: relative to the global row max.</li><li>Tractable proxy: compare to the running max while streaming blocks.</li><li>Kernel decision: use the block-local max, so a whole tile can be skipped.</li></ul>
+      <div class="cite">Source: §3.1.1 p.4.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Where the work disappears</div>
+      <h2 class="head">A skipped block removes different costs depending on the phase.</h2>
+      <div class="two-col"><div><p class="col-hint">Prefill · compute-bound</p><ul class="bullets"><li>Skip exp / softmax CUDA-core work.</li><li>Skip BMM2: attention weights times Value block.</li><li>Keep V prefetching predictable because memory bandwidth is not the bottleneck.</li></ul></div><div><p class="col-hint">Decode · memory-bound</p><ul class="bullets"><li>Skip loading V<sub>j</sub> from HBM for pruned blocks.</li><li>Batch several K products, then issue only surviving Value loads.</li><li>For MLA decode, also skip softmax work when compute-bound.</li></ul></div></div>
+      <div class="takeaway">Same threshold rule; two different kernel stories.</div>
+      <div class="cite">Source: §3.1.2 p.4; §4.1-4.2 p.6-7.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Calibration</div>
+      <h2 class="head">λ is not portable; target sparsity is the real control knob.</h2>
+      <div class="formula">λ = α · exp(β · S) / L</div>
+      <ul class="bullets"><li>Accuracy is stable until roughly 60-70% observed sparsity, then drops sharply.</li><li>To reach 75% sparsity, the paper reports λ≈1e-4 at 8K context but λ≈1e-5 at 64K.</li><li>The calibration pass fits λ·L as a function of target sparsity S, so runtime can choose an accuracy/speed point.</li></ul>
+      <div class="cite">Source: §3.2 p.4-5; Fig.2 p.5; Algorithm 2 p.5.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Calibration evidence</div>
+      <h2 class="head">Fixed thresholds drift across context length; calibrated λ=a/L stays near target.</h2>
+      <table class="bench"><thead><tr><th>Method / target</th><th class="num">4K</th><th class="num">8K</th><th class="num">16K</th><th class="num">32K</th><th class="num">64K</th></tr></thead><tbody><tr><td>Fixed λ=1e-3 @ 50%</td><td class="num">23.09</td><td class="num">37.92</td><td class="num">52.38</td><td class="num">65.72</td><td class="num">74.63</td></tr><tr class="win"><td>Calibrated λ=a/L @ 50%</td><td class="num">54.20</td><td class="num best">49.70</td><td class="num">52.20</td><td class="num">46.96</td><td class="num">48.75</td></tr><tr><td>Fixed λ=3e-3 @ 70%</td><td class="num">42.35</td><td class="num">57.54</td><td class="num">69.83</td><td class="num">79.36</td><td class="num">84.63</td></tr><tr class="win"><td>Calibrated λ=a/L @ 70%</td><td class="num">67.99</td><td class="num">74.65</td><td class="num">73.64</td><td class="num">72.54</td><td class="num">74.63</td></tr></tbody></table>
+      <p class="note">Production takeaway: without calibration, the same threshold silently changes the accuracy regime as context grows.</p>
+      <div class="cite">Source: Table 6 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Prefill kernel</div>
+      <h2 class="head">In prefill, BLASST compresses the compute schedule by skipping softmax and BMM2.</h2>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure3_p6.jpg" alt="Prefill pipeline schedule"><figcaption>Figure 3: at 50% sparsity, the illustrative schedule drops from 18 to 14 time units.</figcaption></figure>
+      <ul class="bullets"><li>QK<sup>T</sup> still runs; the skip decision happens after block scores and maxima exist.</li><li>The kernel hides predicate/VOTE/ATOMIC decision overhead behind existing work.</li></ul>
+      <div class="cite">Source: §4.1 / Fig.3 p.6.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Decode kernel</div>
+      <h2 class="head">In decode, the point is not FLOPs first; it is avoiding unnecessary HBM Value loads.</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure4_p7.jpg" alt="Decode pipeline schedule"><figcaption>Figure 4: conditional Value loading plus batched scheduling cuts the illustrative V-load completion path from 38 to 31 time units.</figcaption></figure>
+      <ul class="bullets"><li>Naive conditional loading creates scoreboard dependencies after BMM1.</li><li>BLASST batches K products, stores small score buffers, then fetches only V tiles that pass the gate.</li></ul>
+      <div class="cite">Source: §4.2 / Fig.4 p.7.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Accuracy headline</div>
+      <h2 class="head">At 50-75% sparsity, main task accuracy mostly stays within the dense neighborhood.</h2>
+      <table class="bench"><thead><tr><th>Model / mode</th><th class="num">RULER-32K</th><th class="num">LongBench</th><th class="num">MATH500</th><th class="num">AIME 2024</th><th class="num">GPQA</th></tr></thead><tbody><tr><td>Llama-3.1-8B dense</td><td class="num">92.33</td><td class="num">31.40</td><td class="num">73.40</td><td class="num">46.66</td><td class="num">46.71</td></tr><tr class="win"><td>Llama-3.1-8B BLASST 75%</td><td class="num">91.67</td><td class="num">31.80</td><td class="num">73.89</td><td class="num">46.01</td><td class="num">45.95</td></tr><tr><td>Qwen3-8B dense</td><td class="num">91.90</td><td class="num">33.60</td><td class="num">95.87</td><td class="num">75.00</td><td class="num">61.21</td></tr><tr class="win"><td>Qwen3-8B BLASST 50%</td><td class="num">92.08</td><td class="num best">35.10</td><td class="num best">96.23</td><td class="num best">76.50</td><td class="num best">61.56</td></tr></tbody></table>
+      <p class="note">The surprising part is not merely “no drop”: Qwen3 improves on MATH500 and AIME at 50% sparsity in this table.</p>
+      <div class="cite">Source: Table 2 p.8.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Prefill SOTA comparison</div>
+      <h2 class="head">Against prefill sparse baselines, BLASST keeps the best sparse accuracy while being easier to deploy.</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">RULER avg</th><th class="num">LongBench overall</th><th>Deployment note</th></tr></thead><tbody><tr><td>Dense Attention</td><td class="num">93.21</td><td class="num">31.4</td><td>reference</td></tr><tr><td>FlexPrefill</td><td class="num">87.72</td><td class="num">25.7</td><td>prefill only / compiler pattern</td></tr><tr><td>MInference</td><td class="num">84.15</td><td class="num">31.2</td><td>pre-computed importance</td></tr><tr><td>XAttention</td><td class="num">92.44</td><td class="num">30.6</td><td>proxy score / prefill only</td></tr><tr class="win"><td>BLASST ~50%</td><td class="num best">92.87</td><td class="num best">31.8</td><td>one threshold; no pre-pass</td></tr></tbody></table>
+      <div class="cite">Source: Table 3 p.9; §5.2 p.8-9.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Decode comparison</div>
+      <h2 class="head">On Qwen3-8B reasoning/generation tasks, BLASST ~50% is slightly above dense average in the reported table.</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">RULER-32K</th><th class="num">LongBench</th><th class="num">MATH500</th><th class="num">AIME</th><th class="num">LCB</th><th class="num">GPQA</th><th class="num">Avg</th></tr></thead><tbody><tr><td>Dense</td><td class="num">91.90</td><td class="num">33.60</td><td class="num">95.87</td><td class="num">75.00</td><td class="num">53.83</td><td class="num">61.21</td><td class="num">68.57</td></tr><tr><td>Quest</td><td class="num">56.23</td><td class="num">30.30</td><td class="num">94.18</td><td class="num">71.50</td><td class="num">52.17</td><td class="num">60.12</td><td class="num">60.75</td></tr><tr><td>RocketKV</td><td class="num">87.89</td><td class="num">30.60</td><td class="num">95.88</td><td class="num">73.54</td><td class="num">53.10</td><td class="num">60.50</td><td class="num">66.91</td></tr><tr class="win"><td>BLASST ~50%</td><td class="num">91.55</td><td class="num best">33.90</td><td class="num best">96.23</td><td class="num best">76.50</td><td class="num best">54.15</td><td class="num best">61.51</td><td class="num best">68.97</td></tr></tbody></table>
+      <div class="cite">Source: Table 4 p.9.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Kernel speed</div>
+      <h2 class="head">The headline speedups are real kernel numbers on B200/H200, measured against FlashAttention-3 BF16 baselines.</h2>
+      <table class="bench"><thead><tr><th>GPU / phase</th><th class="num">~50% sparsity</th><th class="num">~70% sparsity</th><th class="num">highest listed</th></tr></thead><tbody><tr class="win"><td>B200 prefill</td><td class="num">1.33x @ 49.2%</td><td class="num best">1.52x @ 71.9%</td><td class="num">1.77x @ 94.2%</td></tr><tr class="win"><td>B200 decode</td><td class="num">1.25x @ 46.7%</td><td class="num best">1.48x @ 73.2%</td><td class="num">1.79x @ 92.0%</td></tr><tr class="win"><td>H200 prefill</td><td class="num">1.27x @ 49.2%</td><td class="num best">1.52x @ 71.0%</td><td class="num best">1.84x @ 92.0%</td></tr><tr><td>H200 decode</td><td class="num">1.20x @ 43.7%</td><td class="num">1.40x @ 70.5%</td><td class="num">1.56x @ 87.5%</td></tr></tbody></table>
+      <p class="note">0% sparsity is 0.96-1.00x baseline, which is the paper’s evidence that the skip-check overhead is mostly hidden.</p>
+      <div class="cite">Source: §5.3 p.8-9; Table 5 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Serving trace</div>
+      <h2 class="head">End-to-end serving gains are smaller than raw kernel gains, but still visible.</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure5_p9.jpg" alt="TTFT and TPOT speedup vs LongBench accuracy"><figcaption>Figure 5: Qwen3-30B-A3B-Instruct-2507 on LongBench V1, H200/B200, TensorRT-LLM in-flight batching concurrency 64.</figcaption></figure>
+      <ul class="bullets"><li>Input sequence length averages about 10K; output length averages 6.</li><li>The paper reports about 1.1x TTFT and TPOT speedups with only marginal LongBench V1 accuracy drop.</li></ul>
+      <div class="cite">Source: Fig.5 / §5.3 p.9.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Long context stress test</div>
+      <h2 class="head">At 200K context, natural sparsity becomes the point: dense attention is most painful exactly where BLASST has room.</h2>
+      <table class="bench"><thead><tr><th>Context / mode</th><th class="num">Prefill sparsity</th><th class="num">Decode sparsity</th><th class="num">Accuracy</th></tr></thead><tbody><tr><td>16K dense</td><td class="num">0%</td><td class="num">0%</td><td class="num">0.897</td></tr><tr class="win"><td>16K BLASST prefill</td><td class="num">64.1%</td><td class="num">0%</td><td class="num best">0.904</td></tr><tr><td>16K BLASST P+D</td><td class="num">64.1%</td><td class="num">48.4%</td><td class="num">0.882</td></tr><tr><td>200K dense</td><td class="num">0%</td><td class="num">0%</td><td class="num">0.850</td></tr><tr class="win"><td>200K BLASST prefill</td><td class="num">57.5%</td><td class="num">0%</td><td class="num">0.841</td></tr><tr><td>200K BLASST P+D</td><td class="num">57.5%</td><td class="num">40.8%</td><td class="num">0.838</td></tr></tbody></table>
+      <div class="cite">Source: Table 8 p.11; §5.6 p.10-11.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Compatibility with modern attention variants</div>
+      <h2 class="head">The method survives MLA because the dependency is tiled online softmax, not a specific KV layout.</h2>
+      <table class="bench"><thead><tr><th>DeepSeek-R1 NVFP4 sparsity</th><th class="num">GPQA Diamond</th><th class="num">MMLU Pro</th><th class="num">LiveCodeBench</th></tr></thead><tbody><tr><td>0%</td><td class="num">0.7071</td><td class="num">0.8302</td><td class="num">0.5735</td></tr><tr class="win"><td>50%</td><td class="num best">0.7121</td><td class="num">0.8283</td><td class="num">0.5691</td></tr><tr class="win"><td>60%</td><td class="num">0.7109</td><td class="num">0.8266</td><td class="num">0.5677</td></tr></tbody></table>
+      <p class="note">This matters because decode can be compute-bound under MLA; BLASST can skip softmax work in addition to memory traffic.</p>
+      <div class="cite">Source: §3.3 p.5; §4.2 p.7; Table 11 p.15.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Sparse-aware training extension</div>
+      <h2 class="head">The optional training path improves the Pareto frontier, but the paper’s main claim does not rely on it.</h2>
+      <figure class="full" style="max-height:42vh;"><img src="figures/figure6_p10.jpg" alt="Sparsity-aware training improves RULER accuracy at high sparsity"><figcaption>Figure 6: training with BLASST active makes the model more robust to pruning at aggressive sparsity.</figcaption></figure>
+      <ul class="bullets"><li>Forward pass skips blocks with the same threshold rule used at inference.</li><li>Skipped blocks naturally receive no gradients, encouraging attention mass to concentrate in surviving blocks.</li><li>Reported improvement: up to 1.7x reduction in accuracy degradation at target 50-75% sparsity.</li></ul>
+      <div class="cite">Source: §3.4 p.5; §5.5 / Fig.6 p.10.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism interpretation</div>
+      <p class="big">One scalar threshold does not mean uniform pruning.</p>
+      <div class="sub">Because every block is compared against its own row running maximum, layers and heads with concentrated attention prune more aggressively, while diffuse regions preserve more blocks.</div>
+      <ul class="bullets"><li>Figure 7 shows substantial sparsity heterogeneity across layers and heads.</li><li>BLASST gets that adaptation without top-k head selection or explicit pruning schedules.</li><li>This is why a simple global threshold can behave less crude than it sounds.</li></ul>
+      <div class="cite">Source: §5.6 / Fig.7 p.10-11.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits and caveats</div>
+      <h2 class="head">The bottleneck is reduced, not deleted.</h2>
+      <ul class="bullets"><li>QK<sup>T</sup> is still computed before the skip decision; BLASST does not remove BMM1.</li><li>Accuracy is stable only up to a regime: beyond roughly 60-70% observed sparsity, degradation steepens.</li><li>Prefill currently keeps Value loads for pipeline predictability; future memory-bound regimes may need a different prefill design.</li><li>Tile row reordering is dataset-dependent and mostly negligible in the appendix experiment.</li></ul>
+      <div class="takeaway">The safe engineering reading: use calibrated target sparsity first; treat very high sparsity as an explicit accuracy trade-off.</div>
+      <div class="cite">Source: §3.2 p.4-5; §4.1 p.6; §A.4 / Fig.9 p.15-16.</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <h2 class="head">Why this paper is stronger than a normal sparse-attention idea paper</h2>
+      <ol class="numbered"><li><b>Deployability is part of the method:</b> no proxy model, no pre-pass, no retraining requirement.</li><li><b>Kernel design follows phase bottlenecks:</b> prefill removes compute; decode removes HBM traffic.</li><li><b>Calibration is first-class:</b> production cannot rely on a fixed λ across 4K-64K contexts.</li><li><b>Integration evidence exists:</b> TensorRT-LLM and FlashInfer are named as implementation targets.</li></ol>
+      <div class="cite">Source: §1 p.2; §4 p.5-7; §5.1 p.7-8.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · exact excerpt</div>
+      <h2 class="head">Headline result from the abstract</h2>
+      <div class="hl"><p class="hl__en">Preserving benchmark accuracy, we demonstrate a 1.52x speedup for prefill at 71.9% sparsity and a 1.48x speedup for decode at 73.2% sparsity on modern GPUs.</p><p class="hl__zh">在維持 benchmark 準確度的前提下，BLASST 在現代 GPU 上於 71.9% sparsity 達到 prefill 1.52x，在 73.2% sparsity 達到 decode 1.48x。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="cite">Source: Abstract p.1.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · exact excerpt</div>
+      <h2 class="head">Why the API surface stays small</h2>
+      <div class="hl"><p class="hl__en">This simple pruning rule requires only a single comparison per block and seamlessly integrates into existing attention APIs, requiring only a single scalar threshold input.</p><p class="hl__zh">這個 pruning 規則每個 block 只需要一次比較，且只在既有 attention API 加入單一 scalar threshold。<span class="hl__src">Introduction p.2</span></p></div>
+      <div class="cite">Source: §1 p.2.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · exact excerpt</div>
+      <h2 class="head">Why prefill and decode are designed differently</h2>
+      <div class="hl"><p class="hl__en">The Value blocks remain loaded from HBM in the prefill kernel because: (1) memory bandwidth is not the bottleneck, (2) the prefetching pipeline benefits from predictable memory access patterns, and (3) the latency of conditional Value loading would exceed the savings.</p><p class="hl__zh">prefill 仍載入 Value block，因為瓶頸不是記憶體頻寬；這也說明 BLASST 的 kernel 設計不是盲目跳過所有東西，而是照 phase bottleneck 調整。<span class="hl__src">§4.1 p.6</span></p></div>
+      <div class="cite">Source: §4.1 p.6.</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">BLASST 的重點不是 sparse attention 新奇，而是把 sparse attention 做成可上線的 kernel path。</h2>
+      <p class="end__sub">明天輪轉：模型壓縮 / 效率（Quantization, Distillation, Pruning）。</p>
+      <div class="end__next">Next: find the compression paper whose benchmark story is not just “smaller is faster”.</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
