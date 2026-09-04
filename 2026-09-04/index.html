@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MicroMix: Efficient Mixed-Precision Quantization with Microscaling Formats for Large Language Models</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Daily AI Research · Model Compression / Efficiency</div>
+      <h1 class="title">MicroMix: Efficient Mixed-Precision Quantization with Microscaling Formats for LLMs</h1>
+      <p class="lead">ICLR 2026 paper: threshold-driven MXFP4/6/8 quantization plus Blackwell-aware GEMM kernels for near-FP16 accuracy and real inference speedups.</p>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">2026-09-04</span><span class="badge">Compression / Efficiency</span></div>
+      <div class="authors">Wenyuan Liu, Haoqian Meng, Yilun Luo, Yafei Zhao, Peng Zhang, Xindian Ma · Tianjin University</div>
+      <p class="note">Source artifacts: arXiv 2508.02343v2 · OpenReview P5OKoZdwlB · local PDF/raw/spec verified.</p>
+      <div class="cite">Abstract p.1; arXiv:2508.02343v2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">One-sentence TL;DR</div>
+      <p class="big">MicroMix treats <b>bit allocation</b> and <b>kernel format</b> as one problem: decide which channels deserve MXFP8, then execute the remaining majority on MXFP4/6 Tensor Cores.</p>
+      <div class="takeaway">The useful part is not "average 5 bits" by itself; it is the chain: thresholded error budget -> stable channel partition -> fused reorder -> MXFP GEMM.</div>
+      <div class="cite">Abstract p.1; §3.1 p.4-5; §3.2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why this paper matters</div>
+      <h1 class="title">INT4 wins storage, but can lose the hardware path</h1>
+      <ul class="bullets"><li><b>INT-centric quantization</b> often dequantizes on CUDA Cores before partial sums, because INT8 Tensor Cores accumulate to INT32.</li><li><b>Blackwell FP4 Tensor Cores</b> offer up to 4x FP16 throughput and 2x FP8/INT8 throughput, but only if the quantized format matches the hardware path.</li><li><b>Fixed mixed precision</b> assigns the same high-precision budget across layers, even though activation distributions differ layer by layer.</li><li><b>Open question:</b> what is the threshold where MXFP4/6 error becomes too high and a channel should be promoted?</li></ul>
+      <div class="takeaway">The paper is really about removing the gap between quantization math and actual kernel throughput.</div>
+      <div class="cite">§1 p.1-2; §2.2 p.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Motivation figure</div>
+      <h1 class="title">Layer distributions are not uniform, so fixed channel budgets are brittle</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:48vh;"><img src="figures/figure2_p3.jpg" alt="Activation channel means"><figcaption>Figure 2: activation channel mean values vary across tensors and layers.</figcaption></figure></div><div><ul class="bullets"><li>Atom-like fixed high-precision counts ignore layer heterogeneity.</li><li>Larger activation channels need higher precision to reduce quantization error.</li><li>MicroMix reorders outlier channels and applies layer-wise adaptive precision ratios.</li></ul><div class="takeaway">The bit budget has to follow the layer, not the other way around.</div></div></div>
+      <div class="cite">Figure 2 and Motivation 1, §2.2 p.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h1 class="title">What MicroMix adds</h1>
+      <ol class="numbered"><li><b>MXFP4 / MXFP6 / MXFP8 mixed precision</b> with arbitrary per-layer ratios and BFloat16 outputs.</li><li><b>Quantization thresholds T(4), T(6)</b> that promote elements when low-bit error exceeds the target bound.</li><li><b>Offline channel assignment</b> using calibration-time channel absolute means and layer-specific p4/p6/p8.</li><li><b>Fused reorder-and-quantize + MX GEMM kernels</b> so adaptive precision does not become irregular-memory overhead.</li><li><b>Broad eval</b> across Llama, Qwen, Mixtral, Code, Math, KV cache, and three Blackwell GPUs.</li></ol>
+      <div class="cite">Abstract p.1; §3.1-3.2 p.4-6; §4 p.7-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Architecture overview</div>
+      <h1 class="title">Three precision groups, one reordered memory layout</h1>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure1_p2.jpg" alt="MicroMix overview"><figcaption>Figure 1: reorder channels, split by quantization threshold, and lower MSE across layers.</figcaption></figure>
+      <div class="takeaway">This is the core pipeline: threshold decides precision; reorder makes memory regular enough for kernels.</div>
+      <div class="cite">Figure 1 p.2; §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · error budget</div>
+      <h1 class="title">Promotion rule: low-bit MX error should stay within the INT8 bound</h1>
+      <div class="formula">E(X)<sub>MXFP{4,6}</sub> <= E(X)<sub>INT8</sub>, for X in G{4,6}</div>
+      <div class="formula">T(n) = 2<sup>b</sup> x 2<sup>n-1</sup> / q<sub>max</sub> x E(X)<sub>INT8</sub></div>
+      <ul class="bullets"><li>n is the target bit-width; b and q<sub>max</sub> are format-specific.</li><li>Appendix C.2 rewrites the threshold with max(|X|)/254 from the INT8 error bound.</li><li>A channel that violates the lower-bit error budget is promoted to a higher MXFP format.</li></ul>
+      <div class="cite">Eq.4 and Eq.6 §3.1 p.4; Eq.21 Appendix C.2 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · partition</div>
+      <h1 class="title">T(4) and T(6) turn outliers into explicit precision groups</h1>
+      <div class="formula">G4 = {X | X <= T(4)}; G6 = {X | T(4) < X <= T(6)}; G8 = {X | T(6) < X}</div>
+      <div class="two-col"><div><ul class="bullets"><li><b>G4:</b> normal values, fastest path, majority of channels.</li><li><b>G6:</b> middle values that need more dynamic range.</li><li><b>G8:</b> outliers that would dominate low-bit error.</li></ul></div><div><ul class="bullets"><li>p4 consistently exceeds 50% in Llama3.1-8B measurements.</li><li>p4/p6/p8 are layer-specific but stable across sampled datasets and sequence settings.</li><li>That stability makes offline assignment practical.</li></ul></div></div>
+      <div class="cite">Eq.8 and Figure 3 caption, §3.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · offline calibration</div>
+      <h1 class="title">Runtime only applies a precomputed assignment</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:45vh;"><img src="figures/figure3_p5.jpg" alt="p4 p6 p8 distribution"><figcaption>Figure 3: p4/p6/p8 distribution across Llama3.1-8B layers.</figcaption></figure></div><div><div class="formula">M<sup>k</sup> = channel-wise mean(|X<sup>k</sup>|); sigma<sup>k</sup> = argsort(M<sup>k</sup>)</div><ul class="bullets"><li>For each linear layer k, precompute {p4<sup>k</sup>, p6<sup>k</sup>, p8<sup>k</sup>, sigma<sup>k</sup>}.</li><li>Channels are sorted by absolute mean, then sliced into G4/G6/G8 according to the layer ratios.</li><li>The paper evaluates 32 samples from WikiText2/Pile over batch 8-64 and seq 512-4096.</li></ul></div></div>
+      <div class="cite">Eq.9-10 and Figure 3 caption, §3.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Kernel co-design</div>
+      <h1 class="title">The kernel path is where the average bits become speed</h1>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure4_p6.jpg" alt="MicroMix fused GEMM kernel"><figcaption>Figure 4: fused GEMM kernel and fused reorder-and-quantize operation.</figcaption></figure>
+      <ul class="bullets"><li>MXFP fragments and scale factors are loaded to Shared/Tensor Memory.</li><li>MMA instructions fuse dequantization and accumulate FP32 partial sums into BFloat16 result matrix.</li><li>Separate data-type kernels make the precision ratios adjustable without changing the whole pipeline.</li></ul>
+      <div class="cite">§3.2 p.6; Figure 4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fusion detail</div>
+      <h1 class="title">Adaptive precision would be expensive unless reorder is fused</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:42vh;"><img src="figures/figure5_p6.jpg" alt="Latency of fused vs single operation"><figcaption>Figure 5: fused reorder-and-quantize has little overhead.</figcaption></figure></div><div><ul class="bullets"><li>Mixed-precision channel layouts cause irregular memory access if applied naively.</li><li>Activation reorder-and-quantize is dynamic, so it must be fast.</li><li>Weights can be permuted and quantized offline as a one-time preprocessing step.</li></ul><div class="takeaway">This is the engineering move that makes the threshold algorithm deployable.</div></div></div>
+      <div class="cite">§3.2 p.6; Figure 5 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h1 class="title">The evaluation covers both model quality and serving cost</h1>
+      <div class="two-col"><div><ul class="bullets"><li><b>Quantization:</b> block-wise symmetric, block size 32, E8M0 scale.</li><li><b>Formats:</b> MXFP8(E4M3), MXFP6(E3M2), MXFP4(E2M1).</li><li><b>Baselines:</b> Atom, QUIK, QuaRot, FlatQuant, AMXFP4, INT6.</li></ul></div><div><ul class="bullets"><li><b>Quality:</b> ARC-C, Lambada, Winogrande, BoolQ, PIQA, MMLU, WikiText2.</li><li><b>Specialized:</b> HumanEval/MBPP code, GSM8K/MATH/MMLU-STEM/CMATH math.</li><li><b>Hardware:</b> RTX 5070Ti laptop, RTX 5090, RTX PRO 6000.</li></ul></div></div>
+      <div class="cite">§4.1 p.7; §4.4 p.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Main result · general benchmarks</div>
+      <h1 class="title">Near-FP16 accuracy at about five bits</h1>
+      <table class="bench" style="font-size:.78rem;"><thead><tr><th>Setting</th><th class="num">FP16</th><th class="num">MicroMix</th><th class="num">Best non-FP16</th><th>Source</th></tr></thead><tbody><tr class="win"><td>Llama3.1-8B avg 0-shot</td><td class="num">73.03</td><td class="num best">71.56 @ 5.51b</td><td class="num">70.97 FlatQuant</td><td>Table 1 p.7</td></tr><tr class="win"><td>Llama3.1-8B MMLU</td><td class="num">65.24</td><td class="num best">62.65 @ 5.51b</td><td class="num">61.33 FlatQuant</td><td>Table 1 p.7</td></tr><tr class="win"><td>Qwen2.5-32B avg 0-shot</td><td class="num">75.55</td><td class="num best">75.20 @ 5.22b</td><td class="num">74.72 FlatQuant</td><td>Table 1 p.7</td></tr><tr class="win"><td>Qwen2.5-32B MMLU</td><td class="num">83.32</td><td class="num best">81.79 @ 5.22b</td><td class="num">81.52 FlatQuant</td><td>Table 1 p.7</td></tr></tbody></table>
+      <div class="takeaway">Paper claim: MicroMix is the only quantization method preserving at least 98% of FP16 average 0-shot accuracy on both main models.</div>
+      <div class="cite">§4.2 and Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Specialized eval</div>
+      <h1 class="title">The compression does not only preserve easy QA scores</h1>
+      <table class="bench" style="font-size:.78rem;"><thead><tr><th>Benchmark</th><th>FP16</th><th>MicroMix</th><th>Interpretation</th></tr></thead><tbody><tr class="win"><td>Mixtral-8x7B avg / time</td><td>78.58 / 5m18s</td><td class="best">78.20 / 2m03s</td><td>0.38 pt avg drop, much lower runtime</td></tr><tr><td>Qwen2.5-Math-7B avg</td><td>87.2</td><td>83.8 @ 5.16b</td><td><4% avg drop; GSM8K/MATH/CMATH retain >=98.4%</td></tr><tr class="win"><td>Qwen2.5-Coder-32B HumanEval+</td><td>84.1</td><td class="best">85.4</td><td>Matches INT8 and exceeds FP16 in this metric</td></tr><tr class="win"><td>Qwen2.5-Coder-32B MBPP+</td><td>70.9</td><td class="best">74.1</td><td>Above FP16 and INT8 reported values</td></tr></tbody></table>
+      <div class="cite">Table 2 p.7-8; Table 3 p.8; Table 4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">The result works because MicroMix does <b>promotion only where the error budget demands it</b>, then makes that irregular decision look regular to the GPU.</p>
+      <ul class="bullets"><li>Thresholds keep FP4/FP6 groups near the INT8 stable-error region.</li><li>Offline channel sorting makes layer-specific bit ratios cheap at runtime.</li><li>Fused reorder-and-quantize prevents adaptive precision from becoming memory-access tax.</li></ul>
+      <div class="cite">Appendix C.1-C.2 p.16-17; §3.1-3.2 p.4-6; Table 6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablations · robustness</div>
+      <h1 class="title">Format variants and calibration data are not the fragile parts</h1>
+      <table class="bench" style="font-size:.76rem;"><thead><tr><th>Check</th><th>Range / finding</th><th>Why it matters</th></tr></thead><tbody><tr><td>MXFP6/8 exponent-mantissa variants</td><td>Winogrande 71.51-72.69; PPL 6.72-6.84</td><td>Threshold definition absorbs much of the format sensitivity</td></tr><tr><td>Calibration dataset</td><td>Qwen2.5-14B metrics fluctuate about 1%</td><td>Offline partition is not tied to one tiny calibration set</td></tr><tr class="win"><td>Fused op runtime share</td><td>7.9%-17.0% across length 128-4096</td><td>Reorder overhead stays below 20% of kernel time</td></tr><tr class="win"><td>Average-bit operating point</td><td>4.48-6.01 bits -> avg 74.85-75.20</td><td>5.22b chosen near best accuracy/time point</td></tr></tbody></table>
+      <div class="cite">Table 5 p.8; Table 6 p.9; Table 12-13 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Efficiency · single kernel</div>
+      <h1 class="title">Blackwell Tensor Core path produces the headline speedups</h1>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure6_p9.jpg" alt="Single-kernel latency speedups"><figcaption>Figure 6: MicroMix latency span across sequence lengths and hidden sizes.</figcaption></figure>
+      <div class="scorebox"><span class="score score--hi">RTX 5070Ti: 2.45-2.93x vs TRT-FP16</span><span class="score score--hi">RTX 5090: 2.29-3.38x vs TRT-FP16</span><span class="score">up to 1.74x vs TRT-FP8</span></div>
+      <div class="cite">§4.4 and Figure 6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Efficiency · custom GEMM</div>
+      <h1 class="title">The custom kernel especially helps smaller M</h1>
+      <table class="bench"><thead><tr><th>M</th><th class="num">W4A4 speedup</th><th class="num">W6A6 speedup</th><th class="num">W8A8 speedup</th></tr></thead><tbody><tr><td>1</td><td class="num">2.62x</td><td class="num">3.14x</td><td class="num">1.60x</td></tr><tr><td>8</td><td class="num">3.23x</td><td class="num">3.58x</td><td class="num">1.93x</td></tr><tr class="win"><td>32</td><td class="num best">4.02x</td><td class="num best">5.00x</td><td class="num best">3.12x</td></tr><tr><td>128</td><td class="num">1.99x</td><td class="num">1.92x</td><td class="num">1.19x</td></tr></tbody></table>
+      <div class="takeaway">At M=32, customized W6A6 reaches 104.75 TFLOPS vs CUTLASS 20.95 TFLOPS, a 5.00x speedup.</div>
+      <div class="cite">Table 7 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Efficiency · end-to-end serving</div>
+      <h1 class="title">The paper also checks prefill/decode and memory, not just microbenchmarks</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:38vh;"><img src="figures/figure7_p10.jpg" alt="Prefill latency and decode throughput"><figcaption>Figure 7: RTX PRO 6000 vs Atom / QuaRot.</figcaption></figure><figure class="full" style="max-height:34vh;"><img src="figures/figure8_p10.jpg" alt="Prefill latency and memory"><figcaption>Figure 8: RTX 5090 FP16 / INT8 comparison.</figcaption></figure></div><div><ul class="bullets"><li>RTX PRO 6000: prefill latency reduced by about 85% vs Atom and QuaRot.</li><li>Decode throughput: 1.82-3.02x higher than Atom.</li><li>RTX 5090 batch 8: about 2.0x lower latency vs FP16.</li><li>Memory: 2.29-2.84x lower than FP16; 1.60-2.01x lower than INT8.</li></ul></div></div>
+      <div class="cite">§4.4 and Figures 7-8 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limitations</div>
+      <h1 class="title">Strong result, but the deployment envelope is specific</h1>
+      <ul class="bullets"><li><b>Hardware-bound:</b> the main speed claim depends on Blackwell MXFP/FP4 Tensor Core support.</li><li><b>Kernel integration:</b> benefits require custom kernels, fused reorder, and framework-level integration; it is not a drop-in weight file.</li><li><b>Calibration and preprocessing:</b> each layer needs offline p4/p6/p8 and sigma; weights are permuted/quantized offline.</li><li><b>Review data unavailable:</b> OpenReview forum exists, but reviewer JSON was HTTP 403 during ingest, so no reviewer score/concern page is included.</li><li><b>Scope:</b> paper tests Llama/Qwen/Mixtral and selected Blackwell GPUs, not every serving stack or multi-node setup.</li></ul>
+      <div class="cite">§3.1-3.2 p.5-6; §4.4 p.9-10; ingest log</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering read</div>
+      <h1 class="title">What to steal for image / LLM systems work</h1>
+      <ol class="numbered"><li>When a quantization method claims lower bits, ask whether the hardware kernel can consume that exact format directly.</li><li>For mixed precision, avoid a fixed global high-bit budget; let an error threshold or per-layer sensitivity decide allocation.</li><li>Treat reordering as part of the algorithm, not a bookkeeping step; irregular layouts can erase theoretical wins.</li><li>Report average bits together with latency, memory, and accuracy; average bits alone is an incomplete metric.</li><li>For new GPUs, revisit old compression assumptions: FP4/MXFP changes the right algorithmic target.</li></ol>
+      <div class="cite">Synthesis from §2-4; key facts grounded in p.3-10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight · core claim</div>
+      <div class="hl"><p class="hl__en">To bridge this gap, we propose MicroMix, a co-designed mixed-precision quantization algorithm and GEMM kernel based on Microscaling (MX) data formats.</p><p class="hl__zh">MicroMix 的重點是同時設計量化演算法與 GEMM kernel；它不是只把 bit-width 降到 5 bits 左右。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">MicroMix is the only quantization method that consistently preserves at least 98% of FP16 average accuracy on both models (Llama: 71.56 vs. 73.03; Qwen: 75.20 vs. 75.55).</p><p class="hl__zh">主結果守住兩個主模型的 FP16 平均 0-shot accuracy 98% 以上，這是 Table 1 的品質門檻。<span class="hl__src">§4.2 p.7</span></p></div>
+      <div class="cite">Abstract p.1; §4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix highlight · efficiency claim</div>
+      <div class="hl"><p class="hl__en">Fused reorder-and-quantize operation takes less than 20% MicroMix kernel runtime across different lengths.</p><p class="hl__zh">Adaptive precision 最怕 reorder 成本；Table 6 顯示 fused reorder-and-quantize 沒有吃掉主要 GEMM 收益。<span class="hl__src">§4.3 / Table 6 p.9</span></p></div>
+      <div class="hl"><p class="hl__en">On the RTX 5070Ti laptop, it achieves a 2.45 to 2.93x speedup over TRT FP16 and up to 1.45x over TRT FP8. On the RTX 5090, MicroMix delivers a 2.29 to 3.38x speedup over TRT FP16 and up to 1.74x over TRT FP8.</p><p class="hl__zh">效率證據橫跨 laptop 與 desktop Blackwell GPU；這就是 MXFP co-design 的主戰場。<span class="hl__src">§4.4 / Fig.6 p.9</span></p></div>
+      <div class="cite">§4.3-4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Bottom line</h2>
+      <p class="end__sub">MicroMix is a good compression paper because its accuracy story, bit-allocation rule, and kernel path are mutually constrained.</p>
+      <div class="end__next">Tomorrow: AI Agent frameworks / multimodal systems.</div>
+      <div class="cite">Daily rotation: Saturday topic</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
