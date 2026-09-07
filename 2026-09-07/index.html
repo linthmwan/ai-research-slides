@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headroom-Drift Replay: A Primitive for Principled Replay Control in GRPO</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">Daily AI Research · LLM / RL post-training</div>
+      <h1 class="title">Headroom-Drift Replay: A Primitive for Principled Replay Control in GRPO</h1>
+      <div class="authors">Hyun Bin Park · Du-Seong Chang · Sogang University</div>
+      <div class="meta-row"><span class="badge tier">COLM 2026 conference paper</span><span class="badge date">arXiv 2609.03941v1 · 2026-09-03</span></div>
+      <p class="lead">把 GRPO replay 從「要不要重用」拆成 <b>learning value</b> 與 <b>current-policy compatibility</b> 兩個控制問題。</p>
+      <figure class="full" style="max-height:24vh;"><img src="figures/figure1_p1.jpg" alt="Paper summary figure"><figcaption>Fig.1 p.1: math Avg Mean@32 與 Agentic Search quality/cost 摘要。</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Replay 不是多塞舊資料。它要先問：這個 group 還有沒有可學的方向，而且現在的 policy 還認不認得它。</p>
+      <div class="sub">Headroom 排 learning value；Policy Drift 擋 stale groups；fresh on-policy rollout path 完全不改。</div>
+      <div class="cite">Abstract p.1; §1 p.2; §3.1 p.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題設定</div>
+      <h2 class="head">LLM RL 的瓶頸不是 update，而是一直重新 rollout。</h2>
+      <ul class="bullets"><li><b>GRPO-style post-training</b> 需要 repeated fresh rollout generation；agentic setting 還要跑外部環境，wall-clock cost 更高。</li><li><b>Naive replay</b> 只說「把舊 trajectory 拿回來」，但沒有判斷它是否仍有 learning signal。</li><li>Stored group 可能「仍有價值但太 stale」，也可能「很接近 current policy 但已經沒什麼可學」。這兩種失敗要拆開。</li></ul>
+      <div class="takeaway">這篇的乾淨之處：它把 replay-side control 單獨拿出來，不靠額外 exploration / filtering pipeline 混淆貢獻。</div>
+      <div class="cite">§1 p.2; §2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">一個 replay primitive，四個檢驗角度。</h2>
+      <ol class="numbered"><li><b>Formulation:</b> GRPO replay = learning-value prioritization + current-policy compatibility。</li><li><b>Primitive:</b> Headroom-Drift Replay，group-level，fresh on-policy stream unchanged。</li><li><b>Baselines:</b> matched/larger on-policy、matched/larger recency replay、DAPO、ExGRPO、BAPO。</li><li><b>Evidence:</b> math / agentic / multimodal 三域，加上 same-buffer counterfactual、lifetime exposure、entropy-collapse analysis。</li></ol>
+      <div class="cite">§1 p.2; §4.1 p.6-7; §4.3 p.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · overview</div>
+      <h2 class="head">一個 GRPO step 只多 replay-side selection。</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure2_p4.jpg" alt="Headroom-Drift Replay algorithm overview"><figcaption>Fig.2 p.4: buffer groups 先依 Headroom 排序，再由 Policy Drift gate 過濾，最多收 Krep 個 replay groups。</figcaption></figure>
+      <div class="cite">Fig.2 p.4; §3.5 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · state</div>
+      <h2 class="head">Replay 的單位是 full group，保留 GRPO 的 within-group comparison。</h2>
+      <div class="two-col"><div><p class="col-hint">Stored group</p><ul class="bullets"><li>prompt Q + n responses: g=(Q,G<sub>1</sub>,...,G<sub>n</sub>)</li><li>response-level advantage A<sub>i</sub> 套到同一 response 的所有 generated tokens</li><li>buffer 儲存 actions、generation-time log-probs、advantages 與 π<sub>gen</sub>(g)</li></ul></div><div><p class="col-hint">Same update form</p><div class="formula">r<sub>i,j</sub>(θ;g)=π<sub>θ</sub>(a<sub>i,j</sub>|s<sub>i,j</sub>) / π<sub>gen(g)</sub>(a<sub>i,j</sub>|s<sub>i,j</sub>)</div><p class="note">Fresh 與 replayed groups 都進同一 GRPO objective；差別只在 denominator 是哪個 reference policy。</p></div></div>
+      <div class="cite">§3.2 p.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · Headroom</div>
+      <h2 class="head">Headroom 排的是「還有多少方向性修正空間」。</h2>
+      <div class="formula">h<sub>i,j</sub>=1-π(a|s) if A<sub>i</sub>&gt;0;  h<sub>i,j</sub>=π(a|s) if A<sub>i</sub>&lt;0;  Headroom(g)=mean<sub>(i,j)</sub> h<sub>i,j</sub></div>
+      <ul class="bullets"><li>Positive-advantage token 若目前機率仍低，還有往上推的空間。</li><li>Negative-advantage token 若目前機率仍高，還有往下壓的空間。</li><li>以 generation-time policy 評估時，這個值成為 buffer 裡的 cached / stored priority。</li></ul>
+      <div class="cite">§3.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method · Policy Drift</div>
+      <h2 class="head">Drift gate 擋的是「現在的 policy 已經離當初 rollout 太遠」。</h2>
+      <div class="formula">Δ<sub>i,j</sub>=log π<sub>θ</sub>(a<sub>i,j</sub>|s<sub>i,j</sub>) - log π<sub>gen(g)</sub>(a<sub>i,j</sub>|s<sub>i,j</sub>);  Drift(g)=mean Δ<sub>i,j</sub><sup>2</sup></div>
+      <ul class="bullets"><li>只在 stored token sequence 上量 current-policy mismatch。</li><li>用 squared aggregation 避免 signed average 的正負抵消，也更懲罰局部大 mismatch。</li><li>通過 gate 時，current-policy Headroom 與 stored priority 的偏差被限制在約 √τ。</li></ul>
+      <div class="cite">§3.4 p.5; Appendix A.3 p.16-18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Algorithm</div>
+      <h2 class="head">Headroom 排序，Drift 掃描，填滿 replay budget 就停。</h2>
+      <ol class="numbered"><li>Generate fresh grouped rollouts and compute GRPO rewards / advantages。</li><li>把 pre-existing buffer groups 依 Headroom descending 排序。</li><li>逐個 teacher-forced reevaluate stored actions；Drift(g)≤τ 才 admit。</li><li>Accepted replay groups R<sub>t</sub> 與 fresh groups G<sup>on</sup><sub>t</sub> 混成 actor batch。</li><li>Update 後才 append new ingress groups，FIFO eviction；避免 same-step replay。</li></ol>
+      <div class="takeaway">Replay 不跑新的 autoregressive generation；agentic 場景裡省掉的正是外部互動成本。</div>
+      <div class="cite">Algorithm 1 p.6; §3.5 p.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Experimental setup</div>
+      <h2 class="head">三個 domain，不只看 score，也看 rollout acquisition cost。</h2>
+      <div class="two-col"><div><p class="col-hint">Domains</p><ul class="bullets"><li><b>Math:</b> AIME24, AMC23, MATH500, Minerva, OlympiadBench</li><li><b>Agentic Search:</b> NQ, TriviaQA, PopQA, HotpotQA, 2Wiki, Musique, Bamboogle</li><li><b>Multimodal:</b> Geo3K, MathVista, MathVision</li></ul></div><div><p class="col-hint">Metrics / baselines</p><ul class="bullets"><li>Headline: Mean@32 / Avg Mean@32；Best@32 與 Weighted Mean@32 補充。</li><li>Baselines 按 role 對齊：matched budget、larger fresh-data scaling、naive recency replay、strong non-replay。</li></ul></div></div>
+      <div class="cite">§4.1 p.6-7; Appendix B.1 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result · math reasoning</div>
+      <h2 class="head">在 baseline 最完整的 math setting，Headroom-Drift 的 Avg Mean@32 領先。</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Macro Avg Mean@32</th><th class="num">Fresh responses</th></tr></thead><tbody><tr><td>GRPO on-policy matched</td><td class="num">0.3356</td><td class="num">1,843,200</td></tr><tr><td>GRPO on-policy larger</td><td class="num">0.3344</td><td class="num">2,764,800</td></tr><tr><td>DAPO</td><td class="num">0.3409</td><td class="num">2,445,312</td></tr><tr><td>ExGRPO</td><td class="num">0.3139</td><td class="num">1,785,600</td></tr><tr><td>BAPO</td><td class="num">0.3469</td><td class="num">2,027,520</td></tr><tr><td>GRPO+r matched</td><td class="num">0.3117</td><td class="num">1,843,200</td></tr><tr class="win"><td>★ Headroom-Drift</td><td class="num best">0.3533</td><td class="num">1,843,200</td></tr></tbody></table>
+      <div class="cite">Tab.3 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result · cross-domain</div>
+      <h2 class="head">Figure-level summary: math score lead + agentic quality/cost trade-off。</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure3_p7.jpg" alt="Cross-domain Mean@32 summary"><figcaption>Fig.3 p.7: Headroom-Drift 在 cross-domain Mean@32 摘要中保持優勢。</figcaption></figure>
+      <div class="cite">Fig.3 p.7; §4.2.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result · Agentic Search</div>
+      <h2 class="head">對 on-policy scaling 是 Pareto improvement：更高 Mean@32，更低 step time。</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Avg Mean@32</th><th class="num">Avg Best@32</th><th class="num">Step time</th></tr></thead><tbody><tr><td>GRPO on-policy larger</td><td class="num">0.3212</td><td class="num">0.4160</td><td class="num">197.2s</td></tr><tr><td>GRPO+r matched</td><td class="num">0.3548</td><td class="num">0.4623</td><td class="num">154.4s</td></tr><tr><td>GRPO+r larger</td><td class="num">0.3524</td><td class="num">0.4805</td><td class="num">187.3s</td></tr><tr class="win"><td>★ Headroom-Drift</td><td class="num best">0.3577</td><td class="num best">0.4879</td><td class="num">166.3s</td></tr></tbody></table>
+      <div class="takeaway">相對 GRPO on-policy larger：0.3577 vs 0.3212，且 166.3s vs 197.2s。</div>
+      <div class="cite">§4.2.2 p.8; Tab.1 p.8; Tab.5 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result · 7B scale check</div>
+      <h2 class="head">Search-R1 7B matched setup 下，Headroom-Drift 在 6/7 benchmarks 領先。</h2>
+      <table class="bench"><thead><tr><th>Metric</th><th class="num">GRPO+r matched</th><th class="num">Headroom-Drift</th></tr></thead><tbody><tr><td>Macro Avg Mean@4</td><td class="num">0.3737</td><td class="num best">0.3955</td></tr><tr><td>Weighted Mean@4</td><td class="num">0.4158</td><td class="num best">0.4298</td></tr><tr><td>Macro Avg Best@4</td><td class="num">0.5133</td><td class="num best">0.5224</td></tr><tr><td>Weighted Best@4</td><td class="num">0.5556</td><td class="num best">0.5638</td></tr></tbody></table>
+      <p class="note">限制：caption 明確說 controlled comparison is based on one run per method。小 margin 不能過度解讀。</p>
+      <div class="cite">Tab.6 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result · multimodal</div>
+      <h2 class="head">同一 replay-control principle 也跨到 Geo3K / MathVista / MathVision。</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Macro Avg Mean@32</th><th class="num">Weighted Mean@32</th></tr></thead><tbody><tr><td>GRPO on-policy matched</td><td class="num">0.3986</td><td class="num">0.2740</td></tr><tr><td>GRPO on-policy larger</td><td class="num">0.4005</td><td class="num">0.2788</td></tr><tr><td>DAPO</td><td class="num">0.4056</td><td class="num">0.2793</td></tr><tr class="win"><td>★ Headroom-Drift</td><td class="num best">0.4137</td><td class="num best">0.2883</td></tr></tbody></table>
+      <div class="cite">§4.2.3 p.8; Tab.4 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown page</div>
+      <p class="big">增益的主因不是 replay volume，而是把「高 value」和「仍 near-policy」的 group 聚在一起。</p>
+      <div class="sub">Headroom 決定誰值得被看見；Drift 決定誰還能安全進 update。</div>
+      <div class="cite">§4.3 p.9-10; Appendix D/E/G</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · same-buffer counterfactual</div>
+      <h2 class="head">同一 buffer state 下，比 recency-only replay 選出更好的 subset。</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure5_p9.jpg" alt="Mechanism analysis of replay selection"><figcaption>Fig.5 p.9: selected subset 多數 step 同時降低 Policy Drift、提高 current-policy Headroom；高 Headroom groups 也更常被 replay。</figcaption></figure>
+      <div class="cite">Fig.5 p.9; §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · lifetime exposure</div>
+      <h2 class="head">Headroom 真的改變 lifetime replay pressure。</h2>
+      <div class="scorebox"><span class="score score--lo">Headroom <0.8: Nrep <0.5</span><span class="score score--lo">P(replay>=1) <24%</span><span class="score score--hi">Headroom >0.8: Nrep ≈2.0</span><span class="score score--hi">P(replay>=1) >56%</span></div>
+      <ul class="bullets"><li>低 Headroom groups 仍可能進 replay，但機率與次數都低。</li><li>高 Headroom groups 被反覆重用，形成 exposure concentration。</li><li>因此 selection 不是一次性 include/exclude，而是重新分配 lifetime training exposure。</li></ul>
+      <div class="cite">§4.3 p.9; Appendix D.3-D.4 p.30-32</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · near-policy corrective mixture</div>
+      <h2 class="head">Replay 不是拉回遠古 policy，而是混入 still-compatible nearby snapshots。</h2>
+      <table class="bench"><thead><tr><th>Statistic</th><th class="num">Value</th></tr></thead><tbody><tr><td>Used replay mean source age</td><td class="num">2.67</td></tr><tr><td>Replay pool mean source age</td><td class="num">3.32</td></tr><tr><td>Used replay age >=2</td><td class="num">66.00%</td></tr><tr><td>Used replay age >=3</td><td class="num">44.06%</td></tr><tr><td>Mean distinct source ages / update</td><td class="num best">4.07</td></tr><tr><td>Updates with >=3 ages</td><td class="num best">85.71%</td></tr></tbody></table>
+      <div class="cite">Tab.11 p.36; Appendix E.4.1 p.35-36</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · entropy collapse</div>
+      <h2 class="head">Matched-score 後，replay 仍延後 low-entropy entry。</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:42vh;"><img src="figures/figure16_p35.jpg" alt="Entropy trajectories"><figcaption>Fig.16 p.35: diamonds=score anchor; circles=low-entropy entry; squares=rebound。</figcaption></figure></div><div><table class="bench"><thead><tr><th>Run</th><th class="num">Entry delay</th><th class="num">Rebound delay</th></tr></thead><tbody><tr><td>GRPO on-policy matched</td><td class="num">318</td><td class="num">121</td></tr><tr class="win"><td>★ Headroom-Drift</td><td class="num best">237</td><td class="num best">261</td></tr><tr><td>GRPO on-policy larger</td><td class="num">207</td><td class="num">180</td></tr></tbody></table><p class="note">對 stricter on-policy control (b384)：Headroom-Drift 更早達到 score anchor，但較晚進 low entropy。</p></div></div>
+      <div class="cite">Tab.10 p.34; Fig.16 p.35; Appendix E.3 p.34-35</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Failure mode</div>
+      <h2 class="head">Late stage 不是沒有 ingress，而是 usable replay subset 收縮。</h2>
+      <table class="bench"><thead><tr><th>Phase</th><th class="num">age >=3 share</th><th class="num">distinct ages/update</th><th class="num">updates >=3 ages</th></tr></thead><tbody><tr><td>Early learning</td><td class="num">48.08%</td><td class="num">4.33</td><td class="num">100.00%</td></tr><tr><td>Score-rise</td><td class="num best">59.35%</td><td class="num best">4.83</td><td class="num">100.00%</td></tr><tr><td>Pre-collapse</td><td class="num">33.50%</td><td class="num">3.80</td><td class="num">85.00%</td></tr><tr><td>Collapse</td><td class="num">2.94%</td><td class="num">1.67</td><td class="num">16.67%</td></tr></tbody></table>
+      <div class="takeaway">Drift-admissible pool 收縮後，multi-age corrective mixture 退化成 age-1/2 dominated。</div>
+      <div class="cite">Table 12 p.36-37; Fig.17 p.37</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Calibration</div>
+      <h2 class="head">τ 不必細搜；短 log-spaced sweep 看 replay supply + KL 即可。</h2>
+      <table class="bench"><thead><tr><th>Condition</th><th class="num">τ</th><th class="num">Mean acceptance</th><th>Replay-KL behavior</th></tr></thead><tbody><tr><td>TIGHT</td><td class="num">0.001</td><td class="num">6.4%</td><td>0.0005 to 0.00003 as replay vanishes</td></tr><tr class="win"><td>★ MODERATE</td><td class="num best">0.01</td><td class="num best">40.2%</td><td>stable at about 0.002</td></tr><tr><td>LOOSE</td><td class="num">0.1</td><td class="num">94.4%</td><td>0.0045 to 0.0170</td></tr></tbody></table>
+      <div class="takeaway">Tight starves replay；loose 讓 gate 幾乎失效；moderate 同時保 replay supply 與 mismatch control。</div>
+      <div class="cite">Tab.14 p.45; Tab.15 p.46; §G.2.5 p.48</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h2 class="head">兩個軸都要：full > Headroom-only > Drift-only。</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:42vh;"><img src="figures/figure24_p49.jpg" alt="Component ablation training curves"><figcaption>Fig.24 p.49: full variant late-stage ordering stays on top。</figcaption></figure></div><div><table class="bench"><thead><tr><th>Variant</th><th class="num">Best@32</th><th class="num">Mean@32</th></tr></thead><tbody><tr><td>Policy Drift only</td><td class="num">0.7820</td><td class="num">0.6794</td></tr><tr><td>Headroom only</td><td class="num">0.8100</td><td class="num">0.7140</td></tr><tr class="win"><td>★ Headroom-Drift full</td><td class="num best">0.8200</td><td class="num best">0.7215</td></tr></tbody></table></div></div>
+      <div class="cite">Tab.17 p.48; Fig.24 p.49</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Engineering gotcha</div>
+      <h2 class="head">Reward semantics 會改變 replay ingress；Geo3K 是警告。</h2>
+      <ul class="bullets"><li>Geometry3K final reward 同時反映 answer correctness 與 formatting quality。</li><li>原本 binary setting 的 s<sup>+</sup><sub>i</sub>=1[r<sub>i</sub>&gt;0] 不再等價於 correctness。</li><li>錯答案但 format success 得 0.1；正答案但 format failure 得 0.9。直接沿用 success-count rule 會讓 ingress dynamics 變質。</li></ul>
+      <table class="bench"><thead><tr><th>Condition</th><th class="num">Final reward</th></tr></thead><tbody><tr><td>wrong answer + format failure</td><td class="num">0.0</td></tr><tr><td>wrong answer + format success</td><td class="num">0.1</td></tr><tr><td>correct answer + format failure</td><td class="num">0.9</td></tr><tr><td>correct answer + format success</td><td class="num best">1.0</td></tr></tbody></table>
+      <div class="cite">Appendix C.1-C.2 p.22-23; Tab.7 p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h2 class="head">這篇夠乾淨，但不要把結論推過界。</h2>
+      <ul class="bullets"><li>7B Search-R1 scale check 是 one run per method；小差距要當 controlled evidence，不是統計定論。</li><li>τ 還是要 coarse calibration；tight / loose 都會失效，不是無參數方法。</li><li>late-stage usable replay mixture 會收縮；mechanism 不是 collapse-free guarantee。</li><li>作者只給 preliminary CISPO-style evidence；PPO / GSPO / CISPO family 的 held-out evaluation 仍 open。</li></ul>
+      <div class="cite">Tab.6 p.21; §5 p.10; Appendix E.4.2 p.36-37; Appendix G.2 p.45-48</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">工程解讀</div>
+      <h2 class="head">把 replay 做成可診斷 primitive，比把整條 pipeline 加厚更有用。</h2>
+      <ol class="numbered"><li><b>可分離：</b>Headroom/Drift 對應兩個失敗模式，便於 ablation 與 debug。</li><li><b>可監控：</b>acceptance rate、replay KL、source-age mixture 可以 early-stop 壞 τ。</li><li><b>可組合：</b>它不是取代 EFRame / ExGRPO / BAPO，而是可嵌入那些 replay-centric systems 的 control layer。</li><li><b>對 agentic RL 特別實用：</b>teacher-forced reevaluation 比 fresh environment interaction 便宜。</li></ol>
+      <div class="cite">§3.5 p.5-6; §5 p.10; Appendix G.2 p.45-48</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · highlight</div>
+      <h2 class="head">作者自己把問題講得很準。</h2>
+      <div class="hl"><p class="hl__en">The question is not whether to replay, but how to control replay itself: which stored experience should re-enter training, and under what conditions.</p><p class="hl__zh">問題不是要不要 replay，而是 replay 本身該怎麼控制：哪些 stored experience 應該重回訓練，以及在什麼條件下重回。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">The fresh on-policy stream remains unchanged... Any change in training dynamics therefore traces to replay-side control alone.</p><p class="hl__zh">fresh on-policy stream 不變；因此訓練動態的變化可歸因於 replay-side control。<span class="hl__src">§3.1 p.3-4</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · highlight</div>
+      <h2 class="head">Replay 的真正價值是重新分配 exposure。</h2>
+      <div class="hl"><p class="hl__en">Replay selection is not merely deciding one-shot inclusion versus exclusion; it is redistributing lifetime training exposure toward a comparatively small subset of repeatedly reused groups.</p><p class="hl__zh">replay selection 不只是一次性納入或排除，而是把 lifetime training exposure 重新分配給少數會被反覆重用的 groups。<span class="hl__src">Appendix D.4 p.31-32</span></p></div>
+      <div class="hl"><p class="hl__en">At matched score levels, both low-entropy entry and rebound are delayed under replay.</p><p class="hl__zh">在 matched score level 下，replay 讓 low-entropy entry 與 rebound 都延後。<span class="hl__src">Appendix E.3.2 p.35</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">明日主題：圖像生成 / 理解</h2>
+      <p class="end__sub">今天的 takeaway：LLM RL replay 的核心不是 buffer 大小，而是可學性與 policy compatibility 的分離控制。</p>
+      <div class="end__next">Next: Diffusion / VLM / CLIP paper with mechanism-first reading.</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
