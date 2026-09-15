@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLaDA-Image: Building Strong Image Generators with Fully Open Training Recipes</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · Vision / Image Generation</div>
+      <h1 class="title">LLaDA-Image</h1>
+      <p class="lead">從 <b>image-only visual prior</b> 到統一 generation / editing 的 fully open training recipe</p>
+      <div class="meta-row"><span class="badge tier">arXiv Technical Report</span><span class="badge date">2026-09-03 · 回溯 12 天</span></div>
+      <div class="authors">Chuyan Chen, Haoxing Chen, Kun Chen et al. · AGI Research Center, Inclusion AI</div>
+      <p class="note">6B Diffusion Transformer · 220M generation samples · Base + 2–4 step Turbo</p>
+      <div class="cite">Source: cover p.1 · arXiv:2609.03796v1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">真正的主張不是「換了更大的 DiT」，而是把 <b>視覺先驗、文字對齊、reference editing、few-step serving</b> 串成一條可檢查、可重做的訓練路徑。</p>
+      <div class="takeaway">作者報告：Qwen-Image-Bench 開源模型 EN 53.53、CN 53.38，並釋出 weights、code 與 recipe。</div>
+      <div class="cite">Source: Abstract p.1 · §1 p.7 · §5.1.1 p.17–19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM</div>
+      <h2 class="head">開放模型的難題，從來不是只追一個 image-quality score</h2>
+      <div class="two-col"><div><ul class="bullets"><li>早期 training 常把 visual-prior learning 與 language alignment 綁死，最耗算力階段要 paired captions。</li><li>Caption 昂貴且有資訊損失：完整圖被縮小時，caption 中的細節可能已不在 training target。</li><li>Generation、reference editing 與低成本 inference 通常被拆成不同 checkpoints。</li></ul></div><div><ul class="bullets"><li>可用的 open system 必須同時處理：複雜／雙語指令、寫實畫質、未修改內容保留與服務成本。</li><li>作者的切法：先從 image 自己取得 self-conditioning，文字 alignment 延後；editing 另加 semantic + pixel evidence。</li></ul></div></div>
+      <div class="takeaway">把「資料對齊問題」從模型容量問題裡拆出來，才是這份 report 的核心。</div>
+      <div class="cite">Source: §1 p.7 · §2.3 p.10 · §4.2 p.12–13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h2 class="head">五個組件，組成一套 end-to-end recipe</h2>
+      <ol class="numbered"><li><b>Image-only first</b>：以 masked self-conditioning 預訓練 visual prior。</li><li><b>RQA + Connector</b>：把 frozen dLLM VLM 轉成 DiT 可用的 condition。</li><li><b>Single-stream DiT</b>：一個 backbone 同時做 text-to-image 與 editing。</li><li><b>Progressive curriculum</b>：先升 resolution，再切 supervision modality。</li><li><b>TwinFlow</b>：把 Base 蒸餾成 2–4 step Turbo。</li></ol>
+      <div class="cite">Source: §1 p.7 · Fig.2 p.7 · §2–4 p.8–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ARCHITECTURE</div>
+      <h2 class="head">理解、生成、編輯不是三個模型，而是三條在同一 DiT 交會的訊號</h2>
+      <figure class="full" style="max-height:53vh; margin-top:.2rem;"><img src="figures/figure3_p8.jpg" alt="LLaDA-Image architecture"><figcaption>Fig. 3 · T2I 走 text → VLM → connector；editing 額外將 reference 的 SigLIP-VQ 與 VAE 特徵注入 DiT。</figcaption></figure>
+      <div class="cite">Source: Fig.3 p.8 · §2 p.8–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONDITIONING</div>
+      <h2 class="head">RQA 不是替換 VLM，而是從 frozen VLM 挖出更適合生成的 hidden states</h2>
+      <div class="two-col"><div><div class="formula">q<sub>res</sub> = RQA(q<sub>0</sub>, c)</div><div class="formula">h<sub>vlm</sub> = VLM(concat(c, q<sub>res</sub>))</div><div class="formula">h<sub>cond</sub> = Connector(h<sub>vlm</sub>)</div></div><div><ul class="bullets"><li>Learnable query tokens 在 prefill 前 cross-attend 到 multimodal input。</li><li>RQA 讓 frozen backbone 暴露 generation-centric context；shallow Transformer connector 再做 condition-space alignment。</li><li>Text-to-image 和 image-only training 共用這條 RQA–VLM–connector 路徑。</li></ul></div></div>
+      <div class="takeaway">昂貴的 VLM 不必全文 fine-tune；adaptation 被壓到 RQA 與 connector。</div>
+      <div class="cite">Source: §2.1–2.2 p.9 · Eq.2–4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">UNIFIED EDITING</div>
+      <h2 class="head">Editing 的 reference 一半走語意，一半直接交出像素證據</h2>
+      <div class="two-col"><div><h1 class="title">Semantic path</h1><ul class="bullets"><li>Reference image → SigLIP-VQ → DiT-specific embedder + 2 Transformer layers。</li><li>輸出 `h_ref` 與 text condition concat，告訴模型 reference 的高階內容。</li><li>Reference 不進 VLM，避免與 instruction 的共同語意路徑混淆。</li></ul></div><div><h1 class="title">Pixel path</h1><ul class="bullets"><li>Clean reference → FLUX.2 VAE latent。</li><li>與 noised target latent concat，讓未修改區域有 native pixel evidence。</li><li>作者將這條路徑歸因於 identity、structure、texture、background consistency 的強化。</li></ul></div></div>
+      <div class="takeaway">這是可被驗證的架構假說：語意 token 解決「改什麼」，VAE latent 守住「別改什麼」。</div>
+      <div class="cite">Source: §2.3 p.10 · Eq.6–8 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">IMAGE-ONLY PRIOR</div>
+      <h2 class="head">Image-only training 仍然有 condition，只是 condition 來自同一張圖的 masked visual evidence</h2>
+      <div class="two-col"><div><ul class="bullets"><li>從 image crop 取 SigLIP-VQ tokens，再由 frozen VLM 建 condition。</li><li>Mask 掉一部分 image tokens，避免 model 把完整 reference 當 identity shortcut。</li><li>對高解析資料採 native crop → 小幅 resize，不必把完整圖硬壓至 256²。</li></ul></div><div><div class="formula">x<sub>t</sub> = (1-t)x + tz</div><div class="formula">L<sub>FM</sub> = E[||F(x<sub>t</sub>, t, h<sub>cond</sub>) - (z-x)||<sup>2</sup>]</div><p class="note">只更新 DiT、RQA、connector；SigLIP-VQ 與 VLM 維持 frozen。</p></div></div>
+      <div class="cite">Source: §4.2 p.12–13 · Eq.9–10 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM</div>
+      <p class="big">先在 <b>same-crop</b> 上學「從稀疏可見 patches 補出完整 visual structure」，再學 text-to-image。這避免把 caption–image mismatch 當作 generation 的先天噪音。</p>
+      <div class="takeaway">這項設計的收益目前主要是機制論述與 staged recipe；report 沒有提供完整 remove-X quantitative ablation table。</div>
+      <div class="cite">Source: §4.2 p.12–13 · §4.3 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DATA</div>
+      <h2 class="head">資料策略：real-data dominant，但 synthetic data 保留給 text rendering</h2>
+      <figure class="full" style="max-height:43vh; margin-top:.25rem;"><img src="figures/figure4_p11.jpg" alt="SFT-weighted data composition"><figcaption>Fig. 4 · SFT-weighted composition；大類為 People 37.2%、Nature 26.6%、Design 26.4%、Synthetic 9.9%。</figcaption></figure>
+      <ul class="bullets"><li>220M generation samples 的 98% 為 real images；超過 90% 是 image-only training。</li><li>PT/MT 只用 real images；paired SFT 仍維持 real-image share >70%。</li><li>篩選條件：image >1024² pixels、ArtiMuse ≥60、DeQA ≥4.0；caption 另做 agreement filtering。</li></ul>
+      <div class="cite">Source: §3.1–3.2 p.10–11 · Fig.4 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CURRICULUM</div>
+      <h2 class="head">把兩個 distribution shift 分開：resolution 先變，supervision 後變</h2>
+      <table class="bench"><thead><tr><th>Stage</th><th class="num">Pixel budget</th><th>Condition</th><th>Purpose</th></tr></thead><tbody><tr><td>PT</td><td class="num">256²</td><td>image-only</td><td>visual prior</td></tr><tr><td>MT</td><td class="num">512² buckets</td><td>image-only</td><td>adapt spatial budget</td></tr><tr><td>SFT</td><td class="num">512² → 1024²</td><td>image–text</td><td>semantic alignment + detail</td></tr><tr class="win"><td>Editing</td><td class="num">1024²</td><td>T2I:I2I = 1:1</td><td>retain generation while learning edits</td></tr></tbody></table>
+      <ul class="bullets"><li>MT 先在 familiar image-derived condition 下適應更高 pixel budget；再改成 paired text。</li><li>Aspect-ratio buckets 讓不同 shapes 近似同一 pixel budget，減少 rank-level memory peaks / stragglers。</li></ul>
+      <div class="cite">Source: §4.3 p.14 · §4.4 p.15–16 · Tab.2 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OPTIMIZATION</div>
+      <h2 class="head">SFT 不均勻抽 timestep：把更多預算放到高噪聲的 early denoising</h2>
+      <div class="two-col"><div><div class="formula">epsilon ~ N(0,1)</div><div class="formula">t = sigmoid(P<sub>mean</sub> + P<sub>std</sub> epsilon)</div><div class="scorebox"><span class="score score--hi">P_mean = 0.8</span><span class="score score--hi">P_std = 0.8</span></div></div><div><ul class="bullets"><li>大 t 對應高 noise：結構尚未建立，早期誤差會向後傳播。</li><li>作者用 logit-normal sampling 偏向高-noise regime，避免平均浪費在已接近收斂的低-noise states。</li><li>DiT 全層用 parameter-free RMSNorm；generation stages 使用 Muon optimizer。</li></ul></div></div>
+      <div class="cite">Source: §2.3 p.10 · §4.4 p.15 · Eq.11 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">JOINT TRAINING</div>
+      <h2 class="head">為什麼 editing stage 仍混入 T2I？這是 capability replay，不只是湊資料</h2>
+      <ol class="numbered"><li><b>只用 I2I 的風險</b>：editing data 分布窄，可能 overfit edit objective、削弱 open-ended generation。</li><li><b>1:1 T2I:I2I</b>：每一步都讓 text-to-image 對 broad semantics、visual quality、prompt alignment 施加 regularization。</li><li><b>shared backbone</b>：visual prior 與 instruction understanding 的增益可在 generation/editing 兩任務間 transfer。</li></ol>
+      <div class="takeaway">統一 checkpoint 的關鍵不是「把任務塞一起」，而是用 replay 主動壓制 task interference。</div>
+      <div class="cite">Source: §4.4.2 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DISTILLATION</div>
+      <h2 class="head">TwinFlow：用 signed time 把 generator 與 fake-score estimator 放進同一 backbone</h2>
+      <div class="two-col"><div><h1 class="title">+t: generator</h1><ul class="bullets"><li>從 noise 到 clean sample 的 generation path。</li><li>DMD head 在 inference 保留。</li><li>Turbo 的 deployment 目標是 2–4 sampling steps。</li></ul></div><div><h1 class="title">-t: fake-score</h1><ul class="bullets"><li>同一 DiT 的另一個 output head。</li><li>1:2 generator:fake-score update schedule。</li><li>Inference 時 discard，因此不新增 inference-time overhead。</li></ul></div></div>
+      <div class="formula">positive time = generator role; negative time = fake-score role</div>
+      <div class="cite">Source: §4.5.1 p.16–17 · Tab.2 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">RESULT · PRIMARY BENCHMARK</div>
+      <p class="big">在 Qwen-Image-Bench，LLaDA-Image 報告 <b>EN 53.53 / CN 53.38</b> overall；相對次佳開源 Z-Image Turbo 分別 +1.87 / +0.67。</p>
+      <div class="sub">1,000 stratified prompts；覆蓋 quality、aesthetics、alignment、real-world fidelity、creative generation。作者排除 prompt enhancement / explicit reasoning / prompt rewriting。</div>
+      <div class="cite">Source: §5.1.1 p.17–19 · Tab.3–4 p.18–19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · QWEN-IMAGE-BENCH</div>
+      <h2 class="head">主結果不只 overall；作者聲稱 open-source 的 quality / aesthetics / alignment 在兩語種皆第一</h2>
+      <table class="bench"><thead><tr><th>Open-source model</th><th class="num">EN overall</th><th class="num">CN overall</th><th>Reading</th></tr></thead><tbody><tr class="win"><td class="best">LLaDA-Image</td><td class="num best">53.53</td><td class="num best">53.38</td><td>reported open-source SOTA</td></tr><tr><td>Z-Image Turbo</td><td class="num">51.66</td><td class="num">52.71</td><td>next-best on both tracks</td></tr><tr><td>Qwen-Image 2512</td><td class="num">51.32</td><td class="num">52.06</td><td>strong bilingual baseline</td></tr><tr><td>LLaDA-Image Turbo</td><td class="num">50.98</td><td class="num">50.27</td><td>four-step evaluation</td></tr></tbody></table>
+      <p class="note">比較需保留語境：baseline 數字是各系統報告的 raw scores；此處不是 independent replication。</p>
+      <div class="cite">Source: §5.1.1 p.17–19 · Tab.3 p.18 · Tab.4 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · TEXT</div>
+      <h2 class="head">文字渲染：整體不是全榜第一，但複雜多區 text 的表現更值得看</h2>
+      <table class="bench"><thead><tr><th>Benchmark / model</th><th class="num">EN</th><th class="num">ZH</th><th>Other</th></tr></thead><tbody><tr><td>LongText: LLaDA-Image</td><td class="num">0.923</td><td class="num">0.913</td><td>long-string correctness</td></tr><tr class="win"><td>CVTG-2K: LLaDA-Image</td><td class="num best">0.875</td><td class="num best">0.945</td><td>word accuracy / NED; CLIPScore 0.818</td></tr><tr><td>CVTG 2-region → 5-region</td><td class="num">0.892</td><td class="num">0.857</td><td>word accuracy decline</td></tr></tbody></table>
+      <div class="takeaway">LongText-Bench 仍落後專用 text-rendering systems；CVTG-2K 則呈現多 text-region 下相對穩定的 accuracy。</div>
+      <div class="cite">Source: §5.1.1 p.18–20 · Tab.5–6 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · DIAGNOSTIC</div>
+      <h2 class="head">GenEval 把「counting」這個弱點攤開，反而比總分更有用</h2>
+      <table class="bench"><thead><tr><th>LLaDA-Image GenEval</th><th class="num">Score</th><th>Interpretation</th></tr></thead><tbody><tr><td>Single object</td><td class="num best">1.00</td><td>strong</td></tr><tr><td>Two-object composition</td><td class="num best">0.98</td><td>strong</td></tr><tr><td>Attribute binding</td><td class="num best">0.84</td><td>tied-highest among compared models</td></tr><tr><td>Counting</td><td class="num">0.53</td><td>specific compositional weakness</td></tr><tr><td>Overall</td><td class="num">0.85</td><td>authors treat as legacy diagnostic</td></tr></tbody></table>
+      <p class="note">作者自己也說 GenEval / DPG-Bench 容易與 human-preference rankings 分歧，不把它們當主要 quality evidence。</p>
+      <div class="cite">Source: §5.1.1 p.20–21 · Tab.7 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · EDITING</div>
+      <h2 class="head">同一 checkpoint 能做 bilingual editing，但 perceptual quality 仍是專用 editor 的缺口</h2>
+      <table class="bench"><thead><tr><th>GEdit-Bench</th><th class="num">EN GSC</th><th class="num">EN GPQ</th><th class="num">EN GO</th><th class="num">CN GO</th></tr></thead><tbody><tr class="win"><td class="best">LLaDA-Image</td><td class="num best">8.043</td><td class="num">7.182</td><td class="num">7.336</td><td class="num">7.294</td></tr><tr><td>FireRed-Image-Edit</td><td class="num">8.363</td><td class="num">8.245</td><td class="num">7.943</td><td class="num">7.887</td></tr><tr><td>Nano-Banana Pro</td><td class="num">8.102</td><td class="num">8.344</td><td class="num">7.738</td><td class="num">7.799</td></tr></tbody></table>
+      <div class="takeaway">作者的誠實讀法：semantic consistency 比 perceptual quality 更有競爭力；縮小後者差距是下一步。</div>
+      <div class="cite">Source: §5.2 p.22–23 · Tab.9 p.23</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · THE CROWN PAGE</div>
+      <p class="big">這份 recipe 最有價值的地方，是把變因順序固定：<b>先 image-only prior → 再 resolution adaptation → 再 paired alignment → 最後 joint task + distillation。</b></p>
+      <div class="sub">它不是證明每個 component 的因果最優；它提供的是一條工程上可審計的 co-design path，並把應該被 ablate 的環節清楚地暴露出來。</div>
+      <div class="cite">Source: §1 p.7 · §4.2–4.5 p.12–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVIDENCE AUDIT</div>
+      <h2 class="head">該信什麼、不該信什麼，分清楚</h2>
+      <div class="two-col"><div><h1 class="title">較有力的 evidence</h1><ul class="bullets"><li>完整 PDF 直接列出 data ratio、training stages、hyperparameters、benchmark protocol。</li><li>Qwen-Image-Bench、text rendering、editing、legacy diagnostics 有拆項分數。</li><li>公開 weights / code / recipe 使後續復現有落點。</li></ul></div><div><h1 class="title">不能替它補上的 evidence</h1><ul class="bullets"><li>arXiv technical report，非 peer-reviewed acceptance。</li><li>沒有公開 reviewer record。</li><li>沒有完整 component-removal ablation，無法從本報告證明每一 recipe choice 的獨立因果。</li><li>多數 baseline 為作者彙整的 raw reported scores。</li></ul></div></div>
+      <div class="cite">Source: cover p.1 · §4–5 p.12–23 · §6 p.23</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">作者自己留下的三個缺口，比 headline score 更能決定下一輪工作</h2>
+      <ol class="numbered"><li><b>Knowledge grounding</b>：specialized subjects、culturally specific concepts 與 factual-context-dependent prompts 的 coverage 不夠。</li><li><b>Typography</b>：文字變長、region 變多、layout 變複雜時，rendering 會不穩。</li><li><b>Resolution</b>：只訓練到 nominal 1024² budget；native 2K 尚未被當成 evaluated capability。</li></ol>
+      <div class="takeaway">工程上最值得補的是：以 ablation 驗證 staged curriculum，再針對 long/multi-region text 與 native 2K 擴展。</div>
+      <div class="cite">Source: §6 p.23</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · HIGHLIGHT</div>
+      <h2 class="head">Paper 原文：image-only training 的核心判斷</h2>
+      <div class="hl"><p class="hl__en">The key observation is that an image already contains the high-level semantics required to supervise its generation.</p><p class="hl__zh">關鍵觀察是：一張圖本身已含有監督其生成所需的高階語意。<span class="hl__src">§4.2 p.12</span></p></div>
+      <div class="hl"><p class="hl__en">Image-only mid-training decouples these two changes: the model first adapts to the 512² pixel budget ... and only then transitions to textual supervision during SFT.</p><p class="hl__zh">image-only mid-training 將兩種改變拆開：先適應 512² pixel budget，之後才在 SFT 轉向文字監督。<span class="hl__src">§4.3 p.14</span></p></div>
+      <div class="cite">Source: §4.2 p.12 · §4.3 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · HIGHLIGHT</div>
+      <h2 class="head">Paper 原文：editing 的兩條 reference paths</h2>
+      <div class="hl"><p class="hl__en">The semantic pathway in Eq. (6) and the pixel pathway in Eq. (8) are complementary.</p><p class="hl__zh">Eq. (6) 的語意路徑與 Eq. (8) 的像素路徑是互補的。<span class="hl__src">§2.3 p.10</span></p></div>
+      <ul class="bullets"><li>Semantic path supplies high-level reference guidance; clean VAE latent supplies pixel-level evidence for unchanged regions.</li><li>這是 deck 對 unified editing 的唯一強機制主張：要用 targeted ablation 才能把敘事升成因果證據。</li></ul>
+      <div class="cite">Source: §2.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">LLaDA-Image</h2>
+      <p class="end__sub">一套有明確 engineering thesis 的 fully open image-generation recipe；headline 分數之外，真正可帶走的是 staged curriculum 與 dual-path editing 的可驗證假說。</p>
+      <div class="end__next">Tomorrow · Video generation / temporal models</div>
+      <div class="cite">Source: arXiv:2609.03796v1 · 2026-09-03</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
