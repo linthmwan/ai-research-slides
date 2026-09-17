@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SageAttention2 - AI Research Daily 2026-09-17</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · THURSDAY / COMPUTE ACCELERATION</div>
+      <h1 class="title">SageAttention2</h1>
+      <p class="lead">用 Q/K INT4 + P-tilde/V FP8，讓 attention kernel 變快，但不把模型品質一起量化掉。</p>
+      <div class="authors">Jintao Zhang · Haofeng Huang · Pengle Zhang · Jia Wei · Jun Zhu · Jianfei Chen</div>
+      <div class="meta-row"><span class="badge hi">ICML 2025 · PMLR 267</span><span class="badge hi">RTX4090: ~3x vs FlashAttention2</span><span class="badge ok">Full primary text obtained</span></div>
+      <p class="note">2026-09-17 backfill: same-day candidate PDF returned HTTP 404; this deck uses an accessible peer-reviewed ICML paper instead.</p>
+      <div class="cite">Source: PMLR 267:75097-75119 · metadata / venue confirmed on official PMLR page.</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">THE THESIS</div>
+      <p class="big">真正的難點不是把 attention 壓到 4-bit；而是讓 <b>quantization granularity、tensor-core layout、accumulator</b> 同時對齊。</p>
+      <div class="takeaway">SageAttention2 的核心是 hardware-aware error control，不是單純換更小的 datatype。</div>
+      <div class="cite">Abstract p.1 · §3 pp.4-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 · WHY ATTENTION IS STILL EXPENSIVE</div>
+      <h2 class="head">FlashAttention 減少 IO，但 QK^T 與 PV 仍是 N²d 的兩個大 matmul</h2>
+      <ul class="bullets"><li>Exact attention 仍需 <b>QK<sup>T</sup></b> 與 <b>PV</b>；兩者各自是 O(N²d)。</li><li>Linear/sparse attention 會改變計算或適用範圍；硬體取向的 exact attention 則保留完整計算。</li><li>前代 SageAttention 的 INT8 QK^T + FP16 P-tilde/V 還沒吃到 INT4 與跨 GPU 的 FP8 throughput。</li></ul>
+      <div class="cite">§1 p.1 · §2.1 p.3 · Table 1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">02 · FAILURE MODES</div>
+      <h2 class="head">直接降到 INT4 / FP8，會先被 outlier 與 accumulator 精度反噬</h2>
+      <div class="two-col"><div><ul class="bullets"><li>INT4 範圍只有 [-7,+7]；outlier 會讓大量較小元素變成 0。</li><li>per-tensor INT4 在 CogVideoX 會產生模糊輸出；Llama3 的 MMLU 可跌到 random-guess 25%。</li></ul></div><div><ul class="bullets"><li>Ada / Hopper 的 `mma(f32,f8,f8,f32)` 有效 accumulator 被量到是 <b>FP22</b>。</li><li>所以 FP8 P-tilde/V 的誤差不只來自 input format，也來自累加路徑。</li></ul></div></div>
+      <div class="cite">§1 p.2 · §3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · CONTRIBUTIONS</div>
+      <h2 class="head">三個 error-control 元件，包住兩個低精度 matmul</h2>
+      <ol class="numbered"><li><b>INT4 Q/K + FP8 P-tilde/V</b>：4b 與 Hopper 用的 8b kernel。</li><li><b>Smooth Q/K</b>：先移除 token-axis mean，再用 GEMV 補回 softmax 相關分量。</li><li><b>Per-thread quantization</b>：quantization group 直接對準 `mma.m16n8k64` 的 thread layout。</li><li><b>Two-level accumulation</b>：block 內忍受 FP22，跨 block 回到 FP32 buffer。</li></ol>
+      <div class="cite">§3 pp.3-6 · Table 3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · BASELINE EQUATION</div>
+      <h2 class="head">方法不改 attention graph；它改的是每個 tile 的算術與 correction</h2>
+      <div class="formula">S = QK<sup>T</sup> / sqrt(d) &nbsp; · &nbsp; P = softmax(S) &nbsp; · &nbsp; O = PV</div>
+      <ul class="bullets"><li>FlashAttention 將 Q/K/V 切成 tiles，以 online softmax 維持穩定的 state。</li><li>SageAttention2 保留同一個 streaming recurrence；因此不是 sparse/linear attention 的替代品。</li><li>設計目標：把 QK^T 移到 INT4、P-tilde/V 移到 FP8，同時保存 end-to-end metrics。</li></ul>
+      <div class="cite">§2.1 p.3 · §3 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 · SMOOTH BEFORE INT4</div>
+      <h2 class="head">先中心化 Q/K，讓 INT4 的少量碼位不被 outlier 霸佔</h2>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure2_p4.jpg" alt="Attention tensor data distributions"><figcaption>Figure 2: Q/K/V 的 attention tensor distribution；outlier 是量化前的結構性問題。</figcaption></figure>
+      <div class="takeaway">關鍵不是「量化得更細」，而是先把量化誤差的來源移走。</div>
+      <div class="cite">Fig. 2 p.4 · §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 · Q/K SMOOTHING MECHANISM</div>
+      <h2 class="head">mean removal + 一個 GEMV correction，避開重建全精度 score</h2>
+      <div class="formula">gamma(Q<sub>i</sub>) = Q<sub>i</sub> - qbar<sub>i</sub> &nbsp; · &nbsp; gamma(K<sub>j</sub>) = K<sub>j</sub> - kbar &nbsp; · &nbsp; S<sub>ij</sub> = INT4-GEMM + Delta S<sub>ij</sub></div>
+      <ul class="bullets"><li>只需補 `Delta S = qbar_i gamma(K_j)<sup>T</sup>`；同一 row 的 common bias 在 softmax 後會消失。</li><li>smoothing、quantization、GEMV 可融合成一個 preprocessing kernel，off-chip Q/K 只讀一次。</li><li>這是 attention-specific 設計：QK^T 的 quantization 軸限制讓 generic per-channel quantization 不適用。</li></ul>
+      <div class="cite">§3.1 p.4 · Eq. 2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">07 · GRANULARITY IS AN ISA DECISION</div>
+      <h2 class="head">Per-thread scale group 對齊 tensor-core instruction，而非照教科書切 tensor</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Q block 分給多個 warp；每個 32-thread warp 執行 `mma.m16n8k64`。</li><li>每個 thread 在 dequantization 對應一個 scale，不用處理 per-token 的 scale-vector dot product。</li></ul></div><div><ul class="bullets"><li>更細：比 per-block 更能隔離 outlier。</li><li>更快：避免 per-token scale 的延遲。</li><li>本質：把 accuracy granularity 與 execution mapping 綁在一起。</li></ul></div></div>
+      <div class="cite">§3.2 p.5 · Fig. 4 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">08 · FP8 IS NOT THE WHOLE STORY</div>
+      <h2 class="head">P-tilde/V 選 FP8 E4M3；真正補洞的是 FP22-to-FP32 two-level accumulation</h2>
+      <ul class="bullets"><li>P-tilde 在 [0,1] 且有大量小值；E4M3 比 uniform INT 更適合保留它們。</li><li>E4M3 的 CogVideoX layerwise cosine similarity 是 <b>99.44%</b>，FP16 為 99.45%，INT8 僅 77.05%。</li><li>每個 block product 先在 effective FP22 tensor-core accumulator 內完成，再併入 FP32 `O_ij` buffer；作者以 `b_k = 64` 限制局部累加範圍。</li></ul>
+      <div class="cite">§3.3 pp.5-6 · §3.4 p.6 · Table 7 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">09 · ALGORITHM VIEW</div>
+      <h2 class="head">一個 tile 的工作順序：center → scale → low-precision MMA → correct → accumulate</h2>
+      <div class="two-col"><div><ol class="numbered"><li>K 做 mean removal；V 做 per-channel FP8 quantization。</li><li>每個 Q block 做 per-thread INT4；每個 K block 做同樣的 mapping。</li><li>INT4 MMA 後加入 GEMV Delta S，得到 online softmax 所需 score。</li></ol></div><div><ol class="numbered"><li>P-tilde 乘 448 並轉 FP8 E4M3。</li><li>block 內 product 先進 FP22；跨 block output 留在 FP32。</li><li>最後以 online-softmax normalization 與 V scale 還原。</li></ol></div></div>
+      <div class="cite">Algorithm 1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">10 · MECHANISM CROWN PAGE</div>
+      <h2 class="head">為什麼 Q+K smoothing 是主因：它讓 INT4 重新看見大多數 activation</h2>
+      <p class="big">CogVideoX layerwise cosine similarity：<b>80.04%</b>（無 smoothing）→ <b>99.46%</b>（smooth Q+K）</p>
+      <div class="takeaway">Smoothing 不是微調；它把 INT4 從 outlier-dominated representation 拉回可用的 numerical regime。</div>
+      <div class="cite">Table 4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">11 · GRANULARITY ABLATION</div>
+      <h2 class="head">Per-thread 幾乎等於 per-token accuracy，卻不付 per-token 的硬體代價</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">CosSim</th><th class="num">Relative L1</th><th class="num">RMSE</th></tr></thead><tbody><tr><td>Per-token</td><td class="num">99.45%</td><td class="num">0.0649</td><td class="num">0.0335</td></tr><tr class="win"><td>Per-thread</td><td class="num best">99.45%</td><td class="num best">0.0622</td><td class="num best">0.0313</td></tr><tr><td>Per-block</td><td class="num">98.03%</td><td class="num">0.1492</td><td class="num">0.0744</td></tr><tr><td>Per-tensor</td><td class="num">97.15%</td><td class="num">0.1800</td><td class="num">0.0865</td></tr></tbody></table>
+      <div class="takeaway">「quantization group 應該多小」的答案取決於能不能對映到 GPU thread，而不只看 tensor statistics。</div>
+      <div class="cite">Table 6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">12 · KERNEL SPEED</div>
+      <h2 class="head">RTX4090 上，4b 把 throughput 推到 3x FlashAttention2 / 4.5x xformers</h2>
+      <table class="bench"><thead><tr><th>Kernel</th><th class="num">vs FlashAttention2</th><th class="num">vs xformers</th><th class="num">Hardware</th></tr></thead><tbody><tr class="win"><td>SageAttn2-4b</td><td class="num best">~3x</td><td class="num best">~4.5x</td><td class="num">RTX4090</td></tr><tr><td>SageAttn2-8b</td><td class="num">~2.7x</td><td class="num">~4x</td><td class="num">RTX4090</td></tr><tr><td>SageAttn2-8b</td><td class="num">matches FA3-fp8</td><td class="num">higher reported accuracy</td><td class="num">Hopper</td></tr></tbody></table>
+      <ul class="bullets"><li>4b = INT4 per-thread Q/K; 8b = INT8 per-thread Q/K for Hopper, which lacks native INT4 tensor cores.</li><li>這裡是 kernel speed；不要把它和 model end-to-end latency 混成同一個數字。</li></ul>
+      <div class="cite">§4.2 p.9 · §1 p.2 · Table 3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">13 · END-TO-END LATENCY</div>
+      <h2 class="head">Kernel speed 有轉成實際生成時間，但幅度受整個模型 pipeline 限制</h2>
+      <table class="bench"><thead><tr><th>Workload</th><th class="num">Original</th><th class="num">SageAttn2-8b</th><th class="num">SageAttn2-4b</th></tr></thead><tbody><tr class="win"><td>CogVideoX 1.5-5B / RTX4090</td><td class="num">1040 s</td><td class="num best">577 s</td><td class="num best">555 s</td></tr><tr class="win"><td>Llama3.1 48K / RTX4090</td><td class="num">9.2 s</td><td class="num best">5.7 s</td><td class="num best">5.6 s</td></tr><tr class="win"><td>Llama3.1 100K / L20</td><td class="num">39.9 s</td><td class="num best">25.4 s</td><td class="num best">23.2 s</td></tr><tr class="win"><td>Mochi / L20</td><td class="num">2336 s</td><td class="num best">1316 s</td><td class="num best">1190 s</td></tr></tbody></table>
+      <div class="takeaway">100K Llama3.1 on L20: 39.9 s → 23.2 s（4b）；這就是 4b 的速度價值落在應用端的樣子。</div>
+      <div class="cite">Table 8 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">14 · QUALITY IS NOT ONE METRIC</div>
+      <h2 class="head">8b 的定位：把 Hopper throughput 接近 FA3(fp8)，但避開其明顯品質崩壞</h2>
+      <table class="bench"><thead><tr><th>CogVideoX 1.5-5B</th><th class="num">CLIPSIM</th><th class="num">VQA-t</th><th class="num">FScore</th></tr></thead><tbody><tr><td>Full precision</td><td class="num">0.1778</td><td class="num">70.928</td><td class="num">2.507</td></tr><tr><td>FlashAttn3-fp8</td><td class="num">0.1562</td><td class="num">2.181</td><td class="num">cannot evaluate</td></tr><tr><td>SageAttn2-4b</td><td class="num">0.1721</td><td class="num">52.989</td><td class="num">2.884</td></tr><tr class="win"><td>SageAttn2-8b</td><td class="num best">0.1775</td><td class="num best">74.415</td><td class="num best">2.487</td></tr></tbody></table>
+      <div class="takeaway">同樣是快速 FP8 attention，累加與 outlier 設計是否正確，會比 headline throughput 更決定生成品質。</div>
+      <div class="cite">Table 2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">15 · VISUAL SANITY CHECK</div>
+      <h2 class="head">作者也提供 HunyuanVideo 的可視化比較；數字之外，檢查生成品質有沒有肉眼崩壞</h2>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure6_p8.jpg" alt="HunyuanVideo visual comparison"><figcaption>Figure 6: HunyuanVideo comparison examples; prompts sampled from open-sora prompt sets.</figcaption></figure>
+      <div class="cite">Fig. 6 p.8 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">16 · OVERHEAD ACCOUNTING</div>
+      <h2 class="head">三個精度防護的 kernel overhead 不對稱：值得花的地方不同</h2>
+      <table class="bench"><thead><tr><th>Technique</th><th class="num">Kernel-speed overhead</th><th class="num">Why it exists</th></tr></thead><tbody><tr><td>Per-thread quantization</td><td class="num">0.35%</td><td class="num">near per-token accuracy</td></tr><tr><td>Smooth Q</td><td class="num">3.7%</td><td class="num">remove INT4 outlier damage</td></tr><tr class="win"><td>Two-level accumulation</td><td class="num best">0%</td><td class="num best">contain FP22 accumulation error</td></tr></tbody></table>
+      <div class="takeaway">這是很乾淨的 engineering message：最重要的 correction 不一定是最貴的。</div>
+      <div class="cite">§4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">17 · WHERE IT DOES NOT GENERALIZE</div>
+      <h2 class="head">這不是「所有 GPU、所有模型都直接 INT4」的故事</h2>
+      <ul class="bullets"><li>Hopper 沒有 native INT4 tensor core，因此使用 8b variant，且不含 Q smoothing。</li><li>V smoothing 只在 V 有 channel-wise bias 時明顯有利；作者沒有在 main experiments 使用它。</li><li>4b 的可視品質仍可能有 minor differences；8b 才是作者定位的 near-no-loss 路線。</li><li>證據來自 NVIDIA CUDA kernels 與選定模型；原文沒有建立跨 vendor ISA 的 portability claim。</li></ul>
+      <div class="cite">§3.4 p.6 · §4.1 p.8 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">18 · ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">把這篇放回 kernel / compiler 工作：三個可移植的設計問題</h2>
+      <ol class="numbered"><li><b>先找 error source：</b>outlier、scale granularity、還是 accumulator？不要把它們全叫「quantization error」。</li><li><b>把 numerical choice 綁到 ISA：</b>scale group 可以由 MMA layout 決定，而不是只由 tensor dimension 決定。</li><li><b>把 throughput 與 end-to-end 分開驗：</b>kernel 3x 不等於整個模型 3x；同時記錄 quality task。</li><li><b>不要相信 type name：</b>實測 MMA accumulator 的 effective precision，才知道 correction 要放在哪裡。</li></ol>
+      <div class="cite">Synthesis grounded in §3 pp.4-6 and §4 pp.7-9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PRIMARY-TEXT HIGHLIGHT</div>
+      <h2 class="head">Per-thread 的主張，不是犧牲效率換 accuracy</h2>
+      <div class="hl"><p class="hl__en">“This approach achieves much better accuracy performance than per-block quantization with no additional dequantization overhead.”</p><p class="hl__zh">它比 per-block quantization 準得多，卻不增加 dequantization overhead；把 group 對準 thread layout 才是原因。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PRIMARY-TEXT HIGHLIGHT</div>
+      <h2 class="head">FP8 kernel 的隱藏現實：effective accumulator 是 FP22</h2>
+      <div class="hl"><p class="hl__en">“We find that the accumulator for the mma(f32f8f8f32) instruction on the Ada and Hopper architecture is actually FP22.”</p><p class="hl__zh">名稱看起來像 FP32 的 MMA accumulator，實際有效精度是 FP22；所以跨 block 需要 FP32 buffer。<span class="hl__src">§3.4 p.6</span></p></div>
+      <div class="cite">§3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">SageAttention2</h2>
+      <p class="end__sub">低 bit-width attention 的勝負，在於誤差補償有沒有長在硬體真正執行的位置。</p>
+      <div class="end__next">Next: Friday - model compression / efficiency</div>
+      <div class="cite">Paper: Zhang et al., ICML 2025 · Official PMLR source</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
