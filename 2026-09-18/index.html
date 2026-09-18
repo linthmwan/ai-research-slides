@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAGE - Curvature-Aware Gradient Estimation for Accurate Quantization-Aware Training</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · FRI / COMPRESSION</div>
+      <h2 class="head">CAGE</h2>
+      <p class="big">Curvature-Aware Gradient Estimation</p>
+      <p class="lead">讓 low-bit QAT 的更新，真的朝量化格點收斂</p>
+      <div class="authors">Soroush Tabesh · Mher Safaryan · Andrei Panferov · Alexandra Volkova · Dan Alistarh</div>
+      <div class="meta-row"><span class="badge tier">MLSys 2026 Oral</span><span class="badge date">arXiv v3 · 2026-06-18</span></div>
+      <div class="cite">Source: CAGE paper cover p.1 · official MLSys 2026 paper index</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不要只穿透量化梯度；也要把參數拉回量化支撐集。</p>
+      <p class="lead">CAGE 以 residual e = x - Q(x) 補正 STE/AdamW，在幾乎不改成本的前提下縮小 low-bit accuracy gap。</p>
+      <div class="cite">Source: Abstract p.1; §3.1–3.3 pp.3–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 · PROBLEM</div>
+      <h1 class="title">QAT 的瓶頸不是只有不可微</h1>
+      <ul class="bullets"><li>量化算子 Q 的 gradient 幾乎處處為 0；STE 以 identity 近似它。</li><li>STE 很實用，但已知會有收斂慢與不穩定的問題。</li><li>既有改良多是 learnable scales 或 gradient tricks，欠缺統一的最佳化目標與 guarantee。</li></ul>
+      <div class="takeaway">真正要解的是：模型怎樣同時降低 task loss，又靠近可部署的量化格點？</div>
+      <div class="cite">Source: §1 pp.1–2; §3.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">02 · BASELINE</div>
+      <h1 class="title">STE 忽略了量化殘差的幾何</h1>
+      <div class="formula">STE: grad_x f(Q(x)) ~= grad f(Q(x))</div>
+      <ul class="bullets"><li>對 SGD，STE 可視為 error-feedback：量化殘差會在下一步回灌。</li><li>這只在 Hessian 是 isotropic quadratic 時會「剛好正確」。</li><li>一般 loss landscape 裡，不同方向的曲率不同；同一個 residual 不該一視同仁。</li></ul>
+      <div class="cite">Source: §3.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · REFRAME</div>
+      <h1 class="title">把 QAT 變成雙目標 Pareto 問題</h1>
+      <div class="two-col"><div><h1 class="title">Objective A</h1><ul class="bullets"><li>降低 task loss</li><li>尋找 stationary direction</li></ul></div><div><h1 class="title">Objective B</h1><ul class="bullets"><li>降低 x 與 Q(x) 的距離</li><li>滿足量化約束</li></ul></div></div>
+      <div class="formula">Pareto stationarity: grad f(x) + lambda (x - Q(x)) = 0</div>
+      <div class="takeaway">在量化下，不能硬要求一個完美 stationary quantized point；平衡才是可達的定義。</div>
+      <div class="cite">Source: Eq.2, §3.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · 皇冠頁</div>
+      <p class="big">CAGE 的核心不是「多一個 regularizer」，而是讓 optimizer update 直接遵守 Pareto direction。</p>
+      <p class="lead">量化 residual 成為明確更新項；藉由既有 Adam statistics 或 decoupled post-step，避免顯式 Hessian 的成本。</p>
+      <div class="cite">Source: §3.1 pp.3–4; §3.3 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · TWO FORMS</div>
+      <h1 class="title">Coupled 與 decoupled：方向相同，縮放位置不同</h1>
+      <div class="two-col"><div><h1 class="title">Coupled</h1><ul class="bullets"><li>先將 lambda e_t 加進 gradient</li><li>Adam state 會預條件化 residual</li><li>second moment 提供 diagonal curvature proxy</li></ul></div><div><h1 class="title">Decoupled</h1><ul class="bullets"><li>先完成 base optimizer update</li><li>再施加 lambda e_t</li><li>避免 variance estimate 扭曲校正量</li></ul></div></div>
+      <div class="takeaway">SGD 下兩者等價；有 state 的 optimizer 下，作者主要使用 decoupled CAGE-AdamW。</div>
+      <div class="cite">Source: §3.1 p.4; §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 · UPDATE</div>
+      <h1 class="title">CAGE-AdamW 是一個輕量後處理</h1>
+      <div class="formula">e_t = x_t - Q(x_t)    |    x_(t+1) = x_tilde_(t+1) - alpha lambda_t e_t</div>
+      <ol class="numbered"><li>以量化 forward pass 取得 STE gradient，AdamW 正常更新。</li><li>以 no-grad 計算 instantaneous residual。</li><li>在 update 後加上 residual correction，推向 quantized support。</li></ol>
+      <div class="takeaway">不需要儲存新 persistent state；介面只要求 quantizer 能回傳或重算 Q(x)。</div>
+      <div class="cite">Source: Algorithm 1 pp.5–6; §4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 · SCHEDULE</div>
+      <h1 class="title">先沉默，後線性 ramp</h1>
+      <div class="formula">lambda_t = 0 before sT; then ramp linearly to lambda</div>
+      <ul class="bullets"><li>早期會快速跨越 quantization cells：residual 接近 mean-zero perturbation，強拉反而加噪。</li><li>接近收斂時，Q(x_t) 穩定，residual 變 coherent，才有累積校正效果。</li><li>實驗建議：silence ratio s = 0.8–0.95；lambda = 1–10（依 model）。</li></ul>
+      <div class="cite">Source: §3.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">07 · QUANTIZER</div>
+      <h1 class="title">強 baseline 是 QuEST；CAGE 不綁 QuEST</h1>
+      <ul class="bullets"><li>實驗基礎：row-wise Hadamard rotation、symmetric quantization、trust-masked STE。</li><li>CAGE 只使用 e_t = x_t - Q(x_t)，因此可附著於不同 bit-width 和 quantizer。</li><li>論文的主張是 optimizer correction，不是另造一個 low-bit GEMM kernel。</li></ul>
+      <p class="note">訓練採 simulated quantization/dequantization + standard-precision matmul。</p>
+      <div class="cite">Source: §4 pp.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">08 · THEORY</div>
+      <h1 class="title">收斂對象換成 Pareto gradient</h1>
+      <div class="formula">E ||grad_P f(Q(x_hat))||^2 = O(1 / sqrt(T))</div>
+      <ul class="bullets"><li>Theorem 1 假設 smooth loss、unbiased bounded-variance stochastic gradient，及 smooth surrogate quantizer。</li><li>SGD setting 下對 Pareto-optimal state 有 ergodic convergence。</li><li>作者強調 bound 不含由量化 error 造成的 non-vanishing term。</li></ul>
+      <div class="takeaway">理論保證精確覆蓋 SGD；AdamW 版本是同一方向的實務設計與實驗驗證。</div>
+      <div class="cite">Source: Theorem 1, §3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">09 · SYNTHETIC</div>
+      <h1 class="title">非 isotropic quadratic：先檢驗「曲率」這個前提</h1>
+      <ul class="bullets"><li>4-bit quantized quadratic，condition number 取 1、10、100。</li><li>比較 STE-SGD、STE-Adam、CAGE-Adam；每組以 10 seeds 測 final validation loss。</li><li>CAGE 在不同 condition number 都降低 stationary error，trajectory 也更接近 true optimum。</li></ul>
+      <div class="cite">Source: §4.1 p.7; Fig.1–2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">10 · FINETUNE</div>
+      <h1 class="title">MXFP4 Llama-3.2-3B：accuracy gap 約減半</h1>
+      <ul class="bullets"><li>Llama-3.2-3B 在 Tulu-SFT fine-tune；FP32 master weights，forward weights/activations 皆為 MXFP4。</li><li>評測 GSM8K exact-match、HellaSwag accuracy、WinoGrande accuracy。</li><li>Figure 3 顯示 CAGE 對 SOTA MXFP4 QuEST baseline 三項皆提升；作者總結 quantization error 約減半。</li></ul>
+      <div class="cite">Source: §4.2 p.7; Fig.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">11 · PRETRAIN</div>
+      <h1 class="title">從 30M 到 800M、W2A2 到 W4A4</h1>
+      <ul class="bullets"><li>Llama-style model sizes：30M / 50M / 100M / 200M / 430M / 800M。</li><li>C4，固定 D = 100 x N tokens；每個 pretraining result 平均 3 seeds。</li><li>比較 CAGE+QuEST、QuEST 和 BF16 reference；硬體為 8xH100。</li></ul>
+      <div class="cite">Source: §4.3 pp.7–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">12 · TABLE 1</div>
+      <h1 class="title">W4A4 final perplexity：每個 model size 都贏 QuEST</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">100M</th><th class="num">800M</th><th class="num">eff(P)</th></tr></thead><tbody><tr class="win"><td>CAGE + HT</td><td class="num best">18.944</td><td class="num best">12.182</td><td class="num best">0.797</td></tr><tr><td>QuEST + HT</td><td class="num">19.123</td><td class="num">12.482</td><td class="num">0.733</td></tr><tr><td>BF16 reference</td><td class="num">17.923</td><td class="num">11.698</td><td class="num">1.000</td></tr></tbody></table>
+      <div class="takeaway">低 precision 仍有 gap，但 CAGE 把 W4A4 朝 BF16 前推，且在每個列出的 size 勝 QuEST。</div>
+      <div class="cite">Source: Table 1 p.8 · lower perplexity is better</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">13 · SCALING</div>
+      <h1 class="title">有效 capacity：低位元不只看單點 loss</h1>
+      <figure class="full" style="max-height:45vh; margin-top:.3rem;"><img src="figures/figure6_p8.jpg" alt="CAGE fitted parameter efficiency across precisions"><figcaption>Figure 6：以 fitted eff(P) 衡量，CAGE 在所有 precision 高於 QuEST；峰值接近 4-bit。</figcaption></figure>
+      <ul class="bullets"><li>作者報告相對 prior SOTA：4-bit 的 parameter efficiency 增益超過 10%，2-bit 超過 20%。</li><li>4-bit 在擬合結果最好，但 CAGE 下 3-bit 的相對劣勢已很小。</li></ul>
+      <div class="cite">Source: §4.3 p.9; Fig.6 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">14 · DEPLOYMENT</div>
+      <h1 class="title">關鍵結果：W3A3 CAGE 超過 W4A4 QuEST 的 Pareto front</h1>
+      <ul class="bullets"><li>Figure 5 的 loss-vs-model-size 比較涵蓋 W2A2/W3A3/W4A4。</li><li>作者描述 CAGE 在每個 precision 都 Pareto-superior to QuEST。</li><li>特別地，W3A3 CAGE 被報告為 Pareto-superior to W4A4 QuEST。</li></ul>
+      <div class="takeaway">如果這個趨勢能遷移到實際 kernel，改善 QAT 可能比單純多給一個 bit 更有價值。</div>
+      <div class="cite">Source: §4.3 p.9; Fig.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">15 · OVERHEAD</div>
+      <h1 class="title">精度提升不是用訓練時間換來的</h1>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">QuEST ms/iter</th><th class="num">CAGE ms/iter</th></tr></thead><tbody><tr class="win"><td>100M W4A4, no HT</td><td class="num">101.6 +/- 1.7</td><td class="num best">101.1 +/- 1.8</td></tr><tr><td>430M W4A4, no HT</td><td class="num">282.7 +/- 3.1</td><td class="num">283.1 +/- 3.0</td></tr></tbody></table>
+      <ul class="bullets"><li>額外工作：一次 quantization call 取得 residual，加少量 elementwise ops。</li><li>峰值 GPU memory 不變：residual on-the-fly，沒有新 persistent state。</li></ul>
+      <div class="cite">Source: §4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">16 · LOTION</div>
+      <h1 class="title">與 concurrent curvature method 的比較</h1>
+      <figure class="full" style="max-height:40vh; margin-top:.3rem;"><img src="figures/figure8_p10.jpg" alt="CAGE and LOTION pretraining loss"><figcaption>Figure 8：100M Llama-style model、C4、weight-only AbsMax W4A16；CAGE 末段 loss 更低，LOTION plateau。</figcaption></figure>
+      <p class="note">重要限制：LOTION 當時沒有官方 implementation，論文比較使用作者自行 reimplementation。</p>
+      <div class="cite">Source: §4.3 pp.9–10; Fig.8 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">17 · UNIVERSALITY</div>
+      <h1 class="title">不是只對 AdamW 有效</h1>
+      <ul class="bullets"><li>另以 50M OLMo2-family models + ClimbMix 測 AdamW、Muon、Shampoo、SOAP。</li><li>每個 optimizer 都先各自 tune hyperparameters，再以相同 initialization/setup 比較有無 CAGE。</li><li>Figure 4 的實驗中，CAGE 對四種 optimizer 都降低 validation loss，使用 s=0.9、lambda=5。</li></ul>
+      <div class="cite">Source: §4.3 p.9; Fig.4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">18 · WHY LATE</div>
+      <h1 class="title">Figure 7：CAGE 的增益在訓練後段更明顯</h1>
+      <ul class="bullets"><li>50M Llama、W4A4 的 baseline 隨訓練繼續有 quantization error 增加。</li><li>CAGE correction 開始後，quantization error 有明顯下降，且 final loss 更低。</li><li>這和「早期 residual 抵消、晚期 residual coherent」的 schedule 解釋對齊。</li></ul>
+      <div class="cite">Source: §3.3 p.6; §4.3 pp.9–10; Fig.7 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">ENGINEERING INTERPRETATION</div>
+      <p class="big">將 QAT 視為「能否達到 Pareto stationarity」，比把 STE 當固定近似器更可操作。</p>
+      <p class="lead">它把 quantizer 的 residual 變成 optimizer 可用的訊號；而不是只在 forward pass 接受量化誤差。</p>
+      <div class="cite">Source: §3.1–3.3 pp.3–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">19 · LIMITS</div>
+      <h1 class="title">該相信到哪裡</h1>
+      <ul class="bullets"><li>理論是 SGD + smooth-surrogate assumptions；它不是對 AdamW 實作的完整同構證明。</li><li>訓練採 simulated Q/DQ，不是端到端 custom low-bit kernel benchmark。</li><li>W3A3/W2A2 當時缺少廣泛可用 hardware support，部署結論仍需系統層驗證。</li><li>LOTION baseline 是 reimplementation，作者也承諾未來重跑。</li></ul>
+      <div class="cite">Source: §3.2 p.5; §4 pp.6–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">20 · PRACTICAL</div>
+      <h1 class="title">若要把 CAGE 放進既有 QAT recipe</h1>
+      <ol class="numbered"><li>保留既有 quantizer、STE 和 optimizer；每 step 拿到 e = x - Q(x)。</li><li>先用 silence + ramp，避免早期把 high-frequency quantization noise 當方向。</li><li>從 decoupled AdamW 開始測，追蹤 loss、quantization error、wall-clock、memory。</li><li>要區分 algorithm gain 與 real low-bit kernel gain：兩者都需要量。</li></ol>
+      <div class="cite">Source: Algorithm 1 pp.5–6; §3.3 p.6; §4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · ORIGINAL WORDING</div>
+      <h1 class="title">核心 claim 之一</h1>
+      <div class="hl"><p class="hl__en">“CAGE is derived from a multi-objective view of QAT that balances loss minimization with the quantization constraints.”</p><p class="hl__zh">CAGE 從多目標 QAT 出發，平衡 loss 最小化與量化約束。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="cite">Source: Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · ORIGINAL WORDING</div>
+      <h1 class="title">最強的 precision claim</h1>
+      <div class="hl"><p class="hl__en">“W3A3 CAGE is Pareto-superior to W4A4 QuEST!”</p><p class="hl__zh">作者聲稱：3-bit weights-and-activations 的 CAGE 在 Pareto 前緣上勝過 4-bit QuEST。<span class="hl__src">§4.3 p.9</span></p></div>
+      <div class="cite">Source: §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">CAGE：用 residual 把 QAT 的 accuracy gap 變成可最佳化的方向。</h2>
+      <p class="end__sub">明日主題：AI Agent 框架 / 多模態系統</p>
+      <div class="end__next">Source deck · 2026-09-18 · MLSys 2026 Oral</div>
+      <div class="cite">Paper: arXiv:2510.18784v3 · https://arxiv.org/abs/2510.18784v3</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
