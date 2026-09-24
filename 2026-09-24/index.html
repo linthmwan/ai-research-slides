@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MVP: A Motion-Predictive Speculative Vision Pipeline with Non-Blocking Drift Correction</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · THU · COMPUTE ACCELERATION</div>
+      <h1 class="title">MVP: A Motion-Predictive Speculative Vision Pipeline with Non-Blocking Drift Correction</h1>
+      <p class="lead">把 continuous vision 的 speculative execution 從 pixel domain 移到 ISP motion-vector domain。</p>
+      <div class="authors">Raul Taranco · Antonio Gonzalez · Universitat Politècnica de Catalunya</div>
+      <div class="meta-row"><span class="badge hi">MICRO 2026 · Accepted</span><span class="badge">arXiv:2609.27706v1</span><span class="badge">2026-09-24</span></div>
+      <figure class="full" style="max-height:18vh;"><img src="figures/figure3_p4.jpg" alt="MVP SoC overview"><figcaption>Fig. 3 · MVP integrates a predictor with the ISP motion path.</figcaption></figure>
+      <div class="cite">Source: MVP paper · cover / §III-A p.4 · selected for Thursday compute-acceleration rotation</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">MVP turns <b>motion extrapolation</b> into the default response path, then moves full inference to a background <b>drift-correction</b> path.</p>
+      <div class="scorebox"><span class="score score--hi">-66.8% P99 tail latency</span><span class="score score--hi">-46% energy</span><span class="score">small accuracy cost</span></div>
+      <div class="takeaway">The win is not another heavier predictor: it is changing which state gets speculated.</div>
+      <div class="cite">Abstract p.1; §I pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE BOTTLENECK</div>
+      <h2 class="head">A pipelined SoC still serializes each individual frame</h2>
+      <ul class="bullets"><li>Per-frame sensing → ISP → neural backend handoff dominates end-to-end response time.</li><li>Safety / XR workloads are latency sensitive: the paper cites <b>&lt;100 ms</b> for AD and <b>&lt;50 ms</b> for XR.</li><li>Bounded “process-latest, drop-oldest” queues prevent runaway latency, but in overload they sacrifice temporal resolution.</li></ul>
+      <div class="takeaway">Backend throughput alone does not solve a critical-path dependency.</div>
+      <div class="cite">§I p.1; §II-B p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY PRIOR WORK LEAVES A GAP</div>
+      <h2 class="head">Two useful ideas fail for opposite reasons</h2>
+      <div class="two-col"><div><p class="col-hint">MOTION EXTRAPOLATION (CME)</p><ul class="bullets"><li>Skips some full inferences by propagating old detections with ISP motion vectors.</li><li>Key frames still pay full backend latency.</li><li>E-frames may wait for the preceding I-frame; overload can still drop frames.</li></ul></div><div><p class="col-hint">PIXEL-DOMAIN SPECULATION (PVF / PDSPEC)</p><ul class="bullets"><li>Predicts full-resolution future frames and runs complete speculative inference.</li><li>Needs parallel compute; failures require reprocessing.</li><li>Turning frontend off to save energy creates sensor blind spots.</li></ul></div></div>
+      <div class="cite">§II-C pp.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PAPER CONTRIBUTION</div>
+      <h2 class="head">Four tightly coupled changes</h2>
+      <ol class="numbered"><li><b>MVP-SCH:</b> immediate extrapolation for every frame; full inference becomes asynchronous drift correction.</li><li><b>MVP-SPE:</b> speculate one future motion field, validate it at MV arrival, and locally re-extrapolate on mismatch.</li><li><b>ISP extension:</b> confidence-aware MV denoiser plus tile-wise AR(2) predictor.</li><li><b>Optional frontend scaling:</b> use predicted motion as a capture-rate control signal.</li></ol>
+      <div class="cite">§I pp.1–2; §III-A pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SYSTEM VIEW</div>
+      <h2 class="head">The extra hardware is attached to an existing motion stream</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure3_p4.jpg" alt="MVP SoC augmentation"><figcaption>Fig. 3 · Predictions become metadata available to CPU / MCU scheduling logic.</figcaption></figure>
+      <div class="takeaway">MVP does not add an NPU for prediction; it reuses motion estimation already inside modern ISPs.</div>
+      <div class="cite">Fig. 3; §III-A p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MVP-SCH</div>
+      <h2 class="head">Drift correction is no longer a blocking dependency</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure4_p5.jpg" alt="MVP scheduling diagram"><figcaption>Fig. 4 · All frames get a lightweight extrapolated B output; DC frames run in the background.</figcaption></figure>
+      <ul class="bullets"><li><b>DCFD</b> controls the number of frames between full drift-correction frames.</li><li><b>MED</b> bounds how far outputs may extrapolate from the last correction.</li><li>Adaptive DCFD increases the interval when observed error is low and shrinks it when error rises.</li></ul>
+      <div class="cite">§III-B pp.5–6; Fig. 4 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTROL KNOB</div>
+      <h2 class="head">Correction cadence makes the accuracy–efficiency trade explicit</h2>
+      <div class="formula"><b>DCFD = 0</b> → correct every frame → no drift, no backend saving<br><b>higher DCFD</b> → fewer backend executions → more accumulated extrapolation error</div>
+      <ul class="bullets"><li>At short horizons (DCFD ≤ 2), both MVP-SCH and MVP-SPE stay below <b>1% mAP drop</b>.</li><li>At DCFD=4, mAP drop is 2.9% / 3.6%; at DCFD=8 it grows to about 10% / 13%.</li><li>The adaptive operating point limits the observed loss to 1.3% / 1.6% with maximum DCFD=4.</li></ul>
+      <div class="cite">§III-B p.5; §VI-A p.10; Fig. 9 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MVP-SPE</div>
+      <h2 class="head">Speculate a cheap state one frame ahead, not an expensive image</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure5_p6.jpg" alt="MVP speculative pipeline"><figcaption>Fig. 5 · With MSD=1, predicted MVs make a provisional next output; measured MVs validate it on arrival.</figcaption></figure>
+      <div class="takeaway">A validation miss triggers local re-extrapolation from measured motion vectors — not neural-network re-inference.</div>
+      <div class="cite">§III-C pp.6–7; Fig. 5 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">THE SAFETY PROPERTY</div>
+      <p class="big">Nothing reaches a downstream task before the arriving frame’s motion vectors validate the prediction.</p>
+      <p class="lead">If it fails, MVP discards only the motion update, recalculates from measured MVs, and re-issues the task. No image-generation output, no NPU rollback.</p>
+      <div class="takeaway">This turns “misprediction” from a full backend replay into a bounded metadata repair.</div>
+      <div class="cite">§III-C pp.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OPTIONAL FRONTEND SCALING</div>
+      <h2 class="head">Predicted motion can reduce sensing energy before capture</h2>
+      <div class="formula">P<sub>trigger</sub> = min(1, M<sub>pred</sub> / T<sub>blink</sub>)</div>
+      <ul class="bullets"><li>Always capture one frame; conditionally trigger the next when predicted motion is low.</li><li>T<sub>blink</sub>=2 px / 4 px saves 5.4% / 13.8% frontend energy while meeting the 1.5 mAP target.</li><li>Aggressive 8 px reaches roughly 50% saving but costs 6.2% mAP — intentionally not a safety-default mode.</li></ul>
+      <div class="cite">§III-D p.7; §VI-E p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HARDWARE PLACEMENT</div>
+      <h2 class="head">Two streaming blocks live alongside the ISP pipeline</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure6_p7.jpg" alt="MVP ISP pipeline"><figcaption>Fig. 6 · MVP captures existing temporal-denoising motion vectors, denoises and predicts them, then exposes metadata to the SoC.</figcaption></figure>
+      <div class="takeaway">The design is an ISP augmentation, not a second vision accelerator.</div>
+      <div class="cite">§IV p.7; Fig. 6 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MV DENOISER</div>
+      <h2 class="head">Filter uncertain block motion before using it as a control signal</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:32vh;"><img src="figures/figure7_p8.jpg" alt="MV denoiser"><figcaption>Fig. 7 · Spatial + temporal filtering of the ISP motion-vector stream.</figcaption></figure></div><div><div class="formula">MV<sub>filtered</sub>(x,y) = sum[c × MV] / sum[c]<br>MV<sub>temporal</sub> = alpha × MV<sub>filtered</sub> + (1-alpha) × MV<sub>prev</sub></div><ul class="bullets"><li>A confidence-weighted 3×3 spatial smoother uses SAD-derived match confidence.</li><li>A confidence-aware EMA fuses the current and previous field.</li><li>At 1080p, the filtered-MV buffer is about <b>16 KB</b>.</li></ul></div></div>
+      <div class="cite">§IV-A pp.7–8; Eq.1–5 p.8; Fig. 7 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MOTION PREDICTOR</div>
+      <h2 class="head">Tile-local AR(2) buys predictability without an ML model</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:32vh;"><img src="figures/figure8_p8.jpg" alt="AR2 motion predictor"><figcaption>Fig. 8 · Each tile retains AR coefficients and prior prediction state.</figcaption></figure></div><div><div class="formula">MV_hat(t+1) = a<sub>1</sub> × MV(t) + a<sub>2</sub> × MV(t-1)</div><ul class="bullets"><li>Independent coefficients per tile capture local horizontal / vertical dynamics.</li><li>LMS updates coefficients online from measured prediction error.</li><li>A bounded velocity-form implementation means a bad learned coefficient only loses speedup; validation protects correctness.</li></ul></div></div>
+      <div class="cite">§IV-B pp.8–9; Eq.6–7 p.8; Fig. 8 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h2 class="head">A single-NPU mobile SoC is the deliberate stress test</h2>
+      <ul class="bullets"><li>Object detection: YOLOv8 on KITTI, upsampled from 10 Hz to 30 FPS; mAP@0.5 is scored on original labelled frames.</li><li>Tracking: ByteTrack on KITTI / MOT17 (HOTA); detector generality: RT-DETR.</li><li>gem5 + DRAMsim3 + ScaleSimv2 model an ARM Cortex-A72 and a 24×24 MAC, 1 GHz NPU.</li><li><b>Balanced:</b> YOLOv8s, 28.6B FLOPs. <b>Overload:</b> YOLOv8m, 78.9B FLOPs; baseline sustains 14.7 FPS.</li></ul>
+      <div class="cite">§V p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ACCURACY</div>
+      <h2 class="head">Adaptive correction stays near the paper’s 1.5 mAP target</h2>
+      <figure class="full" style="max-height:40vh;"><img src="figures/figure9_p10.jpg" alt="Accuracy versus drift-control distance"><figcaption>Fig. 9 · Accuracy loss rises with DCFD; A denotes adaptive MVP.</figcaption></figure>
+      <div class="takeaway">The important result is not zero error: it is a controllable operating point before long-horizon drift compounds.</div>
+      <div class="cite">Fig. 9; §VI-A p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BALANCED REGIME</div>
+      <h2 class="head">Motion-domain speculation improves the latency–energy frontier</h2>
+      <figure class="full" style="max-height:33vh;"><img src="figures/figure10_p10.jpg" alt="Balanced regime results"><figcaption>Fig. 10 · Tail-latency and energy reductions under balanced conditions.</figcaption></figure>
+      <ul class="bullets"><li>MVP-SPE-A adds around <b>22% extra tail-latency reduction</b> over MVP-SCH-A by triggering downstream work one frame ahead.</li><li>The oracle leaves another 8.78% tail-latency headroom; PDSPEC diverges after 4–5 frames and adds around 10% energy through reprocessing.</li></ul>
+      <div class="cite">Fig. 10 p.10; §VI-B pp.10–11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OVERLOAD REGIME</div>
+      <h2 class="head">One backend is exactly where pixel speculation stops helping</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure11_p11.jpg" alt="Overload regime results"><figcaption>Fig. 11 · Throughput and energy under persistent backend overload.</figcaption></figure>
+      <ul class="bullets"><li>With one NPU, PDSPEC has no idle capacity and falls back to baseline: <b>14.7 FPS</b>.</li><li>CME reaches about <b>23 FPS</b>, but periodically blocks on full frames.</li><li>MVP keeps extrapolation as the default and, per the paper, delivers twice the baseline outputs at that cost.</li></ul>
+      <div class="cite">Fig. 11 p.11; §VI-D pp.11–12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">GENERALITY</div>
+      <h2 class="head">The scheduling benefit carries to tracking and another detector</h2>
+      <table class="bench"><thead><tr><th>Workload (DCFD=4)</th><th class="num">Accuracy effect</th><th class="num">Energy reduction</th></tr></thead><tbody><tr><td>KITTI tracking · YOLOv8m</td><td class="num">HOTA 0.483 → 0.463</td><td class="num">58%</td></tr><tr><td>MOT17 · YOLOv8m</td><td class="num">HOTA 0.411 → 0.389</td><td class="num">58%</td></tr><tr class="win"><td>KITTI · RT-DETR</td><td class="num">mAP -2.6%</td><td class="num">63%</td></tr></tbody></table>
+      <div class="takeaway">The paper attributes the savings to schedule-level inference avoidance, not to a detector-specific model change.</div>
+      <div class="cite">Table I p.10; §VI-A p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">IMPLEMENTATION ENVELOPE</div>
+      <h2 class="head">The added motion path is small and non-stalling</h2>
+      <table class="bench"><thead><tr><th>Metric</th><th class="num">Reported value</th></tr></thead><tbody><tr class="win"><td>12 nm-class system area</td><td class="num">0.11 mm²</td></tr><tr><td>On-chip state</td><td class="num">~32 KB SRAM + 2 KB AR coefficients</td></tr><tr><td>RTL timing</td><td class="num">708 MHz</td></tr><tr><td>Dynamic / leakage power</td><td class="num">0.59 mW @ 50 MHz / 3.4 µW</td></tr><tr><td>Required block-rate headroom</td><td class="num">>45×</td></tr></tbody></table>
+      <div class="takeaway">Memory dominates the addition: 65% SRAM vs. 35% logic.</div>
+      <div class="cite">§VI-F pp.12–13; Table II p.13</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · THE CROWN PAGE</div>
+      <p class="big">MVP wins because <b>drift correction becomes asynchronous</b> and a failed speculation becomes <b>a local motion repair</b>, not a full backend replay.</p>
+      <p class="lead">That is why it can improve tail latency even with a single NPU: the critical path is no longer waiting for a full inference to unblock the next useful output.</p>
+      <div class="takeaway">Speculate the smallest state that can still advance the application.</div>
+      <div class="cite">§III-B/C pp.5–7; §VI-C p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">What motion extrapolation cannot invent</h2>
+      <ul class="bullets"><li>A newly appearing object waits for the next DC frame; at DCFD=4 and 30 FPS, the paper estimates a worst-case onset around <b>235 ms</b>.</li><li>Abrupt motion concentrates the observed 8–12% prediction failures; long DCFD horizons compound drift.</li><li>The frontend-scaling feature is conditional on application tolerance, not a universal safety setting.</li><li>Evidence is system simulation plus RTL validation, rather than end-to-end commercial-silicon measurements.</li></ul>
+      <div class="cite">§VI-C p.11; §VI-A p.10; §III-D p.7; §V p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · AUTHOR WORDING</div>
+      <h2 class="head">The two sentences that define the contract</h2>
+      <div class="hl"><p class="hl__en">“Each frame is served immediately via extrapolation, while high-precision frame processing is performed asynchronously on selected Drift-Control (DC) frames to periodically correct prediction drift.”</p><p class="hl__zh">每個 frame 先立即以 extrapolation 服務；高精度處理只在選定 DC frames 異步執行，以週期性修正 drift。<span class="hl__src">§III-A p.4</span></p></div>
+      <div class="hl"><p class="hl__en">“If the check fails, MVP discards only this lightweight motion update, never a neural-network inference.”</p><p class="hl__zh">驗證失敗時，MVP 只丟棄這個輕量 motion update，絕不丟棄或重跑 neural-network inference。<span class="hl__src">§III-C p.6</span></p></div>
+      <div class="cite">MVP paper · direct quotations with translations</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">MVP: speculate motion, not pixels.</h2>
+      <p class="end__sub">A practical systems paper about removing full inference from the latency-critical path — while keeping correction explicit and bounded.</p>
+      <div class="end__next">NEXT · Friday: model compression / efficiency</div>
+      <div class="cite">Paper: MVP: A Motion-Predictive Speculative Vision Pipeline with Non-Blocking Drift Correction · arXiv:2609.27706v1</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
