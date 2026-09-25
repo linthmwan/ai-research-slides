@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baseline Shape Decides the Verdict: A Controlled Re-Examination of Ternary Language Models at 60K Parameters</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY / MODEL COMPRESSION</div>
+      <h1 class="title">Baseline Shape<br>Decides the Verdict</h1>
+      <p class="lead">A controlled re-examination of <b>1.58-bit ternary</b> language models at 60K parameters.</p>
+      <div class="authors">Gautam Veldanda · Independent Researcher</div>
+      <div class="meta-row"><span class="badge tier">arXiv:2609.29397v1</span><span class="badge date">Announced 2026-09-24</span></div>
+      <div class="cite">Baseline Shape Decides the Verdict: A Controlled Re-Examination of Ternary Language Models at 60K Parameters · arXiv:2609.29397v1 · p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">At 60K parameters, <b>baseline shape can decide the architecture verdict</b> before the architecture does.</p>
+      <div class="takeaway">A reported routed-ternary gain vanishes against the best short-budget transformer shape; at longer budget recurrent systems win, but routing is not required.</div>
+      <div class="cite">Abstract p.1; §6.1–6.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY THIS MATTERS</div>
+      <h2 class="head">Ternary is compelling at MCU scale — evidence is fragile.</h2>
+      <ul class="bullets"><li>Ternary weights use <b>1.58 bits</b> and can reduce FP32 storage by up to roughly <b>20x</b>.</li><li>The target regime is tens to hundreds of KB of flash/SRAM, not billion-parameter scaling.</li><li>A prominent 60K comparison claimed a routed ternary model beat a parameter-matched FP transformer by 22%.</li></ul>
+      <div class="cite">§1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE AUDIT</div>
+      <h2 class="head">The original two-point scaling story changed too many variables.</h2>
+      <table class="bench"><thead><tr><th>Condition</th><th class="num">60K point</th><th class="num">944K point</th></tr></thead><tbody><tr><td>Training tokens</td><td class="num">about 3M</td><td class="num">about 2B</td></tr><tr><td>Tokens / parameter</td><td class="num">about 50</td><td class="num">about 2,100</td></tr><tr><td>Sequence length</td><td class="num">64</td><td class="num">256</td></tr><tr><td>Transformer FFN</td><td class="num">1 x d</td><td class="num">4 x d</td></tr><tr><td>FP routed model?</td><td class="num">No</td><td class="num">No</td></tr></tbody></table>
+      <div class="takeaway">The comparison changes corpus, budget, schedule, optimizer, FFN width, precision, and architecture — so it cannot isolate a scale or inductive-bias explanation.</div>
+      <div class="cite">§4 p.3; Table 1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTION</div>
+      <h2 class="head">A modest study, designed to make the verdict falsifiable.</h2>
+      <ol class="numbered"><li><b>Audit</b> the released Atome-LM artifacts instead of treating headline points as commensurate.</li><li><b>Control</b> recipe, byte budget, parameter count, seeds, and the FP anchor.</li><li><b>Sweep</b> five transformer shapes plus routed and gated-SSM families.</li><li><b>Expose</b> two choices — baseline shape and stage-2 LR — that each reverse a headline.</li></ol>
+      <div class="cite">§1 p.2; §5 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENT GRID</div>
+      <h2 class="head">98 distinct trainings; three seeds per cell unless noted.</h2>
+      <table class="bench"><thead><tr><th>Experiment</th><th class="num">What varies</th><th class="num">Runs</th></tr></thead><tbody><tr><td>Main grid</td><td class="num">Routed / 3x32 transformer; FP32 / ternary; 16M / 130M</td><td class="num">24</td></tr><tr><td>Shape sweep</td><td class="num">Five transformer shapes; two budgets; both precisions</td><td class="num">36</td></tr><tr><td>Gated SSM</td><td class="num">Two budgets and both precisions</td><td class="num">12</td></tr><tr><td>FP-init + LR sweep</td><td class="num">90/10 schedule and five stage-2 LRs</td><td class="num">28</td></tr></tbody></table>
+      <div class="cite">§5 p.4; Table 2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REFERENCE ARCHITECTURE</div>
+      <h2 class="head">The routed block has three parallel paths, then a per-token softmax mix.</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Depthwise causal convolution (k=5)</li><li>Diagonal SSM</li><li>Single-head top-k causal attention</li></ul></div><div><ul class="bullets"><li>No feed-forward layer</li><li>Router supplies channel mixing</li><li>Residual after mixed paths</li></ul></div></div>
+      <div class="formula">h_t = a * h_(t-1) + b * x_t; y_t = c * h_t</div>
+      <div class="takeaway">The control comparison asks whether this router adds value beyond a simpler recurrent alternative.</div>
+      <div class="cite">§3 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRECISION IS NOT EQUAL</div>
+      <h2 class="head">“Ternary” leaves very different FP32 fractions across the families.</h2>
+      <table class="bench"><thead><tr><th>System</th><th class="num">FP kept</th><th class="num">Why</th></tr></thead><tbody><tr><td>Routed 3-pathway</td><td class="num best">2.3%</td><td class="num">SSM scalars + LayerNorm</td></tr><tr><td>Gated SSM</td><td class="num best">1.6%</td><td class="num">SSM scalars + LayerNorm</td></tr><tr class="win"><td>Transformer 1x52</td><td class="num best">22.0%</td><td class="num">plus learned positional embedding</td></tr><tr><td>Transformer 3x32</td><td class="num best">14.0%</td><td class="num">plus learned positional embedding</td></tr></tbody></table>
+      <div class="takeaway">A model that keeps 11–22% of itself in FP32 can appear more ternary-robust for bookkeeping reasons, not architecture alone.</div>
+      <div class="cite">Table 3 p.5; §6.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DATA + MEASUREMENT</div>
+      <h2 class="head">Hold the recipe fixed; make “real” mean larger than seed noise.</h2>
+      <ul class="bullets"><li>TinyStories V2 raw bytes; 2.03B training tokens after a 10% held-out split.</li><li>16M and 130M bytes are only 0.008 and 0.064 epochs — repeated-data memorization is avoided.</li><li>Primary metric: final-checkpoint validation loss in nats/byte on 256 held-out batches.</li><li>A relative gap counts as real only when it exceeds the pre-specified <b>2-sigma</b> seed-noise threshold.</li></ul>
+      <div class="cite">§5 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT / FIGURE 1</div>
+      <h2 class="head">The best transformer shape flips when the byte budget changes.</h2>
+      <figure class="full" style="max-height:46vh; margin-top:.2rem;"><img src="figures/figure1_p6.jpg" alt="Validation loss by transformer depth and budget"><figcaption>At 16M bytes, shallow-wide 1x52 is best; at 130M, 3x32 becomes best while recurrent systems pull ahead.</figcaption></figure>
+      <div class="cite">Figure 1 p.6; §6.1 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">KEY BENCHMARK</div>
+      <h2 class="head">At 130M bytes, the simple gated SSM is best in FP32.</h2>
+      <table class="bench"><thead><tr><th>System</th><th class="num">FP32</th><th class="num">ternary</th><th class="num">Penalty</th></tr></thead><tbody><tr class="win"><td>Gated SSM</td><td class="num best">1.516 +/- .012</td><td class="num">1.942 +/- .018</td><td class="num">+28.1%</td></tr><tr><td>Routed 3-pathway</td><td class="num">1.668 +/- .024</td><td class="num">1.993 +/- .032</td><td class="num">+19.5%</td></tr><tr><td>Transformer 1x52</td><td class="num">2.195 +/- .003</td><td class="num">2.311 +/- .003</td><td class="num">+5.3%</td></tr><tr><td>Transformer 3x32</td><td class="num">2.143 +/- .028</td><td class="num">2.328 +/- .004</td><td class="num">+8.6%</td></tr></tbody></table>
+      <div class="takeaway">Loss is validation nats/byte; values are mean +/- sd over three seeds.</div>
+      <div class="cite">Table 4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big">A “parameter-matched baseline” is not one control.<br><b>Its shape is part of the treatment.</b></p>
+      <div class="takeaway">At 16M, FP transformers span 2.835–3.477 nats/byte (22.6%). Routed-vs-best is 0.95%, inside its 4.5% 2-sigma noise band.</div>
+      <div class="cite">§6.1 p.5; Table 4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SHORT-BUDGET VERDICT</div>
+      <h2 class="head">The choice of transformer baseline can manufacture either conclusion.</h2>
+      <div class="two-col"><div><p class="col-hint">Against worst 6x24</p><div class="scorebox"><span class="score">19.2% FP</span><span class="score">21.0% ternary</span></div><p class="note">Routed appears clearly better.</p></div><div><p class="col-hint">Against best 1x52</p><div class="scorebox"><span class="score">0.95% FP</span><span class="score">4.0% ternary</span></div><p class="note">Both gaps sit inside the 2-sigma noise bands.</p></div></div>
+      <div class="takeaway">The original verdict is not supported by a single fixed baseline shape.</div>
+      <div class="cite">§6.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BUDGET REVERSAL</div>
+      <h2 class="head">The best transformer shape must be swept per budget.</h2>
+      <ul class="bullets"><li>At 16M bytes: 1x52 is best among the transformer shapes (2.835 FP32 nats/byte).</li><li>At 130M bytes: 1x52 becomes worst (2.195), while deeper 3x32 becomes best (2.143).</li><li>The paper defines “shape” as the complete depth/width/FFN/position-budget package, not depth alone.</li></ul>
+      <div class="takeaway">Choose a baseline once and reuse it at another budget: that is exactly the mistake this study catches.</div>
+      <div class="cite">§6.1 p.6; Table 4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LONGER-BUDGET VERDICT</div>
+      <h2 class="head">At 130M bytes, recurrent architectures really do pull ahead — but routing is not necessary.</h2>
+      <ul class="bullets"><li>Routed beats each of the three re-run transformer shapes by <b>22.2–24.0%</b> in FP32 and <b>13.7–14.4%</b> in ternary, outside noise.</li><li>Gated SSM beats routed by <b>9.1%</b> in FP32 (2-sigma relative noise: 3.2%).</li><li>Gated SSM vs routed in ternary is -2.6%, inside its 3.7% noise band.</li></ul>
+      <div class="cite">§6.2 pp.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ROUTER DIAGNOSTICS</div>
+      <h2 class="head">The routed model itself spends most of its weight on recurrence.</h2>
+      <table class="bench"><thead><tr><th>Pathway</th><th class="num">Mean routing weight</th><th class="num">Interpretation</th></tr></thead><tbody><tr class="win"><td>State / SSM</td><td class="num best">0.49–0.73</td><td class="num">Dominant</td></tr><tr><td>Local convolution</td><td class="num">0.09–0.25</td><td class="num">Secondary</td></tr><tr><td>Sparse attention</td><td class="num">0.19–0.28</td><td class="num">Secondary</td></tr></tbody></table>
+      <div class="takeaway">Router entropy of 0.67–0.87 nats (max ln(3)=1.099) means neither collapse nor uniform mixing — a recurrence-dominated mixture consistent with the gated SSM control.</div>
+      <div class="cite">§6.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TERNARY PENALTY</div>
+      <h2 class="head">The penalty differs sharply at 130M — but the causal story is unfinished.</h2>
+      <div class="two-col"><div><div class="scorebox"><span class="score">+5.3% transformer</span><span class="score">+19.5% routed</span><span class="score">+28.1% gated SSM</span></div></div><div><ul class="bullets"><li>Transformer penalty falls from +20.9% to +5.3%.</li><li>Recurrent penalties do not shrink at the measured budgets.</li><li>This is an observation, not an architecture law.</li></ul></div></div>
+      <div class="cite">§6.3 p.7; Table 4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CAUSAL CAVEATS</div>
+      <h2 class="head">Three live alternatives prevent an architecture-only conclusion.</h2>
+      <ol class="numbered"><li><b>Unequal quantization:</b> transformer positional embeddings remain FP32.</li><li><b>Untuned ternary baseline:</b> from-scratch ternary uses the FP peak LR.</li><li><b>Loss level covaries:</b> recurrence and transformer families reach different absolute losses at 130M.</li></ol>
+      <div class="takeaway">The defensible claim is “observed penalty differences,” not “architecture causes the difference.”</div>
+      <div class="cite">§6.3 p.7; Table 6 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FP-INIT RECIPE</div>
+      <h2 class="head">The 90/10 FP-then-ternary recipe only wins after a much larger stage-2 LR.</h2>
+      <table class="bench"><thead><tr><th>Arm @130M</th><th class="num">vs. scratch</th><th class="num">2-sigma rel.</th></tr></thead><tbody><tr><td>Routed, stage-2 1e-4</td><td class="num">+15.3%</td><td class="num">5.2%</td></tr><tr class="win"><td>Routed, stage-2 3e-3</td><td class="num best">-4.7%</td><td class="num">3.4%</td></tr><tr><td>Transformer, stage-2 1e-4</td><td class="num">+7.1%</td><td class="num">1.2%</td></tr><tr class="win"><td>Transformer, stage-2 3e-3</td><td class="num best">-2.1%</td><td class="num">0.4%</td></tr></tbody></table>
+      <div class="cite">Table 5 p.7; §6.4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">OPTIMIZATION INTERPRETATION</div>
+      <p class="big">The ternary stage may be <b>re-solving weights</b>, not merely fine-tuning them.</p>
+      <div class="takeaway">Loss continues falling through a stage-2 LR of 3e-3 — about 10x the FP pretraining peak — and the sweep has not saturated. Treat 3e-3 as a lower bound, not an optimum.</div>
+      <div class="cite">§6.4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CLAIM LEDGER</div>
+      <h2 class="head">The paper is strongest where it says what its evidence does <i>not</i> establish.</h2>
+      <table class="bench"><thead><tr><th>Claim</th><th class="num">Status</th><th class="num">Why</th></tr></thead><tbody><tr class="win"><td>Baseline shape can decide verdict</td><td class="num">Supported</td><td class="num">5 shapes x 2 budgets</td></tr><tr><td>Routing is required</td><td class="num">Not supported</td><td class="num">Gated SSM comparison</td></tr><tr><td>Penalty is architecture-only</td><td class="num">Confounded</td><td class="num">FP shares + untuned baseline</td></tr><tr><td>3e-3 is optimal stage-2 LR</td><td class="num">Not established</td><td class="num">Sweep stops there</td></tr></tbody></table>
+      <div class="cite">Table 6 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">This is not a general scaling law for ternary models.</h2>
+      <ul class="bullets"><li>One parameter count: 60K; no answer for 1M, 10M, or the original 944K reversal.</li><li>One byte-level corpus: TinyStories may favor local sequential structure and recurrent/convolutional paths.</li><li>Only two budgets; short budget is 245 optimizer steps.</li><li>No MCU deployment metric; no per-shape LR tuning; gated SSM is not a Mamba-class baseline.</li></ul>
+      <div class="cite">§7 pp.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">What changes in a compression experiment tomorrow?</h2>
+      <ol class="numbered"><li>Sweep parameter-matched <b>shapes</b> at every compute/data budget; do not canonize one baseline.</li><li>Report the exact <b>fraction left FP32</b>, not only nominal weight bit-width.</li><li>Tune the quantized-stage optimizer separately; “FP-init” is not a complete recipe.</li><li>Pre-register seed/noise criteria and publish configurations/logs so the comparison can be audited.</li></ol>
+      <div class="cite">Synthesis grounded in §5–7 pp.4–9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / HIGHLIGHT</div>
+      <h2 class="head">The core methodological finding</h2>
+      <div class="hl"><p class="hl__en">Baseline shape dominates the comparison ... the routed model’s advantage disappears against the best-shaped transformer.</p><p class="hl__zh">「基線形狀主導比較；對上形狀最佳的 transformer，routed 模型的優勢消失。」<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / HIGHLIGHT</div>
+      <h2 class="head">The core mechanism finding</h2>
+      <div class="hl"><p class="hl__en">Routing is therefore not required for the advantage.</p><p class="hl__zh">「因此，routing 並不是這項優勢的必要條件。」<span class="hl__src">§6.2 pp.6–7</span></p></div>
+      <div class="hl"><p class="hl__en">A fixed baseline shape ... and an untuned stage-2 learning rate ... each reverse a headline.</p><p class="hl__zh">「固定基線形狀與未調整的第二階段學習率，各自都能反轉一個標題式結論。」<span class="hl__src">§1 p.2; §8 p.9</span></p></div>
+      <div class="cite">§1 p.2; §6.2 pp.6–7; §8 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Measure the baseline<br>before trusting the headline.</h2>
+      <p class="end__sub">Today: ternary LMs at MCU scale · Tomorrow: AI agents / multimodal systems</p>
+      <div class="end__next">Source: arXiv:2609.29397v1 · Code/logs: github.com/veldanda/ByteLM</div>
+      <div class="cite">Baseline Shape Decides the Verdict: A Controlled Re-Examination of Ternary Language Models at 60K Parameters · arXiv:2609.29397v1</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
