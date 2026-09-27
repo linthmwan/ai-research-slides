@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hindsight is 20/20: Building Agent Memory that Retains, Recalls, and Reflects</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">SUNDAY GITHUB TRENDING · AGENT MEMORY</div>
+      <h1 class="title">Hindsight is 20/20</h1>
+      <h2 class="head">Building Agent Memory that Retains, Recalls, and Reflects</h2>
+      <p class="lead">A structured memory substrate for long-lived agents — not another top-k retrieval wrapper.</p>
+      <div class="meta-row"><span class="badge tier">arXiv technical report</span><span class="badge date">14 Dec 2025</span></div>
+      <div class="authors">Latimer, Boschi, Neeser, Bartholomew, Srivastava, Wang, Ramakrishnan et al.<br>Vectorize.io · The Washington Post · Virginia Tech</div>
+      <div class="cite">Source: arXiv:2512.12818v1 · cover p.1 · trending repo: github.com/vectorize-io/hindsight</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Memory becomes <b>four kinds of state</b> plus three explicit operations: <b>retain · recall · reflect</b>.</p>
+      <div class="sub">The design separates evidence, experiences, neutral summaries, and subjective beliefs instead of flattening all of them into retrieval chunks.</div>
+      <div class="cite">Abstract p.1 · §3 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM</div>
+      <h1 class="title">Why a long context is not a memory system</h1>
+      <ul class="bullets"><li>Top-k RAG keeps the model itself stateless; it retrieves snippets but does not maintain an explicit account of <b>what was observed</b> versus <b>what is believed</b>.</li><li>Long-lived agents need cross-session recall, temporal and causal access, traceable updates, and stable behavioral preferences.</li><li>The claimed failure is <b>context dilution</b>: raw conversation history is present, yet the relevant relation is hard to surface reliably.</li></ul>
+      <div class="takeaway">The paper attacks memory organization and retrieval semantics, not merely context-window length.</div>
+      <div class="cite">Abstract p.1 · §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DESIGN TARGET</div>
+      <h1 class="title">Four networks give information an epistemic type</h1>
+      <div class="two-col"><div><h2 class="head">Evidence side</h2><ul class="bullets"><li><b>World (W)</b>: objective external facts.</li><li><b>Experience (B)</b>: first-person agent actions and history.</li><li><b>Observation (S)</b>: preference-neutral entity summaries synthesized from facts.</li></ul></div><div><h2 class="head">Belief side</h2><ul class="bullets"><li><b>Opinion (O)</b>: subjective judgment + confidence + formation time.</li><li>The graph connects memory units with <b>temporal, semantic, entity, and causal</b> links.</li><li>Explicit typing makes provenance and later revisions inspectable.</li></ul></div></div>
+      <div class="cite">§3.1 pp.4-5 · Fig.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h1 class="title">The architecture is a stack, not a single retrieval trick</h1>
+      <ol class="numbered"><li><b>Four-network memory bank</b> separates facts, personal experiences, summaries, and opinions.</li><li><b>TEMPR</b> extracts temporal narrative facts and performs agent-oriented recall.</li><li><b>CARA</b> makes reflection profile-conditioned and allows opinions to evolve.</li><li><b>End-to-end evaluation</b> targets long-horizon conversational benchmarks.</li></ol>
+      <div class="cite">§1 p.2 · §3 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SYSTEM MAP</div>
+      <h1 class="title">Input -> temporal memory bank -> retrieved evidence -> reflection</h1>
+      <figure class="full" style="max-height:51vh; margin-top:.35rem;"><img src="figures/figure2_p5.jpg" alt="End-to-end Hindsight architecture"><figcaption>Figure 2. TEMPR retains and recalls from a four-network bank; CARA reflects with a behavioral profile.</figcaption></figure>
+      <div class="takeaway">The architecture routes the same memory bank through both factual retrieval and belief update.</div>
+      <div class="cite">Fig.2 p.5 · §3.2-3.3 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RETAIN</div>
+      <h1 class="title">Store a self-contained narrative fact, not a pile of utterances</h1>
+      <div class="two-col"><div><h2 class="head">Memory unit</h2><div class="formula">fact = text + embedding + time range + type + metadata</div><ul class="bullets"><li>Each fact belongs to exactly one network.</li><li>Temporal occurrence and mention time support historical queries and recency-aware ranking.</li><li>Opinion nodes additionally carry confidence.</li></ul></div><div><h2 class="head">Extraction policy</h2><ul class="bullets"><li>The extractor creates <b>2-5 comprehensive facts per conversation</b>.</li><li>It resolves coreference, normalizes time expressions, attributes participants, preserves stated reasons, classifies type, and extracts entities.</li><li>A narrative fact preserves cross-turn context that sentence chunks lose.</li></ul></div></div>
+      <div class="cite">§4.1.1 pp.6-7 · §4.1.2 pp.7-8 · Fig.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RETAIN</div>
+      <h1 class="title">Canonical entities turn distant mentions into graph neighbors</h1>
+      <ul class="bullets"><li>Entity resolution combines <b>string/name similarity</b>, entity co-occurrence, and temporal proximity.</li><li>Any two facts mentioning the same canonical entity receive a bidirectional entity link.</li><li>Temporal links favor nearby events; semantic links pass a similarity threshold; LLM-extracted causal links are upweighted for explanatory traversal.</li></ul>
+      <div class="formula">edge types = temporal | semantic | entity | causal</div>
+      <div class="cite">§4.1.3-4.1.4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RETAIN</div>
+      <h1 class="title">Observations are a cache of neutral entity profiles</h1>
+      <ul class="bullets"><li>For “tell me about Alice,” retrieving all raw facts is redundant; an <b>observation</b> summarizes salient properties for that entity.</li><li>Observations are preference-neutral and have no confidence score; opinions are subjective, profile-shaped, and confidence-scored.</li><li>When new facts arrive, an asynchronous job regenerates the entity observation without blocking writes.</li></ul>
+      <div class="formula">observation(entity) = SummarizeLLM(all facts mentioning entity)</div>
+      <div class="cite">§4.1.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">RECALL</div>
+      <p class="big">Do not choose between lexical, semantic, graph, and time retrieval.<br>Run all four, then let them vote.</p>
+      <div class="sub">TEMPR exposes a token budget rather than a fixed top-k: simple questions request less context; complex multi-hop questions can expand retrieval.</div>
+      <div class="cite">§4.2-4.2.2 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RECALL</div>
+      <h1 class="title">Four channels cover four meanings of “relevant”</h1>
+      <div class="two-col"><div><h2 class="head">Direct matches</h2><ul class="bullets"><li><b>Semantic</b>: vector similarity catches paraphrases and conceptual matches.</li><li><b>BM25 keyword</b>: protects proper nouns, API names, and identifiers.</li></ul></div><div><h2 class="head">Structural matches</h2><ul class="bullets"><li><b>Graph spreading activation</b>: follows entity, time, semantic, and causal links from semantic seeds.</li><li><b>Temporal graph retrieval</b>: normalizes query time ranges and restricts traversal to matching events.</li></ul></div></div>
+      <div class="cite">§4.2.2 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RECALL</div>
+      <h1 class="title">Fuse ranks, rerank candidates, then pack the token budget</h1>
+      <div class="formula">RRF(f) = sum over channels of 1 / (60 + rank(channel, f))</div>
+      <ul class="bullets"><li>Rank fusion avoids assuming semantic, lexical, graph, and temporal scores share a calibrated scale.</li><li>A cross-encoder jointly reads query and candidate to improve final precision.</li><li>Greedy budget filtering returns ordered facts until their total token count would exceed the requested budget.</li></ul>
+      <div class="takeaway">Agreement across independent retrieval routes becomes evidence; a missing route is not a penalty.</div>
+      <div class="cite">§4.2.3-4.2.5 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REFLECT</div>
+      <h1 class="title">CARA makes the reasoning style an explicit bank parameter</h1>
+      <figure class="full" style="max-height:47vh; margin-top:.35rem;"><img src="figures/figure4_p13.jpg" alt="CARA reflect loop"><figcaption>Figure 4. Recalled memory is combined with a bank-specific background and behavioral profile before generation.</figcaption></figure>
+      <div class="cite">Fig.4 p.13 · §5 pp.11-13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REFLECT</div>
+      <h1 class="title">A compact profile controls how strongly beliefs shape language</h1>
+      <div class="two-col"><div><h2 class="head">Profile axes</h2><ul class="bullets"><li><b>Skepticism</b>: 1 trusting -> 5 skeptical</li><li><b>Literalism</b>: 1 flexible -> 5 literal</li><li><b>Empathy</b>: 1 detached -> 5 empathetic</li><li><b>Bias strength</b>: beta in [0,1]</li></ul></div><div><h2 class="head">Operational meaning</h2><ul class="bullets"><li>The numeric profile is verbalized into a system-message description.</li><li>beta = 0 prioritizes fact-based reasoning; beta = 1 strongly encourages profile-consistent opinions.</li><li>The paper uses neutral S=L=E=3 and beta=0.2 in factual benchmark runs.</li></ul></div></div>
+      <div class="cite">§5.2.1 p.12 · §5.3.1 p.13 · §7.3 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REFLECT</div>
+      <h1 class="title">Opinion formation is a structured write-back path</h1>
+      <ol class="numbered"><li>Recall relevant world facts, experiences, and prior opinions for the query.</li><li>Load name, concise background, and the verbalized behavioral profile.</li><li>Generate an answer plus candidate opinion updates.</li><li>Parse structured output and store new or updated opinions with confidence and entity references.</li></ol>
+      <div class="formula">opinion = statement + confidence + timestamp + bank + entities</div>
+      <div class="cite">§5.4.1-5.4.2 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REFLECT</div>
+      <h1 class="title">Opinions change gradually rather than being overwritten</h1>
+      <ul class="bullets"><li>A new fact finds candidate opinions through entity overlap or embedding similarity.</li><li>The system classifies the relationship as <b>reinforce, weaken, contradict, or neutral</b>.</li><li>Confidence increases by alpha for reinforcement, decreases by alpha for weakening, and by 2 alpha for contradiction; strong contradictions may also revise text.</li></ul>
+      <div class="formula">confidence update: +alpha | -alpha | -2alpha | unchanged</div>
+      <div class="takeaway">The proposed safeguard is trajectory stability: isolated evidence should not cause belief oscillation.</div>
+      <div class="cite">§5.5 pp.14-15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">UNIFIED LOOP</div>
+      <h1 class="title">Retain, recall, reflect form a closed memory lifecycle</h1>
+      <div class="two-col"><div><h2 class="head">Write path</h2><ul class="bullets"><li>Extract narrative facts with time and entities.</li><li>Build graph links, update observations, reinforce related opinions, and merge background.</li></ul></div><div><h2 class="head">Read + reason path</h2><ul class="bullets"><li>Run four retrieval routes, fuse ranks, rerank, and fit the token budget.</li><li>Generate an answer conditioned on retrieved facts and profile; store resulting opinion updates.</li></ul></div></div>
+      <div class="cite">§6.1 pp.16-17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h1 class="title">The benchmarks stress multi-session recall at very different scales</h1>
+      <table class="bench"><thead><tr><th>Dataset</th><th class="num">Questions</th><th class="num">Context / sessions</th><th class="num">What it probes</th></tr></thead><tbody><tr><td>LongMemEval S</td><td class="num">500</td><td class="num">115k tokens / ~50 sessions</td><td class="num">IE, multi-session, temporal, update, abstention</td></tr><tr><td>LongMemEval M</td><td class="num">500</td><td class="num">1.5M tokens / ~500 sessions</td><td class="num">same abilities at larger scale</td></tr><tr><td>LoCoMo</td><td class="num">varies</td><td class="num">304.9 turns / 19.3 sessions avg.</td><td class="num">personal details, preferences, events; multimodal</td></tr></tbody></table>
+      <div class="cite">§7.1 pp.17-18 · Table 2 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h1 class="title">Protocol isolates memory architecture from a small backbone</h1>
+      <ul class="bullets"><li>Retention and reflection use <b>GPT-OSS-20B</b>; the judge is GPT-OSS-120B at temperature 0.0.</li><li>Each test query runs four-way retrieval + RRF + reranking, then CARA generates the response.</li><li>Factual benchmarks use a neutral profile: skepticism = literalism = empathy = 3, beta = 0.2.</li></ul>
+      <div class="takeaway">The cleanest comparison is OSS-20B full context versus OSS-20B with Hindsight: same backbone, different memory layer.</div>
+      <div class="cite">§7.2-7.3 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · LONGMEMEVAL S</div>
+      <h1 class="title">Structured memory reports a 44.6-point gain with the same OSS-20B</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Overall</th><th class="num">Temporal</th><th class="num">Multi-session</th></tr></thead><tbody><tr><td>Full-context OSS-20B</td><td class="num">39.0</td><td class="num">31.6</td><td class="num">21.1</td></tr><tr class="win"><td>Hindsight OSS-20B</td><td class="num best">83.6</td><td class="num best">79.7</td><td class="num best">79.7</td></tr><tr><td>Hindsight OSS-120B</td><td class="num">89.0</td><td class="num">85.7</td><td class="num">81.2</td></tr><tr><td>Hindsight Gemini-3</td><td class="num">91.4</td><td class="num">91.0</td><td class="num">87.2</td></tr></tbody></table>
+      <div class="takeaway">The authors attribute the gain to mitigating context dilution with graph- and time-aware retrieval.</div>
+      <div class="cite">Table 3 p.19 · §7.4 p.19 · all values are accuracy (%)</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM CROWN</div>
+      <p class="big">The strongest evidence is not “a larger model won.”<br>It is <b>39.0% -> 83.6%</b> with the <b>same GPT-OSS-20B</b> backbone.</p>
+      <div class="sub">Multi-session accuracy rises 21.1% -> 79.7%; temporal reasoning rises 31.6% -> 79.7%. The paper does not include a component-removal ablation, so this supports the full memory stack rather than proving each component’s isolated contribution.</div>
+      <div class="cite">Table 3 p.19 · §7.4 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · LOCOMO</div>
+      <h1 class="title">The reported gain transfers to multi-session human conversations</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Single-hop</th><th class="num">Multi-hop</th><th class="num">Open domain</th><th class="num">Overall</th></tr></thead><tbody><tr><td>Memobase</td><td class="num">70.92</td><td class="num">46.88</td><td class="num">77.17</td><td class="num">75.78</td></tr><tr><td>Zep</td><td class="num">74.11</td><td class="num">66.04</td><td class="num">67.71</td><td class="num">75.14</td></tr><tr class="win"><td>Hindsight OSS-20B</td><td class="num">74.11</td><td class="num">64.58</td><td class="num">90.96</td><td class="num best">83.18</td></tr><tr><td>Hindsight OSS-120B</td><td class="num">76.79</td><td class="num">62.50</td><td class="num">93.68</td><td class="num">85.67</td></tr><tr><td>Hindsight Gemini-3</td><td class="num">86.17</td><td class="num">70.83</td><td class="num">95.12</td><td class="num">89.61</td></tr></tbody></table>
+      <div class="cite">Table 4 p.20 · all values are accuracy (%)</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING READING</div>
+      <h1 class="title">What is reusable even if the headline numbers move</h1>
+      <ol class="numbered"><li><b>Type memory by epistemic role</b>: do not let raw evidence, summaries, and user-facing beliefs share one indistinguishable store.</li><li><b>Retrieve with complementary failure modes</b>: exact identifiers, paraphrases, graph relations, and time constraints demand different indexes.</li><li><b>Make revision explicit</b>: record confidence and evidence-triggered update rules instead of silently rewriting all prior state.</li><li><b>Expose a budgeted interface</b>: “how much context is worth it?” belongs in the memory API.</li></ol>
+      <div class="cite">§3-6 pp.4-17 · interpretation grounded in the described architecture</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS / READING CAUTION</div>
+      <h1 class="title">The report is promising, but its evidence has boundaries</h1>
+      <ul class="bullets"><li>This is an <b>arXiv technical report</b>, not a stated peer-reviewed acceptance.</li><li>Several comparator scores are carried over from a Supermemory report or official Backboard results; the authors say these are reported reference points, not independently reproduced baselines.</li><li>The experimental setup leaves literal `<add>` placeholders for retrieval token budgets, so the exact budgets are not disclosed in this version.</li><li>The factual benchmarks use neutral profiles; they do not measure whether preference-conditioned personas are safe, useful, or stable for users.</li></ul>
+      <div class="cite">cover p.1 · §7.3 pp.18-19 · Table 4 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER HIGHLIGHT</div>
+      <h1 class="title">Why four retrieval routes?</h1>
+      <div class="hl"><p class="hl__en">“Running these four channels in parallel yields a diverse set of candidates.”</p><p class="hl__zh">四個通道的目的不是重複搜尋，而是從語意、字面、圖結構與時間四種相關性產生候選。<span class="hl__src">§4.2.2 p.10</span></p></div>
+      <ul class="bullets"><li>Semantic handles paraphrases.</li><li>BM25 preserves exact names.</li><li>Graph traversal reaches indirect relations.</li><li>Temporal filtering answers “when?” as a first-class constraint.</li></ul>
+      <div class="cite">§4.2.2 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER HIGHLIGHT</div>
+      <h1 class="title">Why claim the memory layer matters?</h1>
+      <div class="hl"><p class="hl__en">“the memory architecture, rather than sheer model size, is carrying much of the performance.”</p><p class="hl__zh">作者以相同 OSS-20B backbone 的 full-context 對照與 Hindsight 對照，主張增益主要來自記憶架構。<span class="hl__src">§7.4 p.19</span></p></div>
+      <div class="scorebox"><span class="score score--lo">39.0% full-context</span><span class="score score--hi">83.6% Hindsight</span><span class="score score--hi">+44.6 pts</span></div>
+      <div class="cite">Table 3 p.19 · §7.4 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Memory is not just more context.</h2>
+      <p class="end__sub">HINDSIGHT’s useful provocation is to make evidence, summaries, beliefs, retrieval budgets, and updates separate objects in the agent system.</p>
+      <div class="end__next">Tomorrow: LLM architecture, training, or alignment.</div>
+      <div class="cite">Paper: Hindsight is 20/20: Building Agent Memory that Retains, Recalls, and Reflects · arXiv:2512.12818</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
