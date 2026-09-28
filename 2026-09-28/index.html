@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EOUPCT — Protecting Unknown Pre-training Gradients</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · MONDAY / LLM</div>
+      <h1 class="title">在不知道預訓練資料時，<br>怎麼保護 base LLM 的通用知識？</h1>
+      <p class="lead">EOUPCT 用可微 pseudo data 尋找下一次更新最可能傷到的知識邊界，再把更新投影到安全方向。</p>
+      <div class="authors">Bing Wang et al. · Jilin University / RIKEN / University of Warwick / University of Tokyo</div>
+      <div class="meta-row"><span class="badge hot">NeurIPS 2026</span><span class="badge">arXiv:2609.30935</span><span class="badge">2026-09-25</span></div>
+      <div class="cite">Estimating and Orthogonalizing Unknown Pre-training Gradients for Continual Fine-tuning of Large Language Models · Abstract p.1; NeurIPS 2026 front matter p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不要只保護「已看過的舊任務」。<br>EOUPCT 先<strong>估計缺席的預訓練梯度</strong>，再讓新任務更新避開它。</p>
+      <div class="sub">關鍵不是合成看似合理的 replay data，而是合成對下一個更新最脆弱的 base-model 知識。</div>
+      <div class="cite">Abstract p.1; §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE FAILURE MODE</div>
+      <h2 class="head">Continual fine-tuning 同時遺忘兩種東西</h2>
+      <ul class="bullets"><li><b>前序 downstream tasks</b>：新任務梯度和歷史任務梯度互相干擾。</li><li><b>base LLM 的通用知識</b>：常識、推理等能力來自不可取得的預訓練資料。</li><li>現有 orthogonal projection 能保護已觀察到的 task gradients，卻沒有可投影的 pre-training gradient。</li></ul>
+      <div class="takeaway">缺的不是另一個 LoRA adapter；是「要保護哪個 base-knowledge direction」的訊號。</div>
+      <div class="cite">§1 pp.1–2; §2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY PRIOR FIXES FALL SHORT</div>
+      <h2 class="head">三條既有路線，各自留下缺口</h2>
+      <table class="bench"><thead><tr><th>路線</th><th class="num">能解什麼</th><th class="num">仍缺什麼</th></tr></thead><tbody><tr><td>梯度正交 / OLoRA</td><td class="num">減少已知任務間干擾</td><td class="num">沒有未知預訓練梯度</td></tr><tr><td>Data rehearsal</td><td class="num">重播歷史 samples</td><td class="num">拿不到原始預訓練資料</td></tr><tr><td>Parameter isolation</td><td class="num">隔離新舊 task 模組</td><td class="num">需歷史模型 / routing；統一模型仍可能遺忘</td></tr></tbody></table>
+      <p class="note">EOUPCT 選擇在 gradient space 補上缺失的 pre-training protection direction。</p>
+      <div class="cite">§2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PAPER CLAIM</div>
+      <h2 class="head">EOUPCT 的三個貢獻</h2>
+      <ol class="numbered"><li><b>估計</b>：以 soft prompt + Gumbel-Softmax 從 base LLM 生成可微 pseudo pre-training sequence。</li><li><b>對齊</b>：把新任務、歷史 task、估計 pre-training gradients 一起納入 Pareto orthogonal optimization。</li><li><b>可算</b>：用 first-order virtual step 近似避開二階 Hessian 成本。</li></ol>
+      <div class="cite">§1 p.2; §3.1 p.4; §3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD OVERVIEW</div>
+      <h2 class="head">一條 pipeline：找到脆弱處，再限制更新</h2>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure1_p4.jpg" alt="EOUPCT framework"><figcaption>Fig. 1 — Soft prompt drives differentiable pseudo-data generation; Pareto optimization couples it with continual fine-tuning.</figcaption></figure>
+      <div class="takeaway">Pseudo data 是用來產生保護梯度，不是把它當普通的 synthetic training corpus。</div>
+      <div class="cite">Fig.1 p.4; §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 1 · ESTIMATE</div>
+      <h2 class="head">把 frozen base LLM 當成不可見的預訓練分布模型</h2>
+      <div class="two-col"><div><p class="col-hint">輸入</p><ul class="bullets"><li>針對目前 task t 學一段長度 L 的 soft prompt。</li><li>將 prompt prepend 到原始 pre-training LLM。</li><li>生成 M 個連續 token embeddings 作 pseudo sequence。</li></ul></div><div><p class="col-hint">輸出</p><ul class="bullets"><li>比較 base LLM 與 current LLM 在 pseudo sequence 的 latent representations。</li><li>其 MSE distillation loss 對模型參數的梯度，就是 estimated pre-training gradient。</li></ul></div></div>
+      <div class="formula">L<sub>pre</sub> = MSE(F<sub>0</sub>(S(P)), F(S(P))) &nbsp; · &nbsp; g<sub>pre</sub> = gradient(L<sub>pre</sub>)</div>
+      <div class="cite">§3.2 pp.4–5; Eq.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY GUMBEL-SOFTMAX</div>
+      <h2 class="head">Discrete decoding 不能拿來找保護梯度</h2>
+      <ul class="bullets"><li>一般 top-k / sampled token 是離散選擇，soft prompt 的 gradient 在 decoder 處斷掉。</li><li>Gumbel-Softmax 把每一步 next-token logits 變成連續機率分布，再取 expected embedding。</li><li>從 prompt 到 sequence 保持可微，才能將「哪些知識最易被遺忘」反向傳回 prompt。</li></ul>
+      <div class="formula">soft token e<sub>m</sub> = pi<sub>m</sub> W<sub>emb</sub> &nbsp; (continuous surrogate, not a sampled token)</div>
+      <div class="cite">§3.2 pp.4–5; Eqs.1–2 p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · THE CRUCIAL MOVE</div>
+      <p class="big">不是問「base model 知道什麼？」<br>而是問「<strong>這次 task update</strong> 會先傷到 base model 的什麼？」</p>
+      <div class="sub">先做 virtual update，再讓 prompt 最大化此時的 pre-training distillation loss。</div>
+      <div class="cite">§3.3 p.5; §3.4 p.6, Eq.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 2 · VULNERABILITY</div>
+      <h2 class="head">Virtual step 把二階 gradient-conflict 目標改成一階問題</h2>
+      <ul class="bullets"><li>先用 new-task gradient 形成虛擬模型：`theta_virt = theta - alpha * g_new`。</li><li>再優化 prompt，讓 pseudo sequence 在 virtual model 上的 L<sub>pre</sub> 最大。</li><li>一階 Taylor 展開顯示：這等價於找與 g<sub>new</sub> 衝突最大的 protection gradient。</li><li>不必直接對 prompt 求 Hessian，保留了方法的可用性。</li></ul>
+      <div class="takeaway">EOUPCT 的 pseudo data 是 task-conditional、adversarially selected，而非 generic replay。</div>
+      <div class="cite">§3.3 p.5; §3.4 p.6, Eq.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 3 · THREE GUARDS</div>
+      <h2 class="head">三種 orthogonality 對應三種干擾</h2>
+      <table class="bench"><thead><tr><th>保護關係</th><th class="num">操作</th><th class="num">避免的遺忘</th></tr></thead><tbody><tr><td>new ↔ old downstream</td><td class="num">project into historical null space</td><td class="num">前序 task</td></tr><tr class="win"><td>new ↔ estimated pre-training</td><td class="num best">Pareto projection if conflict</td><td class="num best">base 通用知識</td></tr><tr><td>pre-training ↔ pre-training</td><td class="num">squared cosine penalty</td><td class="num">只保護單一脆弱區</td></tr></tbody></table>
+      <div class="cite">§3.3 pp.5–6; §3.4 p.6, Eqs.9–11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OPTIMIZER</div>
+      <h2 class="head">四步 first-order Pareto optimizer</h2>
+      <ol class="numbered"><li>以 virtual step + diversity penalty 優化 soft prompt。</li><li>把 new-task 和 protection gradients 投到歷史 task 的 null space。</li><li>若兩者相衝，從 new-task gradient 移除 protection-gradient component。</li><li>將安全 task direction 與 protection direction 合併更新模型。</li></ol>
+      <div class="formula">update = -eta * (safe g<sub>new</sub> + safe g<sub>pre</sub>)</div>
+      <div class="cite">§3.4 pp.6–7; Eqs.9–12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h2 class="head">實驗不是只看新任務分數</h2>
+      <div class="two-col"><div><p class="col-hint">Continual task proficiency</p><ul class="bullets"><li>15 SuperNI instruction tasks</li><li>3 個 sequential task orderings</li><li>每個 task 後測 SuperNI test subsets</li><li>指標：ROUGE / forgetting</li></ul></div><div><p class="col-hint">General-purpose retention</p><ul class="bullets"><li>MMLU 9 tasks</li><li>STEM / Humanity / Other 三類</li><li>6 base LLMs：Qwen3、Llama3、Gemma2</li><li>LoRA rank = 4</li></ul></div></div>
+      <div class="cite">§4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · TASK PLASTICITY</div>
+      <h2 class="head">Qwen3-4B：新任務表現和 task retention 一起改善</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Order-1 ROUGE</th><th class="num">Task forgetting</th></tr></thead><tbody><tr><td>LoRA</td><td class="num">45.1</td><td class="num">13.7</td></tr><tr><td>LoRAMoE</td><td class="num">48.6</td><td class="num">8.8</td></tr><tr><td>OLoRA</td><td class="num">48.9</td><td class="num">9.0</td></tr><tr><td>CLoRA</td><td class="num">47.8</td><td class="num">9.9</td></tr><tr class="win"><td>EOUPCT</td><td class="num best">50.7</td><td class="num best">6.0</td></tr></tbody></table>
+      <div class="takeaway">對 OLoRA：ROUGE +1.8；forgetting -3.0。保護 pre-training gradient 並未用掉新任務容量。</div>
+      <div class="cite">Tab.1 pp.7–8; §4.1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · GENERAL KNOWLEDGE</div>
+      <h2 class="head">Gemma2-9B：MMLU 的 gain 不只是小幅減損</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">STEM Acc.</th><th class="num">STEM forgetting</th></tr></thead><tbody><tr><td>LoRA</td><td class="num">41.7</td><td class="num">11.5</td></tr><tr><td>OLoRA</td><td class="num">42.9</td><td class="num">10.3</td></tr><tr><td>GainLoRA</td><td class="num">44.3</td><td class="num">8.9</td></tr><tr><td>CLoRA</td><td class="num">45.1</td><td class="num">8.1</td></tr><tr class="win"><td>EOUPCT</td><td class="num best">52.3</td><td class="num best">0.9</td></tr></tbody></table>
+      <div class="takeaway">對 OLoRA：STEM accuracy +9.4；STEM forgetting 從 10.3 降到 0.9。</div>
+      <div class="cite">Tab.1 pp.7–8; §4.1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULT · ACROSS FAMILIES</div>
+      <h2 class="head">作者的 aggregate claim，對應到多個 model scales</h2>
+      <div class="scorebox"><span class="score score--good">+3.5% average accuracy</span><span class="score score--good">-3.7% forgetting rate</span><span class="score">6 LLMs / 3 families</span></div>
+      <ul class="bullets"><li>Qwen3、Llama3、Gemma2 都在 Table 1 報告；EOUPCT 在各組的 task forgetting 與 MMLU forgetting 大多最低。</li><li>這是 paper 報告的跨模型 aggregate，不應誤讀成每一個單一 dataset 的固定增益。</li></ul>
+      <div class="cite">§1 p.2; Tab.1 pp.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SENSITIVITY</div>
+      <h2 class="head">Pseudo-data capacity 有 sweet spot，不是越長越好</h2>
+      <figure class="full" style="max-height:42vh;"><img src="figures/figure2_p8.jpg" alt="Sensitivity to prompt and sequence length"><figcaption>Fig. 2 — L and M in {4, 8, 16, 32}; short settings under-cover the distribution, while very large settings saturate or slightly degrade.</figcaption></figure>
+      <div class="cite">Fig.2 p.8; §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION</div>
+      <h2 class="head">每個 guard 都有可量化作用</h2>
+      <table class="bench" style="font-size:0.82em;"><thead><tr><th>Qwen3-4B variant</th><th class="num">ROUGE</th><th class="num">Task forgetting</th><th class="num">MMLU Acc.</th><th class="num">MMLU forgetting</th></tr></thead><tbody><tr class="win"><td>EOUPCT</td><td class="num best">50.7</td><td class="num best">6.0</td><td class="num best">60.2</td><td class="num best">0.7</td></tr><tr><td>w/o vulnerability C2</td><td class="num">47.6</td><td class="num">10.3</td><td class="num">59.0</td><td class="num">2.0</td></tr><tr><td>w/o pre-pre orthogonality</td><td class="num">47.3</td><td class="num">9.2</td><td class="num">57.8</td><td class="num">3.1</td></tr><tr><td>w/o new-pre orthogonality</td><td class="num">47.4</td><td class="num">8.7</td><td class="num">57.9</td><td class="num">3.0</td></tr><tr><td>w/o new-new orthogonality</td><td class="num">46.9</td><td class="num">10.3</td><td class="num">56.9</td><td class="num">4.1</td></tr></tbody></table>
+      <div class="cite">Tab.2 p.9; §4.3 pp.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">WHY IT WORKS</div>
+      <p class="big">Ablation 的訊息很乾淨：<br>找得到脆弱邊界（C2）<strong>還不夠</strong>，也必須讓三種梯度不互相踩到。</p>
+      <div class="sub">尤其移除 new-new protection 在 Qwen3-4B 使 task forgetting 回升至 10.3。</div>
+      <div class="cite">Tab.2 p.9; §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FORGETTING DYNAMICS</div>
+      <h2 class="head">不是終點一次測試；EOUPCT 讓退化曲線更平</h2>
+      <ul class="bullets"><li>作者沿著 sequential SuperNI tasks，持續測 Qwen3-4B 和 Llama3-3B 的 MMLU 三類 accuracy。</li><li>CLoRA 隨 task index 穩定下滑；EOUPCT 維持較高、較慢的下降。</li><li>部分 stage 暫時高於未 fine-tune 的起點；作者將其解讀為 pseudo data + optimization 可能強化有用 representations。</li></ul>
+      <p class="note">最後一點是作者的 interpretation，不等於已證明普遍的 capability improvement。</p>
+      <div class="cite">§4.4 p.9; Fig.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITATIONS</div>
+      <h2 class="head">用計算換掉 storage，也仍有容量上限</h2>
+      <ul class="bullets"><li><b>Training overhead</b>：Gumbel-Softmax 的 autoregressive pseudo generation 增加 forward/backward latency，相較 standard LoRA 更重。</li><li><b>Finite proxy capacity</b>：soft prompt 長度 L 與 generation length M 限制可覆蓋的 base-knowledge region。</li><li><b>Long heterogeneous streams</b>：作者明說可能飽和；未來方向是 dynamic prompt expansion 或 hierarchical routing。</li></ul>
+      <div class="cite">Appendix F p.22</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · SOURCE HIGHLIGHTS</div>
+      <h2 class="head">三句最值得帶走的原文</h2>
+      <div class="hl"><p class="hl__en">“the original data and gradients of off-the-shelf pre-training LLMs ... are strictly unknown and highly diverse.”</p><p class="hl__zh">現成 base LLM 的預訓練資料與梯度不可得且高度多樣，因此不能直接沿用已知任務保護法。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">“The correct objective is to maximize the gradient conflict.”</p><p class="hl__zh">真正要找的是即將被新更新破壞得最嚴重的知識方向。<span class="hl__src">§3.4 p.6</span></p></div>
+      <div class="hl"><p class="hl__en">“removing any component leads to a consistent degradation in both task-specific performance and general knowledge preservation.”</p><p class="hl__zh">每個約束都有可測量的必要性，不是把多個 regularizer 疊在一起而已。<span class="hl__src">§4.3 pp.8–9</span></p></div>
+      <div class="cite">Paper text as quoted above</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">EOUPCT：把<br>「未知的舊知識」<br>變成可保護的方向</h2>
+      <p class="end__sub">對 continual LLM tuning 而言，最有價值的轉換是：從保存過去 samples，轉向估計並限制破壞性更新。</p>
+      <div class="end__next">Next: Tuesday · Image Generation / Understanding</div>
+      <div class="cite">Estimating and Orthogonalizing Unknown Pre-training Gradients for Continual Fine-tuning of Large Language Models · https://arxiv.org/abs/2609.30935</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
