@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-Evolving Vision-Language Models for Image Quality Assessment via Voting and Ranking</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · Vision Understanding</div>
+      <h1 class="title">Self-Evolving Vision-Language Models for Image Quality Assessment via Voting and Ranking</h1>
+      <p class="lead">無 human quality labels：用 VLM 自己的投票共識，訓練出能評估影像品質的 ranking policy。</p>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv v5 · 2026-06-11</span></div>
+      <div class="authors">Wen Wen et al. · City University of Hong Kong / ByteDance Inc.</div>
+      <div class="cite">Source: cover + Abstract p.1 · arXiv:2509.25787</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把「哪張比較好」的共識，變成「這次更新是否更可靠」的 reward。</p>
+      <div class="takeaway"><b>EvoQuality</b> 對 IQA 使用 self-consistency，但不把多次分數平均；它先建立 pairwise pseudo ranking，再以 fidelity reward 做 GRPO。</div>
+      <div class="cite">Abstract p.1 · §3 pp.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem</div>
+      <h1 class="title">IQA 缺的不是 image data，而是可擴張的 supervision</h1>
+      <ul class="bullets"><li>Human mean opinion score 需要大規模 subjective study，收集昂貴。</li><li>off-the-shelf full-reference metrics 產 pseudo-label 的路徑受限於 synthetic data 與 metric 本身。</li><li>IQA 是連續且主觀的；不同 dataset 的 absolute rating scale 也使 regression generalization 困難。</li></ul>
+      <div class="cite">§1 p.2 · §2.2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reframing</div>
+      <h1 class="title">先問相對偏好，再學會輸出品質分數</h1>
+      <div class="two-col"><div><p class="col-hint">REGRESSION</p><h2 class="head">直接預測 absolute score</h2><ul class="bullets"><li>容易被跨 dataset rating scale 拉扯。</li><li>pseudo score 的平均仍可能保留 model instability。</li></ul></div><div><p class="col-hint">RANKING</p><h2 class="head">預測 pairwise preference</h2><ul class="bullets"><li>比較判斷更貼近 IQA 的相對性。</li><li>多次回答可投票，從 model-internal agreement 取 signal。</li></ul></div></div>
+      <div class="cite">§1 p.2 · §2.2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h1 class="title">三件事，把 self-evolution 接到 perception</h1>
+      <ol class="numbered"><li><b>Offline voting：</b>多次 pairwise comparison 產生高信心 pseudo preferences。</li><li><b>Online evolution：</b>以 pseudo ranking 對 score trajectories 計 fidelity reward，透過 GRPO 更新。</li><li><b>Iterative curriculum：</b>第二輪加入 synthetic distortions，檢驗是否擴大穩健的 quality notion。</li></ol>
+      <div class="cite">Abstract p.1 · §1 p.2 · §3 pp.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System</div>
+      <h1 class="title">一個 iteration：offline consensus → online policy update</h1>
+      <figure class="full" style="max-height:58vh; margin-top:.2rem;"><img src="figures/figure2_p4.jpg" alt="EvoQuality two-stage system diagram"><figcaption>Figure 2. Offline: pairwise voting builds pseudo rankings. Online: score samples are rewarded by fidelity to those rankings.</figcaption></figure>
+      <div class="cite">Figure 2 · §3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 1 · Offline</div>
+      <h1 class="title">K 次投票，產生不依賴 MOS 的 pairwise pseudo-label</h1>
+      <ul class="bullets"><li>從無標籤 image pool 建 random pairs P；每一對用 comparative prompt 回答哪張品質較好。</li><li>對同一 pair sample K 次，並隨機交換 pair order 以緩解 positional bias。</li><li>多數投票：x 勝為 1、tie 為 0.5、x 敗為 0；保留 outcome，不把 votes 壓成 absolute score。</li></ul>
+      <div class="formula">p*(x, y) = 1 if votes for x > votes for y; 0.5 if tied; 0 otherwise.</div>
+      <div class="cite">§3.1 pp.4–5 · Eq.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method 2 · Online</div>
+      <h1 class="title">每張圖的多條 score trajectory，接受 pairwise fidelity 檢驗</h1>
+      <div class="two-col"><div><h2 class="head">Score sampling</h2><ul class="bullets"><li>對每張 image 用 direct score prompt sample K 個 reasoning / score outputs。</li><li>用 Thurstone model 將 scores 的 mean 與 variance 映成 pairwise probability p_k。</li></ul></div><div><h2 class="head">Policy update</h2><ul class="bullets"><li>p_k 與 offline p* 的一致度成為 fidelity reward。</li><li>group-standardized reward 成 advantage；regularized GRPO 更新 policy。</li></ul></div></div>
+      <div class="cite">§3.2 pp.5–6 · Eqs.2–5</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism</div>
+      <p class="big">Reward 的 teacher 不是 label；是「多次相對判斷後，模型自己最一致的版本」。</p>
+      <div class="takeaway">這避開直接相信單一 pseudo score，同時保留 IQA 的 ranking structure。</div>
+      <div class="cite">§3.1 p.5 · §3.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Training</div>
+      <h1 class="title">兩輪、20K pairs、K=32：自監督仍有明確計算成本</h1>
+      <table class="bench"><thead><tr><th>Item</th><th class="num">Value</th><th class="num">Why it matters</th></tr></thead><tbody><tr><td>Round 1</td><td class="num">KONIQ authentic pairs</td><td class="num">建立初步 relative quality signal</td></tr><tr class="win"><td>Round 2</td><td class="num best">adds synthetic images</td><td class="num">擴大 synthetic distortion coverage</td></tr><tr><td>Offline / online sampling</td><td class="num best">K = 32</td><td class="num">為 voting 與 group reward 提供多樣 samples</td></tr><tr><td>Compute</td><td class="num best">8× A100; ~12h / epoch</td><td class="num">不是零成本的 self-evolution</td></tr></tbody></table>
+      <div class="cite">§4.1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation</div>
+      <h1 class="title">一個 unlabeled training pool，測七個 unseen IQA benchmarks</h1>
+      <div class="two-col"><div><h2 class="head">Training</h2><ul class="bullets"><li>KONIQ + synthetic variants。</li><li>quality score、distortion type、severity labels 一律捨棄。</li></ul></div><div><h2 class="head">Zero-shot test</h2><ul class="bullets"><li>Authentic: SPAQ, LIVEW。</li><li>AI-generated: AGIQA。</li><li>Synthetic: CSIQ, TID2013, KADID, PIPAL。</li></ul></div></div>
+      <div class="cite">§4.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Headline result</div>
+      <h1 class="title">Round 2 把 weighted correlation 推到 0.770 / 0.726</h1>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">WAVG PLCC</th><th class="num">WAVG SRCC</th></tr></thead><tbody><tr><td>Qwen2.5-VL-7B</td><td class="num">0.615</td><td class="num">0.570</td></tr><tr><td>EvoQuality Round 1</td><td class="num">0.751 (+27.4%)</td><td class="num">0.709 (+29.6%)</td></tr><tr class="win"><td>EvoQuality Round 2</td><td class="num best">0.770 (+31.8%)</td><td class="num best">0.726 (+33.7%)</td></tr></tbody></table>
+      <div class="takeaway">增益在八個 reported benchmarks 的 weighted average 上計算；這是 correlation，不是 human MOS accuracy。</div>
+      <div class="cite">Table 2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Result map</div>
+      <h1 class="title">效果最醒目的是 synthetic distortions</h1>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure1_p1.jpg" alt="Benchmark gains across IQA datasets"><figcaption>Figure 1. The paper highlights gains over the Qwen2.5-VL-7B baseline and comparison with supervised VLM-based IQA models.</figcaption></figure>
+      <div class="cite">Figure 1 p.1 · Table 2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Hard cases</div>
+      <h1 class="title">第二輪的額外資料，主要反映在 synthetic datasets</h1>
+      <table class="bench"><thead><tr><th>Dataset</th><th class="num">Baseline PLCC</th><th class="num">Round 2 PLCC</th></tr></thead><tbody><tr class="win"><td>TID2013</td><td class="num">0.380</td><td class="num best">0.674 (+77.4%)</td></tr><tr class="win"><td>PIPAL</td><td class="num">0.444</td><td class="num best">0.649 (+46.2%)</td></tr><tr class="win"><td>KADID</td><td class="num">0.623</td><td class="num best">0.803 (+28.9%)</td></tr><tr class="win"><td>CSIQ</td><td class="num">0.717</td><td class="num best">0.865 (+20.6%)</td></tr></tbody></table>
+      <div class="cite">Table 2 p.6 · §4.2 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Composition</div>
+      <h1 class="title">EvoQuality 也可作為 supervised IQA model 的 OOD adapter</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">OOD WAVG PLCC</th><th class="num">OOD WAVG SRCC</th></tr></thead><tbody><tr><td>VisualQuality-R1</td><td class="num">0.722</td><td class="num">0.666</td></tr><tr><td>EvoQuality</td><td class="num">0.727</td><td class="num">0.678</td></tr><tr class="win"><td>VQ-R1 + EvoQuality</td><td class="num best">0.768</td><td class="num best">0.716</td></tr></tbody></table>
+      <div class="takeaway">Paper 的實務主張不是取代所有 in-domain supervised model，而是改善 unseen-domain generalization。</div>
+      <div class="cite">Table 4 p.8 · §4.2 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Crown insight</div>
+      <p class="big">Pairwise ranking 是這篇真正的 inductive bias。</p>
+      <div class="takeaway">EvoEstimate 直接平均 pseudo scores，第二輪 WAVG PLCC 0.738 → 0.736；EvoQuality 則 0.751 → 0.770。作者據此把可持續演化歸因於 relative preference signal。</div>
+      <div class="cite">Table 5 p.9 · §4.3 pp.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h1 class="title">Ranking variant 的第二輪仍前進；direct estimation 停滯</h1>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">Round 1 WAVG PLCC</th><th class="num">Round 2 WAVG PLCC</th></tr></thead><tbody><tr class="win"><td>EvoQuality (ranking)</td><td class="num">0.751</td><td class="num best">0.770</td></tr><tr><td>EvoEstimate (direct score)</td><td class="num">0.738</td><td class="num">0.736</td></tr></tbody></table>
+      <ul class="bullets"><li>控制組維持其餘設定相同，只改為 offline direct-score pseudo estimations 與 regression-like reward。</li><li>作者觀察到 EvoQuality 在 synthetic distortion benchmarks 特別強。</li></ul>
+      <div class="cite">Table 5 p.9 · §4.3 pp.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Vote budget</div>
+      <h1 class="title">Consensus 不是裝飾：K > 1 即帶來明顯提升</h1>
+      <figure class="full" style="max-height:49vh;"><img src="figures/figure3_p10.jpg" alt="PLCC versus number of candidate responses K"><figcaption>Figure 3. K=1 is the no-consensus baseline; the paper reports K=32 as most stable across its IQA benchmarks.</figcaption></figure>
+      <div class="cite">Figure 3 · §4.3 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">What this establishes</div>
+      <h1 class="title">自監督為 IQA 提供一條可用但不免費的 post-training 路徑</h1>
+      <ol class="numbered"><li>不需 MOS labels：以 pairwise voting 產 pseudo ranking。</li><li>不把 ranking 退化成 pseudo regression：reward 直接量測 fidelity。</li><li>不只 base VLM：能加到既有 IQA model，改善 OOD weighted results。</li></ol>
+      <div class="cite">Abstract p.1 · §4.2 pp.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits</div>
+      <h1 class="title">三個不能忽略的邊界</h1>
+      <ul class="bullets"><li>仍依賴 <b>in-domain unlabeled pool</b>；資料 diversity 和 scope 會影響最後 performance。</li><li>iterative voting + RL 有顯著 compute overhead；authors 指向 active pair sampling。</li><li>aesthetics、generative realism、video ranking 都只是 future directions，尚未由此實驗證實。</li></ul>
+      <div class="cite">§5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Original wording</div>
+      <h1 class="title">把 votes 留在「比較」空間，是方法選擇的關鍵</h1>
+      <div class="hl"><p class="hl__en">It generates pseudo-labels by performing pairwise majority voting on the VLM’s own outputs to establish a consensus on relative quality.</p><p class="hl__zh">它對 VLM 自己的輸出進行成對多數投票，建立對「相對品質」的共識 pseudo-label。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">This set of definitive pairwise outcomes, derived purely from the model’s internal consensus, completely replaces the need for external human mean opinion score (MOS) labels.</p><p class="hl__zh">這組完全由模型內部共識得出的成對結果，取代了外部人類 MOS 標籤的需求。<span class="hl__src">§3.1 p.5</span></p></div>
+      <div class="cite">arXiv:2509.25787v5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · Reproducibility</div>
+      <h1 class="title">關鍵設定與數字索引</h1>
+      <ul class="bullets"><li>20,000 pairs / round、K=32、two iterations：§4.1 p.8。</li><li>weighted PLCC / SRCC 0.770 / 0.726：Table 2 p.6。</li><li>ranking-vs-direct-estimation ablation：Table 5 p.9。</li><li>candidate-response K ablation：Figure 3 / §4.3 p.10。</li></ul>
+      <div class="cite">§4.1 p.8 · Tables 2/5 · Figure 3</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">EvoQuality</h2>
+      <p class="end__sub">Self-consistency becomes useful for perception only after it respects the task’s ranking structure.</p>
+      <div class="end__next">Next rotation: video generation / temporal models</div>
+      <div class="cite">Paper: Self-Evolving Vision-Language Models for Image Quality Assessment via Voting and Ranking · ICLR 2026</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
