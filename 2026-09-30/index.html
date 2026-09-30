@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controllable Video Generation with Provable Disentanglement</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY / WED / VIDEO GENERATION</div>
+      <h1 class="title">Controllable Video Generation<br>with Provable Disentanglement</h1>
+      <p class="lead">將「可控影片」從直覺上的 latent editing，拉到帶明確條件的可識別性問題。</p>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">2026-09-30</span></div>
+      <div class="authors">Yifan Shen, Peiyuan Zhu, Zijian Li, Shaoan Xie, Namrata Deka, Zongfang Liu, Zeyu Tang, Guangyi Chen, Kun Zhang<br>MBZUAI + Carnegie Mellon University</div>
+      <div class="cite">Paper: Controllable Video Generation with Provable Disentanglement · arXiv:2502.02690v3 · cover p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">CoVoGAN 把 content 和 motion 拆成不同 latent，並讓 motion 的各成分在歷史條件下分開。<br><b>它的重點不是「多一個 GAN 模組」，而是理論條件與架構設計的對齊。</b></p>
+      <div class="cite">Abstract p.1; §4 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE PROBLEM</div>
+      <h2 class="head">全域 4D 表示很會生成，卻不一定會精準控制</h2>
+      <ul class="bullets"><li>既有方法常把影片作為一個整體的時空表示，再直接施加 text 等條件。</li><li>細粒度關係因此被忽略：控制頭部方向時，可能同時改變臉部比例或 identity。</li><li>motion/content 的經驗性分解有用，但沒有保證不同因素真的不會互相干擾。</li></ul>
+      <div class="takeaway">問題不是「能否產生 motion」，而是「控制某個 motion factor 時，其他因素能否保持不動」。</div>
+      <div class="cite">§1 p.1-2; Fig.1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FORMALIZATION</div>
+      <h2 class="head">每一幀由兩種 latent 組成：不變 content + 時變 dynamics</h2>
+      <div class="two-col"><div><div class="formula">x<sub>t</sub> = g(z<sub>s,t</sub>, z<sub>c</sub>)</div><ul class="bullets"><li>z<sub>c</sub>：跨所有 frames 固定的 content elements。</li><li>z<sub>s,t</sub>：隨時間演化的 style dynamics。</li><li>動態成分由帶 time-delayed parents 的非參數因果過程產生。</li></ul></div><div><figure class="full" style="max-height:42vh;"><img src="figures/figure2_p3.jpg" alt="The paper generating process graph"><figcaption>Fig.2：可觀測畫面由動態與內容 latent 共同生成。</figcaption></figure></div></div>
+      <div class="cite">§2.1 p.3; Fig.2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TARGET</div>
+      <h2 class="head">可識別性分兩層，控制能力也分兩層</h2>
+      <ol class="numbered"><li><b>Block-wise identification</b>：motion 與 content 成為可分離區塊；可調動相機而不動場景。</li><li><b>Component-wise identification</b>：每個 learned dynamic component 對應一個底層因素；可分開改眨眼、頭部動作。</li><li><b>Observation equivalence</b>：學到的模型先必須能匹配觀測到的影片分布。</li></ol>
+      <div class="takeaway">第二層才是 fine-grained controllability 的理論目標。</div>
+      <div class="cite">§2.2-2.3 p.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THEOREM 1 / BLOCK-WISE</div>
+      <h2 class="head">Minimal change 把「動」與「不動」切成兩塊</h2>
+      <ul class="bullets"><li><b>B1 positive density</b>：latent density 正且有界。</li><li><b>B2 minimal changes</b>：相關 conditional linear operators 具 injectivity。</li><li><b>B3 weak monotonicity</b>：latent 改變時，畫面條件分布也會在正機率集合上改變。</li><li>在 observation equivalence 下，定理推得 style dynamics 與 content 的 block-wise identifiability。</li></ul>
+      <div class="takeaway">這不是無條件保證；它把「什麼資料與模型條件下可分」說清楚。</div>
+      <div class="cite">Theorem 3.2, §3.1 p.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THEOREM 2 / COMPONENT-WISE</div>
+      <h2 class="head">Sufficient change + conditional independence 才能切到單一 motion factor</h2>
+      <div class="two-col"><div><ul class="bullets"><li>C1：latent density 平滑且為正。</li><li>C2：由前一狀態誘發的 transition derivatives 足夠多樣、線性獨立。</li><li>C3：learned dynamics 與 content 獨立，且 dynamics entries 給定 history 後相互獨立。</li></ul></div><div><ul class="bullets"><li>證明藉二、三階導數約束 Jacobian。</li><li>解會收斂到 permutation 加 component-wise invertible transformation。</li><li>也就是一個學到的動態維度不能同時混合多個真實因素。</li></ul></div></div>
+      <div class="cite">Theorem 3.3, §3.2 p.5; Appendix A.1 p.16-17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE BRIDGE</div>
+      <h2 class="head">Temporal Transition Module (TTM) 將定理的假設落到生成器</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure3_p6.jpg" alt="CoVoGAN generator and temporal transition module"><figcaption>Fig.3：noise 經 TTM 生成解耦表示後，再由 StyleGAN2-ADA synthesis network 產生逐幀畫面。</figcaption></figure>
+      <div class="cite">§4 p.5-6; Fig.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TTM / DYNAMIC BRANCH</div>
+      <h2 class="head">GRU 負責 history；per-component flow 負責條件獨立的 dynamics</h2>
+      <div class="two-col"><div><div class="formula">h<sub>t</sub> = GRU(h<sub>t-1</sub>, epsilon<sub>s,t-1</sub>)</div><div class="formula">z<sub>s,t,i</sub> = DSF<sub>i</sub>(epsilon<sub>s,t,i</sub>; h<sub>t-1</sub>)</div><p class="note">GRU 摘要歷史；Deep Sigmoid Flow 對每個動態成分個別變換。</p></div><div><div class="formula">z<sub>c</sub> = MLP(epsilon<sub>c</sub>)</div><div class="formula">z<sub>t</sub> = z<sub>c</sub> + z<sub>s,t</sub></div><p class="note">content 支路不要求 components 彼此獨立；兩支路串接後輸入 synthesis network。</p></div></div>
+      <div class="cite">§4.1 p.6, Eq.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRAINING</div>
+      <h2 class="head">不是只改 latent sampler：整個影片分布也要對齊</h2>
+      <ul class="bullets"><li>Synthesis network 保持 StyleGAN2-ADA 設計，將 z<sub>t</sub> 映射到 semantic vector w 後產生第 t 幀。</li><li>除 image discriminator 外，加入 video discriminator，對不同 resolution activations 做 channel-wise concatenation。</li><li>loss 在原 StyleGAN2-ADA 外加入 video discriminator loss，以及 z<sub>s,t</sub> 與 video-discriminator 中間輸出的 mutual-information maximization。</li></ul>
+      <div class="cite">§4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THEORY TO DESIGN</div>
+      <h2 class="head">每個設計選擇都對應一個可識別性條件</h2>
+      <table class="bench"><thead><tr><th>Theory condition</th><th>Model choice</th><th>Operational role</th></tr></thead><tbody><tr><td>Minimal changes</td><td>small n<sub>s</sub></td><td>較少的動態 latent 對應 block-wise identification</td></tr><tr><td>Conditional independence</td><td>component-wise DSF</td><td>給定 history 後隔離 dynamics entries</td></tr><tr><td>Unknown time lags</td><td>GRU gating</td><td>選擇性過濾不相關歷史</td></tr><tr><td>Observation equivalence</td><td>video discriminator</td><td>擬合 joint video distribution</td></tr></tbody></table>
+      <div class="takeaway">論文最強的部分是把 abstract theorem 轉成可被消融驗證的 architectural knobs。</div>
+      <div class="cite">§4.1-4.2 p.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">QUALITATIVE CONTROL</div>
+      <h2 class="head">同一個 latent intervention，要能跨 identity 維持相同 motion</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure4_p7.jpg" alt="Controllability comparison across CoVoGAN and baselines"><figcaption>Fig.4：頭部姿態與相機平移的 latent control；作者指出只有 CoVoGAN 在不同 identities 上呈現一致控制。</figcaption></figure>
+      <div class="cite">Fig.4 p.7; §5.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENT DESIGN</div>
+      <h2 class="head">四個真實影片資料集，品質與解耦兩條線分開驗</h2>
+      <div class="two-col"><div><ul class="bullets"><li>FaceForensics、SkyTimelapse、RealEstate：256 x 256。</li><li>CelebV-HQ：512 x 512。</li><li>使用標準 train/test split。</li></ul></div><div><ul class="bullets"><li>品質：FVD8、FVD16（lower better）。</li><li>解耦：MCC、SAP、Modularity（higher better）。</li><li>比較 GAN baselines 與 VDM/LVDM/Latte diffusion baselines。</li></ul></div></div>
+      <div class="cite">§5.1-5.2 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">VIDEO QUALITY / RESULTS</div>
+      <h2 class="head">在 FaceForensics、RealEstate、CelebV-HQ 的列示 FVD 中，CoVoGAN 為最低</h2>
+      <table class="bench"><thead><tr><th>Dataset / FVD</th><th class="num">CoVoGAN</th><th class="num">Best listed baseline</th></tr></thead><tbody><tr class="win"><td>FaceForensics FVD8</td><td class="num best">43.75</td><td class="num">45.49 Latte</td></tr><tr class="win"><td>FaceForensics FVD16</td><td class="num best">48.80</td><td class="num">49.02 Latte</td></tr><tr class="win"><td>RealEstate FVD8</td><td class="num best">154.88</td><td class="num">182.86 DIGAN</td></tr><tr class="win"><td>RealEstate FVD16</td><td class="num best">174.87</td><td class="num">178.27 DIGAN</td></tr><tr class="win"><td>CelebV-HQ FVD16</td><td class="num best">97.16</td><td class="num">127.62 MoStGAN-V</td></tr></tbody></table>
+      <div class="cite">Table 1, §5.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS / IMPORTANT CAVEAT</div>
+      <h2 class="head">「consistent top performance」不能被簡化成每一欄都第一</h2>
+      <div class="two-col"><div><div class="formula">SkyTimelapse FVD8: CoVoGAN 35.58 vs Latte 40.21</div><div class="formula">SkyTimelapse FVD16: CoVoGAN 46.51 vs Latte 41.84</div><p class="note">FVD 越低越好。CoVoGAN 在該資料集 8-frame 指標較低，但 16-frame 指標不是最低。</p></div><div><ul class="bullets"><li>論文的 overall claim 要連同完整 table 解讀。</li><li>Deck 不將不同 backbone、不同長度 metric 的結果混成單一「全面勝出」敘事。</li><li>這正是逐欄保留 source number 的必要性。</li></ul></div></div>
+      <div class="cite">Table 1, §5.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DISENTANGLEMENT / NUMBERS</div>
+      <h2 class="head">FaceForensics 上，三個解耦指標皆高於列示 baseline</h2>
+      <table class="bench"><thead><tr><th>Metric</th><th class="num">CoVoGAN</th><th class="num">Best listed baseline</th></tr></thead><tbody><tr class="win"><td>MCC (%)</td><td class="num best">33.78</td><td class="num">29.00 StyleGAN-V</td></tr><tr class="win"><td>SAP (%)</td><td class="num best">8.48</td><td class="num">5.90 MoStGAN-V</td></tr><tr class="win"><td>Modularity (%)</td><td class="num best">17.37</td><td class="num">13.48 MoStGAN-V</td></tr></tbody></table>
+      <p class="note">Diffusion models 沒有 compact latent；作者先取 frame-wise representations，再以 PCA 壓至 128 dimensions 計算對照指標。</p>
+      <div class="cite">Table 2, §5.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FINE-GRAINED CONTROL</div>
+      <h2 class="head">眨眼與頭部搖動可累積調整，而不是只能選一個 motion</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure5_p8.jpg" alt="Fine grained controllability examples"><figcaption>Fig.5：先修改對應眨眼的 latent dimension，再修改另一個頭部搖動維度；原有眨眼模式仍被保留。</figcaption></figure>
+      <div class="cite">Fig.5 p.8; §5.3 p.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big"><b>TTM 的效果來自兩件事必須同時成立：</b><br>GRU 用 gating 縮小有效的 history；component-wise flow 用條件獨立與 sufficient changes，避免不同 motion factor 再混回去。</p>
+      <div class="cite">§4.2 p.7; §5.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION</div>
+      <h2 class="head">拿掉 flow 的退化遠大於拿掉 GRU</h2>
+      <table class="bench"><thead><tr><th>FaceForensics</th><th class="num">CoVoGAN</th><th class="num">w/o GRU</th><th class="num">w/o flow</th></tr></thead><tbody><tr class="win"><td>FVD16 (lower)</td><td class="num best">48.80</td><td class="num">53.68</td><td class="num">82.81</td></tr><tr class="win"><td>MCC (%)</td><td class="num best">33.78</td><td class="num">26.59</td><td class="num">8.22</td></tr><tr class="win"><td>SAP (%)</td><td class="num best">8.48</td><td class="num">7.25</td><td class="num">0.55</td></tr><tr class="win"><td>Modularity (%)</td><td class="num best">17.37</td><td class="num">12.40</td><td class="num">10.24</td></tr></tbody></table>
+      <div class="cite">Table 3, §5.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY THE ABLATION MOVES</div>
+      <h2 class="head">GRU 與 flow 對準的是不同失敗模式</h2>
+      <div class="two-col"><div><h2 class="head">Without GRU</h2><ul class="bullets"><li>standard RNN 取代 gate 後，失去稀疏化的 history selection。</li><li>search space 變大，使 transition function 更難學。</li></ul></div><div><h2 class="head">Without flow</h2><ul class="bullets"><li>fully connected MLP 無法維持 style dynamics 的 mutual independence。</li><li>也較難捕捉 sufficient changes，故 FVD 與解耦分數都明顯惡化。</li></ul></div></div>
+      <div class="cite">§5.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING INTERPRETATION</div>
+      <h2 class="head">對影片生成工程的啟示：控制介面要對應可被驗證的因果假設</h2>
+      <ol class="numbered"><li>先指定哪些因素應跨幀固定、哪些應動態演化，再選 representation。</li><li>若期待 per-factor control，訓練目標要明確處理 conditional independence，而不只做 latent traversal demo。</li><li>消融應同時看 quality 與 controllability；只看 FVD 看不出 factors 是否仍混在一起。</li></ol>
+      <p class="note">這是根據本文 architecture、metrics 與 ablation 的工程性解讀，不是作者額外實驗結論。</p>
+      <div class="cite">§4.1-4.2 p.6-7; §5.1-5.4 p.7-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">理論上清楚，不代表已解決高 fidelity、open-domain video generation</h2>
+      <ul class="bullets"><li>作者明示：工作主要聚焦 theoretical contributions 與 empirical validation。</li><li>與更高 fidelity architectures 的整合，以及 open-domain scenarios，仍是 future work。</li><li>實驗的 backbone 是 StyleGAN2-ADA + GAN；不應將結果延伸成對當代所有大型 diffusion/transformer 影片模型的通用品質判決。</li></ul>
+      <div class="cite">§6 p.9; §4.1 p.6; §5.1-5.2 p.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / ORIGINAL WORDS</div>
+      <div class="hl"><p class="hl__en">Most existing methods for controlling video generation treat the video as a whole, neglecting intricate fine-grained spatiotemporal relationships, which limits both control precision and efficiency.</p><p class="hl__zh">多數既有方法把影片視為整體，忽略細緻的時空關係，因而同時限制控制精度與效率。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="takeaway">這一頁把本文的問題定義留在最原始、最可檢查的措辭。</div>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / ORIGINAL WORDS</div>
+      <div class="hl"><p class="hl__en">To enforce temporally conditional independence, we employ a component-wise flow model that transforms a set of independent noise variables into the style dynamics, conditioned on historical information.</p><p class="hl__zh">為了滿足時間條件獨立性，方法用逐分量 flow，在歷史資訊條件下把獨立噪聲轉為 style dynamics。<span class="hl__src">§4.2 p.7</span></p></div>
+      <div class="hl"><p class="hl__en">Substituting the component-wise flow with a fully connected MLP results in an even more significant degradation.</p><p class="hl__zh">以全連接 MLP 取代逐分量 flow，會造成更顯著的退化。<span class="hl__src">§5.4 p.9</span></p></div>
+      <div class="cite">§4.2 p.7; §5.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">SOURCE NOTES</div>
+      <h2 class="head">Source and provenance</h2>
+      <ul class="bullets"><li>Primary source: arXiv:2502.02690v3, PDF 26 pages; all quantitative claims in this deck cite its section and page.</li><li>Venue status: ICLR 2026 Poster, OpenReview forum OcLNKpcY4J. The forum is identified but its reviewer JSON returned HTTP 403 during ingestion.</li><li>Raw PDF, extracted section text, figure manifest, knowledge spec, slides JSON, and rendered HTML are retained in the dated source directory.</li></ul>
+      <div class="cite">arXiv:2502.02690; OpenReview forum OcLNKpcY4J</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">One sentence to keep</h2>
+      <p class="end__sub">Fine-grained video control becomes much more credible when the latent intervention is tied to conditions that make the factor identifiable.</p>
+      <div class="end__next">Tomorrow: compute acceleration - attention, kernels, and hardware.</div>
+      <div class="cite">Controllable Video Generation with Provable Disentanglement · ICLR 2026 Poster</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
