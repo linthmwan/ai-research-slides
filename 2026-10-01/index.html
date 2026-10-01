@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TokenWeave: Efficient Compute-Communication Overlap for Distributed LLM Inference</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Systems Research · Thursday / Compute Acceleration</div>
+      <h1 class="title">TokenWeave: Efficient Compute-Communication Overlap for Distributed LLM Inference</h1>
+      <div class="authors">Raja Gond · Nipun Kwatra · Ramachandran Ramjee<br>Microsoft Research India</div>
+      <div class="meta-row"><span class="badge tier">MLSys 2026 Oral</span><span class="badge date">arXiv:2505.11329v5</span></div>
+      <p class="lead">把 AllReduce、RMSNorm 與 GPU wave 排程一起重做；讓 tensor-parallel LLM serving 從 1K tokens 開始也能有效 overlap。</p>
+      <div class="cite">Source: TokenWeave, MLSys 2026 · Abstract p.1 · arXiv:2505.11329</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">One-line thesis</div>
+      <p class="big">不是把通信藏起來而已；先把 RMSNorm 的<b>冗餘計算與 HBM traffic</b>拿掉，再讓通信不搶走 compute 的 SM。</p>
+      <div class="takeaway">結果：在 8xH100 上，latency 最多 1.28x、實際 workload throughput 最多 1.19x。</div>
+      <div class="cite">Abstract p.1; §4.3 p.8; §5 pp.9–12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Paper card</div>
+      <h1 class="title">為什麼今天選這篇</h1>
+      <ol class="numbered"><li><b>正式 venue：</b>MLSys 2026 Research Track Oral；系統／kernel 觀點而非單純模型替換。</li><li><b>問題貼近 production：</b>對 vLLM tensor parallelism 的 critical path 做改造。</li><li><b>機制可驗證：</b>kernel、wave scheduling、end-to-end traces 與 ablation 都有對應證據。</li></ol>
+      <p class="note">選題回溯：當日 arXiv discovery 遭 429；以 MLSys 2026 官方 paper index 與原始 PDF 兜底。</p>
+      <div class="cite">MLSys 2026 official paper page; §5 pp.9–12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Bottleneck</div>
+      <h1 class="title">Tensor parallelism 的通信仍在 critical path</h1>
+      <ul class="bullets"><li>每個 Transformer block 有兩次 AllReduce；即使是 NVLink 的 8xH100 DGX，通信仍佔 end-to-end latency <b>9–23%</b>。</li><li>RMSNorm 再佔 <b>4–9%</b>；把它當小 operator 忽略，會錯過真正可融合的路徑。</li><li>Interactive serving 不會總有 8K+ tokens；vLLM 0.8.5 的 default chunk size 是 2K。</li></ul>
+      <div class="cite">Fig.1 p.1; §1 pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why prior overlap misses serving</div>
+      <h1 class="title">切小 kernel 才能 overlap，但 GPU 不喜歡太小的 kernel</h1>
+      <div class="two-col"><div><h2 class="head">Prior approach</h2><ul class="bullets"><li>把 computation 切成 tiles / sub-tasks。</li><li>一部分通信與另一部分計算並行。</li><li>常需拆 AllReduce 成 ReduceScatter + AllGather。</li></ul></div><div><h2 class="head">Failure mode</h2><ul class="bullets"><li>小工作量造成 wave quantization。</li><li>RS + AG 可能比一個 AllReduce 多出顯著成本。</li><li>小 batch 時，切分損失大過被藏掉的通信。</li></ul></div></div>
+      <div class="takeaway">重點不是「能不能 overlap」，而是「切分後還保不保持 kernel efficiency」。</div>
+      <div class="cite">§1 p.2; §3 pp.5–6; Fig.4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Design target</div>
+      <p class="big">讓 overlap 適用於 <b>1K-token</b> serving batch，而不是只在大 batch 微基準裡好看。</p>
+      <div class="sub">TokenWeave 的答案：兩路 token pipeline + wave-aware split + fused AllReduce–RMSNorm。</div>
+      <div class="cite">§1 pp.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Safety valve</div>
+      <h1 class="title">不是每次都硬做 overlap</h1>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure3_p3.jpg" alt="Selective enabling of TokenWeave"><figcaption>Token threshold below which TokenWeave only enables the fused kernel; full splitting/overlap is reserved for higher token counts.</figcaption></figure>
+      <div class="takeaway">低 token 數先拿 fusion 的確定收益；足夠大才啟用 split + overlap。</div>
+      <div class="cite">Fig.3 p.3; §4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Method overview</div>
+      <h1 class="title">兩個 token split，織出兩條 CUDA streams</h1>
+      <div class="two-col"><div><h2 class="head">Compute stream</h2><ul class="bullets"><li>處理 split 0 / split 1 的 attention 與 FFN。</li><li>Chunked attention 保留 prefix-to-suffix dependency。</li></ul></div><div><h2 class="head">Communication stream</h2><ul class="bullets"><li>對另一 split 跑 fused AllReduce + RMSNorm。</li><li>以 stream wait 做輕量同步。</li></ul></div></div>
+      <div class="formula">split 0 compute  ||  split 1 (AllReduce -> RMSNorm)  ;  then swap</div>
+      <div class="cite">§4 pp.6–7; Fig.7 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Scheduling constraint</div>
+      <h1 class="title">「均分」不是 Smart-splitting</h1>
+      <ul class="bullets"><li>H100 有 132 SMs；300 CTAs 原本是 2 full waves + 1 partial wave。</li><li>若粗暴均分為兩個 150-CTA kernels，每個都變成 full + partial，合計從 3 waves 變成 4。</li><li>Smart-splitting 選 132 + 168 CTAs，讓兩邊 waves 的總數不超過原始 workload。</li></ul>
+      <div class="takeaway">它優化的是 split 後的 total wave count，不是 token 數的表面公平。</div>
+      <div class="cite">§4.1.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Wave intuition</div>
+      <h1 class="title">先守住 occupancy，才有可靠的 overlap window</h1>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure8_p6.jpg" alt="GPU wave execution illustration"><figcaption>A toy GPU illustration of waves: final partial waves are where a split can silently lose efficiency.</figcaption></figure>
+      <p class="note">Fig.9 reports Smart-split reduces split overhead particularly at short sequence lengths.</p>
+      <div class="cite">Fig.8 p.6; Fig.9 p.7; §4.1.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Reordering</div>
+      <h1 class="title">把 RMSNorm 移到 ReduceScatter 後、AllGather 前</h1>
+      <ul class="bullets"><li>ReduceScatter 完成後，每張 GPU 已擁有 1/N 的完整 token embeddings。</li><li>RMSNorm 是 token-level operation；在 local shard 做它，避免每張 GPU 對完整 tensor 重複算一次。</li><li>但只有 reordering 不夠：RS + AG 的額外 HBM traffic 會抵消這個好處。</li></ul>
+      <div class="formula">AllReduce + RMSNorm  ->  ReduceScatter -> local RMSNorm -> AllGather</div>
+      <div class="cite">§4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Kernel path</div>
+      <h1 class="title">Fused kernel 把值留在 registers，不走多餘 HBM</h1>
+      <ol class="numbered"><li><b>NVSHARP ReduceScatter：</b>switch fabric 對 local 1/N shard 做 reduction。</li><li><b>In-register RMSNorm：</b>reduced values 立刻做 variance / normalization；residual addition 同時融合。</li><li><b>Direct Multimem AllGather：</b>normalized values 直接寫入 multicast address，交給 switch 分發。</li></ol>
+      <div class="takeaway">省掉 initial HBM read 與額外 write，同時消除 full-tensor RMSNorm redundancy。</div>
+      <div class="cite">§4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Microbenchmark</div>
+      <h1 class="title">Fusion 幾乎貼近 AR-only latency</h1>
+      <table class="bench"><thead><tr><th>operation</th><th class="num">64 tok</th><th class="num">1K tok</th><th class="num">8K tok</th><th class="num">32K tok</th></tr></thead><tbody><tr><td>Sequential AR + RMSNorm</td><td class="num">24.64</td><td class="num">104.67</td><td class="num">685.63</td><td class="num">2671.84</td></tr><tr><td>Simple fusion</td><td class="num">24.74</td><td class="num">108.70</td><td class="num">715.33</td><td class="num">2495.10</td></tr><tr class="win"><td>Fused (ours)</td><td class="num best">17.70</td><td class="num best">75.71</td><td class="num best">502.24</td><td class="num best">1960.90</td></tr><tr class="win"><td>Speedup</td><td class="num best">1.39x</td><td class="num best">1.38x</td><td class="num best">1.37x</td><td class="num best">1.36x</td></tr></tbody></table>
+      <p class="note">8xH100 DGX, hidden 8192, bf16; latency in microseconds except the speedup row.</p>
+      <div class="cite">Table 1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Hardware fit</div>
+      <h1 class="title">為 overlap 保留 SMs，而不是讓通信吃掉 SM pool</h1>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure5_p4.jpg" alt="Multimem AllReduce SM requirements"><figcaption>Multimem-based AllReduce reaches near-optimal performance with 4–8 SMs in most settings.</figcaption></figure>
+      <ul class="bullets"><li>作者的 fused path 在 8xH100 上僅用 <b>2–8 SMs</b>。</li><li>相比 prior work 的 16–20+ SMs，compute stream 有更大機會真的並行。</li></ul>
+      <div class="cite">Fig.5 p.4; §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Mechanism crown</div>
+      <p class="big">TokenWeave 成功的真因：<b>先縮資源 footprint，再排重疊。</b></p>
+      <div class="sub">RMSNorm reordering 消掉 N 倍重複；fusion 消 HBM 往返；Multimem 留 SM；Smart-splitting 不新增 waves。</div>
+      <div class="takeaway">因此它甚至能比「移除所有通信」的 counterfactual baseline 更快——後者沒有修 RMSNorm。</div>
+      <div class="cite">§4.2–4.3 p.8; Fig.2 p.2; Fig.13 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation protocol</div>
+      <h1 class="title">不是只跑 microbenchmark</h1>
+      <div class="two-col"><div><h2 class="head">Stack / hardware</h2><ul class="bullets"><li>vLLM 0.8.5 V1 · PyTorch 2.6 · CUDA 12.4 · Triton 3.2</li><li>8xH100 DGX + NVSHARP; fixed TDP GPU clocks</li><li>FlashAttention-3 for attention</li></ul></div><div><h2 class="head">Models / workloads</h2><ul class="bullets"><li>Llama-3.3-70B, Qwen2.5-72B, Mixtral-8x22B</li><li>ShareGPT and arXiv variable-length traces</li><li>synthetic fixed-length requests; plus TP-4 / B200 appendix</li></ul></div></div>
+      <div class="cite">§5.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">End-to-end throughput</div>
+      <h1 class="title">真實 trace 上約 1.19x，不是只對單一模型</h1>
+      <figure class="full" style="max-height:44vh;"><img src="figures/figure11_p9.jpg" alt="TokenWeave end-to-end throughput"><figcaption>Throughput across arXiv, ShareGPT, and fixed traces for three models on 8xH100.</figcaption></figure>
+      <div class="takeaway">Dense models 在 reported workloads 約 1.19x；Mixtral 的收益較低，和其較低通信 overhead 一致。</div>
+      <div class="cite">Fig.11 p.9; §5.2.1 pp.10–11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Latency</div>
+      <h1 class="title">Dense models 從 1K tokens 起維持增益</h1>
+      <figure class="full" style="max-height:44vh;"><img src="figures/figure13_p10.jpg" alt="TokenWeave latency gains"><figcaption>Prefill latency across lengths: TokenWeave is near or better than the vLLM-nocomm reference in reported dense-model settings.</figcaption></figure>
+      <p class="note">Dense 8xH100 runs: 1.16x–1.28x improvement from 1K onward; Mixtral has weaker / short-length caveats.</p>
+      <div class="cite">Fig.13 p.10; §5.2.2 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Single-layer comparison</div>
+      <h1 class="title">TileLink 要到 4K+ 才開始贏；TokenWeave 在 1K 已有 1.20x</h1>
+      <div class="two-col"><div><h2 class="head">TileLink</h2><ul class="bullets"><li>Small sequences: net overhead in the reported comparison.</li><li>Improvement begins at >=4K tokens and saturates around 1.2x.</li><li>Overlap constrained to GEMM contexts.</li></ul></div><div><h2 class="head">TokenWeave</h2><ul class="bullets"><li>1K tokens: 1.20x single-layer latency speedup.</li><li>Up to 1.35x in the reported single-layer figure.</li><li>Fused communication + RMSNorm overlaps with compute.</li></ul></div></div>
+      <div class="cite">§5.2.3 p.11; Fig.14 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h1 class="title">先有 fusion 的確定收益，full overlap 再往上疊</h1>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure16_p12.jpg" alt="TokenWeave fused-only ablation"><figcaption>Fused-only versus full TokenWeave across models and sequence lengths.</figcaption></figure>
+      <ul class="bullets"><li>Fused-only: <b>1.04x–1.09x</b> across models，來自少掉 redundant RMSNorm 與 HBM accesses。</li><li>Full TokenWeave: 再疊加 compute–communication overlap。</li></ul>
+      <div class="cite">Fig.16 p.12; §5.2.5 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation interpretation</div>
+      <h1 class="title">Smart-splitting 主要修的是「不穩定」</h1>
+      <ul class="bullets"><li>Equal split 的 gain 會跟 exact sequence length 一起 jitter。</li><li>根因是 naïve split 的 wave quantization 在某些 lengths 顯著、某些 lengths 幾乎不顯著。</li><li>Smart-splitting 幾乎消除這種 jitter，讓收益在 sequence-length sweep 裡更一致。</li></ul>
+      <div class="takeaway">效率系統要看的不只 peak speedup；曲線是否平滑，決定 production scheduler 能不能信它。</div>
+      <div class="cite">§5.2.5 p.12; Fig.17 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Boundary conditions</div>
+      <h1 class="title">這不是無條件的 acceleration</h1>
+      <ul class="bullets"><li>硬體依賴：fused implementation 以 Hopper / Blackwell / future NVIDIA 的 NVSHARP + Multimem 為前提。</li><li>Mixtral-8x22B 的 1K / 2K full overlap 有 net overhead；此時系統回退到 fused-only。</li><li>TileLink / NanoFlow 沒有直接整合 vLLM，cross-system comparison 的設計受限。</li></ul>
+      <div class="takeaway">作者的正確取捨是 selective enable，而不是把一個 kernel strategy 強塞所有 request。</div>
+      <div class="cite">§2.2 p.4; §5.2.2 p.11; §5.1 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">Engineering takeaway</div>
+      <p class="big">對 inference optimizer 而言，最值得問的不是「還能不能多開一條 stream」，而是：<b>現在每一個 SM 與 HBM access 到底在做什麼。</b></p>
+      <div class="sub">TokenWeave 把這個問題落到可部署的 vLLM path：重排、fusion、resource reservation、再 scheduling。</div>
+      <div class="cite">§4 pp.6–8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · highlighted source</div>
+      <h1 class="title">Wave-aware 的原文定義</h1>
+      <div class="hl"><p class="hl__en">“The splitting is carefully chosen to be wave-aware, ensuring that the total number of waves executed in kernels of the two splits is not more than the number of waves if there were a single non-split kernel.”</p><p class="hl__zh">切分刻意讓兩個子 kernel 的 wave 總數不超過未切分 kernel 的 wave 數；它直接針對 split 的隱性 occupancy 損失。</p></div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · highlighted source</div>
+      <h1 class="title">Fusion 為何快的原文描述</h1>
+      <div class="hl"><p class="hl__en">“We then perform RMSNorm computation immediately on this reduced portion available in the SM registers without using the HBM.”</p><p class="hl__zh">ReduceScatter 後的 shard 直接在 SM registers 做 RMSNorm，不先讀寫 HBM；這使 fused kernel 不只是「把三個操作包在一起」。</p></div>
+      <div class="cite">§4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · result caveat</div>
+      <h1 class="title">Mixtral 的反例讓 selective enable 變成必要</h1>
+      <div class="hl"><p class="hl__en">“In MoE, the tokens for MLP computation get split across the experts ... even TokenWeave’s coarse splitting into two subtasks can result in non-trivial overheads.”</p><p class="hl__zh">MoE 的 expert split 會使小 request 的 FFN memory-bound；即使只是兩個 coarse splits 也可能虧，因此只有 fused kernel 的 fallback 不是附帶功能。</p></div>
+      <div class="cite">§5.2.2 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">TokenWeave</h2>
+      <p class="end__sub">Efficient compute–communication overlap begins with efficient resource use.</p>
+      <div class="end__next">明日主題：模型壓縮 / 效率（量化、蒸餾、pruning）</div>
+      <div class="cite">Paper: TokenWeave: Efficient Compute-Communication Overlap for Distributed LLM Inference · MLSys 2026</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
