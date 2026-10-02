@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MixLLM: LLM Quantization with Global Mixed-precision between Output-features and Highly-efficient System Design</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · Friday / Model Compression & Efficiency</div>
+      <h1 class="title">MixLLM: LLM Quantization with Global Mixed-precision between Output-features and Highly-efficient System Design</h1>
+      <p class="lead">用全模型 loss 找出值得保留位元的 output channels，再把這個演算法選擇變成能跑滿 GPU 的 kernel。</p>
+      <div class="authors">Zhen Zheng · Xiaonan Song · Chuanjie Liu · Microsoft</div>
+      <div class="meta-row"><span class="badge tier">MLSys 2026 · Research Track Oral</span><span class="badge date">arXiv v2 · 2026-04-22</span></div>
+      <p class="note">Source: paper cover p.1 · arXiv:2412.14590 · official MLSys 2026 paper index. Friday rotation fallback after arXiv discovery HTTP 429.</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">MixLLM 的關鍵不是「混幾種 bit」，而是把<b>有限的 8-bit 預算</b>放到跨層最會影響 final loss 的 output channels。</p>
+      <div class="takeaway">W4.4A8 = 90% W4 + 10% W8 + A8；結構化 channel split 讓 accuracy、memory、kernel efficiency 可一起最佳化。</div>
+      <div class="cite">Abstract p.1 · §3.1.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Problem · quantization triangle</div>
+      <h2 class="head">量化的三角形：accuracy、memory、execution efficiency</h2>
+      <ul class="bullets"><li><b>Weight-only</b> 壓參數記憶體，但大型 batch 時 dequantization 會拖累 compute-bound MatMul。</li><li><b>Weight-activation</b> 可吃到低位元 compute，但 activation 更難量化，而且新增 dequantization 工作。</li><li>FP16 outlier separation 雖保 accuracy，卻轉成不規則 sparse workload；本文引述 sparse MatMul 利用率可低於 10%，dense 可超過 60%。</li></ul>
+      <div class="takeaway">真正的目標不是最小 bit-width；是部署情境下的 Pareto point。</div>
+      <div class="cite">§1 pp.1-2 · §2.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Why output features?</div>
+      <h2 class="head">把 mixed precision 切在 output channel，先讓系統問題有解</h2>
+      <div class="two-col"><div><p class="col-hint">INPUT-FEATURE SPLIT</p><ul class="bullets"><li>跨 feature 累積到同一 output，工作彼此耦合。</li><li>系統與 kernel 排程較難切乾淨。</li></ul></div><div><p class="col-hint">OUTPUT-FEATURE SPLIT</p><ul class="bullets"><li>不同 output channels 是 disjoint MatMul subproblems。</li><li>4-bit / 8-bit 子問題可並行，最後 fused epilogue scatter 回原 index。</li></ul></div></div>
+      <div class="takeaway">演算法的 granular choice 同時決定了 kernel 能不能規整化。</div>
+      <div class="cite">§3.1.1 p.4 · §3.4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Contributions</div>
+      <h2 class="head">從 global selection 到 GPU kernel 的一條鏈</h2>
+      <ol class="numbered"><li>跨所有 linear layers 排序 output-channel salience。</li><li>用 Taylor / empirical Fisher 近似 quantization 對 final loss 的影響。</li><li>W4A8 two-step dequantization，保住 INT8 Tensor Core。</li><li>以 pipeline 與 quantization-aware Roofline 連接 accuracy choice 和真實吞吐。</li></ol>
+      <div class="cite">§1 pp.1-2 · §3 pp.4-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism map</div>
+      <h2 class="head">Ahead-of-time select；runtime run two dense subproblems</h2>
+      <figure class="full" style="max-height:42vh;"><img src="figures/figure1_p2.jpg" alt="MixLLM mixed-precision output-feature pipeline"><figcaption>Figure 1. Global precision configuration selects high-salience outputs; runtime launches 4-bit and 8-bit MatMuls and scatters results.</figcaption></figure>
+      <div class="takeaway">圖中的 split 是 output feature，而非 scattered FP16 outliers。</div>
+      <div class="cite">Fig.1 p.2 · §3.1.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Quantization decision</div>
+      <h2 class="head">W4.4A8 的 sweet spot：W4/W8 mix，activation 保持 A8</h2>
+      <div class="two-col"><div><p class="col-hint">ACCURACY</p><ul class="bullets"><li>A4 會帶來顯著 accuracy drop。</li><li>4-bit weight 採 asymmetric；8-bit tensor 採 symmetric。</li><li>weight/activation 都 group-wise，group size = 128。</li></ul></div><div><p class="col-hint">SYSTEM</p><ul class="bullets"><li>weight tensor 較大，壓 A8 到 A4 未必帶來顯著 efficiency。</li><li>W4.4A8 以 10% 8-bit output features 補最敏感通道。</li></ul></div></div>
+      <div class="cite">§3.1.2 p.4 · §4.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Global salience</div>
+      <h2 class="head">每個 channel 問的不是 local error，而是 final loss 差多少</h2>
+      <div class="formula">S<sub>c</sub> = | l(c<sub>q</sub>) - l(c<sub>0</sub>) |</div>
+      <ul class="bullets"><li>以 channel 被量化前後的 loss distance 排序。</li><li>Taylor expansion 以 empirical Fisher 近似 Hessian。</li><li>保留 first-order 與 second-order contribution；不是只取 diagonal/local proxy。</li></ul>
+      <div class="cite">Eq.1-4 · §3.2 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Global precision search</div>
+      <h2 class="head">一個 total budget T，跨 layer 挑 top-T output channels</h2>
+      <div class="two-col"><div><p class="col-hint">OFFLINE SEARCH</p><ol class="numbered"><li>量化每層候選 weight。</li><li>計算每個 output channel 的 salience。</li><li>把所有 layer/channel tuple 集成全域表。</li><li>按 salience 由高到低排序。</li></ol></div><div><p class="col-hint">ALLOCATION</p><ul class="bullets"><li>前 T 個配高 precision（本文 default 8-bit）。</li><li>其餘配低 precision（本文 default 4-bit）。</li><li>因此每一層的 8-bit 比例自然不同。</li></ul></div></div>
+      <div class="cite">Algorithm 1 · §3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evidence · allocation is non-uniform</div>
+      <h2 class="head">10% global budget 不會等量撒到每一層</h2>
+      <figure class="full" style="max-height:40vh;"><img src="figures/figure2_p5.jpg" alt="Distribution of high-salience output features in Llama 3.1 8B"><figcaption>Figure 2. With a global 10% high-precision budget, channel allocation varies sharply over decoder layers and projections.</figcaption></figure>
+      <div class="takeaway">這張圖就是 local fixed-ratio allocation 被否定的可視化證據。</div>
+      <div class="cite">Fig.2 p.5 · §3.1.1 p.4 · §4.8 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Kernel design</div>
+      <h2 class="head">W4A8 不先還原成 FP16；分兩步留在 INT8 Tensor Core path</h2>
+      <div class="formula">Y = ((W<sub>q</sub> - z) x A<sub>q</sub>) x s<sub>w</sub> x s<sub>a</sub></div>
+      <ol class="numbered"><li>先 partial-dequant：由 W<sub>q</sub> 扣 zero-point。</li><li>以 INT8 Tensor Core 做 MatMul。</li><li>在 group 結尾套用 weight / activation scales。</li></ol>
+      <div class="takeaway">把 asymmetric W4 的 zero-point 處理移進可控的 integer path。</div>
+      <div class="cite">§3.3 p.5 · §3.5 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Fast I2F</div>
+      <h2 class="head">把昂貴 integer-to-float conversion 變成 add/subtract</h2>
+      <ul class="bullets"><li>利用一段 binary range 內 int32 與 float32 的位元對應；加 bias 後 reinterpret，再以 float bias 還原。</li><li>group size 128 落在作者給出的安全範圍。</li><li>作者在 A100、M/N/K = 512/4096/4096 的量化 MatMul 報告超過 20 TOPS 改善。</li></ul>
+      <div class="takeaway">system co-design 的價值：小小的 cast overhead 會在 group-wise W4A8 變成 ceiling。</div>
+      <div class="cite">§3.3 pp.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Runtime pipeline</div>
+      <h2 class="head">兩個 buffer、預先排好 weight layout，讓三種工作重疊</h2>
+      <div class="two-col"><div><p class="col-hint">WITHIN A GROUP</p><ul class="bullets"><li>register-level group buffer 做 per-group accumulation。</li><li>預先載入 bias；group end 再扣 float bias、套 scales。</li><li>vsub4 一條 instruction 做四個 int8 subtract。</li></ul></div><div><p class="col-hint">END-TO-END</p><ul class="bullets"><li>ahead-of-time prepack weight，避免 runtime permutation。</li><li>overlap global-memory load、SIMT dequant、Tensor Core MatMul。</li><li>4-bit / 8-bit 子問題用 CUDA Graph 並行。</li></ul></div></div>
+      <div class="cite">§3.3 pp.6-7 · §3.4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Quantization-aware Roofline</div>
+      <h2 class="head">W4A8 讓 memory-bound slope 上移，卻多了一個 SIMT ceiling</h2>
+      <div class="two-col"><div><p class="col-hint">MEMORY</p><ul class="bullets"><li>G=128 時 W4A8 effective weight footprint = 0.5 + 2.5/G bytes。</li><li>比 W8A8 更少的 weight traffic 對小 batch decoding 有利。</li></ul></div><div><p class="col-hint">COMPUTE</p><ul class="bullets"><li>W4 unpack + zero-point subtraction 必須持續餵給 Tensor Cores。</li><li>SIMT pre-GEMM work 形成比 absolute INT8 peak 更低的 ceiling，因此更早進 compute-bound。</li></ul></div></div>
+      <div class="cite">§3.5 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Evaluation protocol</div>
+      <h2 class="head">不只測 PPL：模型家族、downstream tasks、A100/H100 kernel 都覆蓋</h2>
+      <ul class="bullets"><li>Models: Llama 3.1/3.2、Qwen2.5、Mistral；baselines 包含 SmoothQuant、QuaRot、QServe。</li><li>PPL: WikiText2 / C4；downstream: BBH、GPQA、MMLU-Pro、MuSR、ARCc、HellaSwag。</li><li>MixLLM salience calibration：WikiText2 128 samples，sequence length 2048；A100 80GB / CUDA 12.1，另測 H100。</li></ul>
+      <div class="cite">§4.1 pp.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Accuracy · perplexity</div>
+      <h2 class="head">70B：W4.4A8 以 10% extra high precision 壓低 PPL</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">WikiText2 PPL</th><th class="num">C4 PPL</th></tr></thead><tbody><tr><td>QServe W4A8</td><td class="num">3.49</td><td class="num">7.07</td></tr><tr><td>MixLLM W4A8</td><td class="num">3.30</td><td class="num">7.24</td></tr><tr class="win"><td>MixLLM W4.4A8</td><td class="num best">3.02</td><td class="num best">6.83</td></tr><tr><td>FP16</td><td class="num">2.81</td><td class="num">6.68</td></tr></tbody></table>
+      <div class="takeaway">W4.4A8 明顯縮小 W4A8 相對 FP16 的 gap，同時比 QServe W4A8 低。</div>
+      <div class="cite">Table 1 p.8 · §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Accuracy · downstream</div>
+      <h2 class="head">平均三個模型：W4.4A8 對 MMLU-Pro 仍保住最多分數</h2>
+      <table class="bench" style="font-size:.88em;"><thead><tr><th>Method</th><th class="num">BBH</th><th class="num">MMLU-Pro</th><th class="num">ARCc</th><th class="num">HellaSwag</th></tr></thead><tbody><tr><td>QuaRot W4A8</td><td class="num">46.95</td><td class="num">33.60</td><td class="num">51.39</td><td class="num">78.55</td></tr><tr><td>QServe W4A8</td><td class="num">45.78</td><td class="num">32.84</td><td class="num">50.54</td><td class="num">78.10</td></tr><tr class="win"><td>MixLLM W4.4A8</td><td class="num best">48.17</td><td class="num best">34.53</td><td class="num best">52.70</td><td class="num best">79.00</td></tr><tr><td>FP16</td><td class="num">48.62</td><td class="num">35.52</td><td class="num">52.24</td><td class="num">79.43</td></tr></tbody></table>
+      <div class="cite">Table 2 p.10 · §4.4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System performance · A100</div>
+      <h2 class="head">single linear layer：每個 token count 都超過 Torch FP16</h2>
+      <table class="bench"><thead><tr><th>Output features</th><th class="num">W4A8</th><th class="num">W8A8</th><th class="num">W4.8A8</th></tr></thead><tbody><tr class="win"><td>4096</td><td class="num">1.96x</td><td class="num best">2.76x</td><td class="num">1.88x</td></tr><tr class="win"><td>14336</td><td class="num best">2.45x</td><td class="num">2.15x</td><td class="num">2.34x</td></tr></tbody></table>
+      <ul class="bullets"><li>Metric is average speedup over Torch FP16 for token numbers 1-1024.</li><li>In vLLM, W4.4A8 Mixtral-7B reports 1.41x output-token throughput over FP16 at batch 2 and input/output length 1000/1000.</li></ul>
+      <div class="cite">§4.3.1 p.9 · Fig.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">System performance · H100</div>
+      <h2 class="head">H100 上也勝過 tuned W4A16 layout</h2>
+      <table class="bench"><thead><tr><th>Output features</th><th class="num">vs naive W4A16</th><th class="num">vs shuffled W4A16</th></tr></thead><tbody><tr class="win"><td>4096</td><td class="num best">1.81x</td><td class="num best">1.39x</td></tr><tr class="win"><td>14336</td><td class="num best">1.91x</td><td class="num best">1.34x</td></tr></tbody></table>
+      <div class="takeaway">不是只靠 A100-specific trick；作者也以 H100 的兩種 W4A16 baseline 重測。</div>
+      <div class="cite">§4.3.2 p.9 · Fig.7 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h2 class="head">accuracy 是累積結果：global allocation 不是唯一一個 knob</h2>
+      <ol class="numbered"><li>從 W4A4 RTN per-channel/token symmetric 起步。</li><li>加 A8、asymmetric W4、group-wise weight/activation 後，PPL 明顯下降。</li><li>再加 10% high-precision outputs、blocked Fisher + first-order term。</li><li>最後 GPTQ、group reorder、clipping 使 Llama 3.1 8B WikiText2 PPL 收至 6.420。</li></ol>
+      <div class="takeaway">selection、quantizer、kernel-friendly layout 是互補，不該當成單一 trick 解讀。</div>
+      <div class="cite">Fig.8 p.10 · §4.5 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · crown page</div>
+      <p class="big">全域策略得到的不是平均分配，而是<b>把 v_proj / down_proj 視為更值得花 bit 的地方</b>。</p>
+      <div class="scorebox"><span class="score score--hi">v_proj 71.22%</span><span class="score score--hi">down_proj 53.82%</span><span class="score score--lo">gate_proj 0.73%</span></div>
+      <p class="note">Llama 3.1 8B；全模型 high-precision budget = 10% output features。數字是不同 linear-layer class 的平均 8-bit ratio。</p>
+      <div class="cite">Table 7 p.11 · §4.8 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Cost of selection</div>
+      <h2 class="head">global search 是 one-time deployment cost；one-pass 比 progressive 實際</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Global search</th></tr></thead><tbody><tr class="win"><td>Llama 3.1 8B</td><td class="num best">7 min</td></tr><tr class="win"><td>Llama 3.1 70B</td><td class="num best">55 min</td></tr><tr class="win"><td>Mistral 7B</td><td class="num best">7 min</td></tr><tr class="win"><td>Qwen2.5 1.5B</td><td class="num best">2 min</td></tr><tr class="win"><td>Qwen2.5 7B</td><td class="num best">7 min</td></tr></tbody></table>
+      <ul class="bullets"><li>對兩個 7B/8B model，找 top 10%：one-pass 7 min；以 2% progressive search 重複找則 30 min，accuracy 到小數點後兩位相同。</li></ul>
+      <div class="cite">Table 6 p.11 · §4.7-4.9 pp.11-12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Robustness checks</div>
+      <h2 class="head">salience search 不需很大的 calibration set，也可與 KV quantization 疊加</h2>
+      <div class="two-col"><div><p class="col-hint">CALIBRATION</p><ul class="bullets"><li>Llama 3.1 8B: 128、64、32、16 samples 都是 PPL 6.42。</li><li>Qwen2.5 7B: 128-32 samples 6.92；16 samples 6.93。</li><li>用 C4 搜 salience、WikiText2 測 PPL，兩個模型結果相同。</li></ul></div><div><p class="col-hint">KV QUANT</p><ul class="bullets"><li>W4.4A8 + KV8：Llama 3.1 8B PPL 6.42，與不量化 KV 相同。</li><li>Qwen2.5 7B：6.92 → 6.96。</li><li>KV quantization 與 weight-activation quantization 是 orthogonal。</li></ul></div></div>
+      <div class="cite">Table 8-9 p.11-12 · §4.10-4.11 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Limits & reading notes</div>
+      <h2 class="head">這篇論文沒有 limitations section；解讀時需要守住它已展示的邊界</h2>
+      <ul class="bullets"><li>作者沒有明示 limitations section，因此不能替它補出未實驗的 claim。</li><li>系統結果覆蓋 NVIDIA A100 / H100；不能從本文直接推論其他 accelerator 的 kernel outcome。</li><li>紙上 chosen ratio 是 10% 8-bit 的 default；作者也說不同 bit-width 的最佳比例仍是後續研究問題。</li></ul>
+      <div class="cite">§4.1 pp.7-8 · §4.6 p.10 · no explicit limitations section</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Engineering takeaways</div>
+      <p class="big">若 accuracy 最敏感的部分有<b>結構化的軸</b>，就不要把它做成 sparse exception；把它變成可獨立排程的 dense subproblem。</p>
+      <div class="takeaway">先選 tensor axis，再選 salience objective，最後才寫 kernel；順序反過來通常只能得到其中一個局部最優。</div>
+      <div class="cite">§3.1.1 pp.4-5 · §3.3-3.5 pp.5-7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · original highlight</div>
+      <h2 class="head">Global view, not layer-local selection</h2>
+      <div class="hl"><p class="hl__en">MixLLM identifies the important output features in the global view rather than within each single layer.</p><p class="hl__zh">MixLLM 不在每一層各自判斷，而是用全模型視角找出重要輸出特徵。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">Appendix · original highlight</div>
+      <h2 class="head">Why output features are a system choice</h2>
+      <div class="hl"><p class="hl__en">the mixed-precision between output features makes the system design easier than between input features because the calculation of different output features are disjoint sub-problems.</p><p class="hl__zh">輸出特徵的混合精度把計算拆成互不重疊的子問題，因此比 input-feature 的切法更容易落到系統實作。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">MixLLM</h2>
+      <p class="end__sub">Global bit allocation + kernel co-design for the accuracy / memory / throughput intersection.</p>
+      <div class="end__next">Tomorrow: AI Agents / Multimodal Systems</div>
+      <div class="cite">Paper: MixLLM: LLM Quantization with Global Mixed-precision between Output-features and Highly-efficient System Design · MLSys 2026 · https://arxiv.org/abs/2412.14590</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
