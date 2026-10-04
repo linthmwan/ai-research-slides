@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LongCat-Video Technical Report — AI Research Daily</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · SUNDAY GITHUB TRENDING</div>
+      <h1 class="title">LongCat-Video<br>Technical Report</h1>
+      <p class="lead">從統一條件幀、Flow-GRPO，到 coarse-to-fine + block sparse attention 的 720p/30fps 路線</p>
+      <div class="authors">Meituan LongCat Team · 13.6B video foundation model</div>
+      <div class="meta-row"><span class="badge hi">arXiv:2510.22200v2</span><span class="badge">cs.CV technical report</span><span class="badge">2025-10-28</span></div>
+      <p class="note">2026-10-04：由 GitHub Trending 的 meituan-longcat/LongCat-Video 選入；不是新近頂會 accepted paper。</p>
+      <div class="cite">Source: LongCat-Video Technical Report, cover p.1 · arXiv:2510.22200v2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把三種任務壓進一個條件幀模型，再把高解析推論拆成「低解析生成 + 五步 refinement」。</p>
+      <div class="takeaway">關鍵不是單點技巧：<b>可 cache 的 condition K/V + 穩定化 Flow-GRPO + C2F/BSA 系統組合</b>共同決定效率與品質。</div>
+      <div class="cite">Abstract p.1 · §3.2 pp.7–8 · §3.4 pp.13–16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY THIS REPORT · 讀法</div>
+      <h2 class="head">它不是 conference paper；價值在系統設計的可拆解性</h2>
+      <ul class="bullets"><li>論文是 <b>arXiv technical report</b>，沒有公開 conference review；以下不把它包裝成 accepted 結果。</li><li>最值得看的是三條 rail：任務統一、RL 後訓練、長影片 serving。</li><li>所有比較數字都來自作者報告的內部 protocol 或 VBench 2.0，不能外推成獨立 SOTA 結論。</li></ul>
+      <div class="cite">arXiv abstract metadata · §5 pp.19–21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM</div>
+      <h2 class="head">長影片同時卡在 temporal error 與 attention cost</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Video continuation 的誤差會隨時間累積，minutes-long coherence 特別難。</li><li>解析度、FPS、時長一起上升時，token 數把 dense self-attention 推向 quadratic cost。</li></ul><p class="col-hint">品質與成本不是兩個獨立的 optimization。</p></div><div><ul class="bullets"><li>T2V / I2V / continuation 若各自建模，訓練和 serving 的介面會碎裂。</li><li>單一 reward 容易誘發 reward hacking，例如視覺品質變好但 motion 變靜態。</li></ul></div></div>
+      <div class="cite">§1 p.4 · §3.3.2 p.12 · §3.4 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h2 class="head">一個 backbone，三個互鎖的系統決策</h2>
+      <ol class="numbered"><li><b>Unified condition-frame model</b>：以 0 / 1 / 多張 clean condition frames 分別表示 T2V、I2V、continuation。</li><li><b>Video Flow-GRPO</b>：selective SDE timestep、loss reweighting、max-group-std、三個 reward。</li><li><b>Efficient generation</b>：480p/15fps 先生成，再以 LoRA refinement 升到 720p/30fps；BSA 進一步降 attention。</li><li><b>Open release + evaluation</b>：程式、權重與內部 / VBench 2.0 報告。</li></ol>
+      <div class="cite">Abstract p.1 · §3 pp.7–16 · §5 pp.19–21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BACKBONE</div>
+      <h2 class="head">13.6B DiT：壓縮與 backbone 的選擇先把 token budget 管起來</h2>
+      <table class="bench"><thead><tr><th>component</th><th class="num">reported setup</th></tr></thead><tbody><tr><td>Transformer</td><td class="num">48 layers · hidden 4096 · 32 heads</td></tr><tr><td>Blocks</td><td class="num">3D self-attn + text cross-attn + SwiGLU</td></tr><tr><td>Stability / position</td><td class="num">AdaLN-Zero · QKNorm · 3D RoPE</td></tr><tr class="win"><td>Latent compression</td><td class="num best">WAN2.1 VAE + patchify = 4 x 16 x 16</td></tr><tr><td>Text</td><td class="num">umT5; Chinese + English captions</td></tr></tbody></table>
+      <div class="takeaway">高解析 video 的 optimization 從 latent/token accounting 就開始，不是最後才加 kernel。</div>
+      <div class="cite">§3.1 p.7 · Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">UNIFIED TASK INTERFACE</div>
+      <h2 class="head">T2V / I2V / continuation 只差 condition frame 的數量</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure5_p8.jpg" alt="Unified transformer and block causal attention"><figcaption>Fig.5：左為 unified transformer，右為 block causal attention。</figcaption></figure>
+      <p class="note">condition tokens 的 self-attention 不被 noisy tokens 影響；condition tokens 不參與 cross-attention。</p>
+      <div class="cite">§3.2 pp.7–8 · Fig.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CACHEABLE CONDITION</div>
+      <h2 class="head">Block-causal attention 讓 condition K/V 可以跨 denoising step 重用</h2>
+      <div class="formula">X = [X<sub>cond</sub>, X<sub>noisy</sub>] &nbsp; | &nbsp; X<sub>noisy</sub> = Attn(Q<sub>noisy</sub>, [K<sub>cond</sub>, K<sub>noisy</sub>], [V<sub>cond</sub>, V<sub>noisy</sub>])</div>
+      <ul class="bullets"><li>T2V：0 condition frames；I2V：1；continuation：multiple。</li><li>condition timestep 設為 0，condition-frame loss 不計入；序列在 train/inference 都固定。</li><li>因 condition update 不依賴 noisy state，K/V feature 可 cache，這是 long-video serving 的直接收益。</li></ul>
+      <div class="cite">§3.2 pp.7–8 · Eqs.(1–2), p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">POST-TRAINING PROBLEM</div>
+      <h2 class="head">Video GRPO 的難點：reward 到底該歸因給哪個 denoising timestep？</h2>
+      <ul class="bullets"><li>標準 SDE sampling 在所有 timestep 注入噪聲，最終 reward 被平均攤回去，credit assignment 模糊。</li><li>LongCat 讓同一 prompt 的 samples 共用 initial noise，只隨機挑一個 early critical timestep 做 SDE step。</li><li>其他 timestep 改採 deterministic ODE sampling；目標是更精確、可解釋的 policy update。</li></ul>
+      <div class="takeaway">把 stochasticity 集中，不是少做探索，而是讓 reward signal 有能對應的責任點。</div>
+      <div class="cite">§3.3.1 pp.8–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FLOW-GRPO</div>
+      <h2 class="head">多 reward 不是加總分數，而是讓品質訊號互相制衡</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure6_p10.jpg" alt="GRPO generation quality illustration"><figcaption>Fig.6：報告以視覺對比呈現 GRPO 前後的生成品質差異。</figcaption></figure>
+      <ul class="bullets"><li>Rewards：Visual Quality、Motion Quality、Text-Video Alignment。</li><li>HPSv3-only 會產生 static tendency；加入 motion reward 是對 reward hacking 的反制。</li></ul>
+      <div class="cite">§3.3.1 p.10 · §3.3.2 p.12 · Figs.6,9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">STABILIZING FLOW-GRPO</div>
+      <h2 class="head">兩個 reweighting 與一個 robust advantage normalization</h2>
+      <div class="two-col"><div><div class="formula">lambda<sub>policy</sub>(t, Delta t) = sqrt(t / (Delta t(1-t)))</div><ul class="bullets"><li>消去 policy gradient 的 timestep / step-size shrinkage。</li><li>noise clipping threshold tau = 0.45。</li></ul></div><div><div class="formula">A-hat<sub>k,t</sub> = (R<sub>k</sub> - mean(R<sub>k</sub>)) / sigma<sub>max,k</sub></div><ul class="bullets"><li>用跨 groups 的 maximum std，避免低 dispersion group 放大不可靠 reward-model error。</li><li>KL 也有對應 reweighting。</li></ul></div></div>
+      <div class="cite">§3.3.1 pp.10–11 · Appendix A.1.2 pp.28–30</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EFFICIENCY SPINE</div>
+      <h2 class="head">Coarse-to-fine：先求大結構，再花少量步數補高頻細節</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure10_p14.jpg" alt="Coarse-to-fine quality comparison"><figcaption>Fig.10：報告比較 native 480p、native 720p 與 C2F 720p，主張 C2F 可補局部失真與紋理。</figcaption></figure>
+      <div class="cite">§3.4 pp.13–14 · Fig.10 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">COARSE-TO-FINE PIPELINE</div>
+      <h2 class="head">480p/15fps base -> trilinear upsample -> 720p/30fps refinement LoRA</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure11_p15.jpg" alt="Coarse-to-fine processes across tasks"><figcaption>Fig.11：T2V、I2V、continuation 共用的 coarse-to-fine 兩階段流程。</figcaption></figure>
+      <p class="note">Refinement 從 upsampled latent 加入 moderate noise；報告設定 t<sub>thresh</sub> = 0.5，使用 5 sampling steps。</p>
+      <div class="cite">§3.4.1 pp.13–15 · Fig.11 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REFINEMENT OBJECTIVE</div>
+      <h2 class="head">Refinement 學的是「upscaled low-res distribution -> high-res distribution」</h2>
+      <div class="formula">x<sub>thresh</sub> = (1 - t<sub>thresh</sub>) x<sub>up</sub> + t<sub>thresh</sub> epsilon &nbsp; | &nbsp; v<sub>t'</sub> = (x<sub>0</sub> - x<sub>thresh</sub>) / t<sub>thresh</sub></div>
+      <ul class="bullets"><li>x<sub>up</sub> 來自先 Decode、Upsample、再 Encode 的低解析結果。</li><li>LoRA 重用 base model 的生成知識，但改學 refinement path；與其他訓練 stage 解耦。</li><li>條件任務在 refinement 前，把 high-res condition frames 與 upsampled generated frames 接在一起。</li></ul>
+      <div class="cite">§3.4.1 pp.13–15 · Eqs.(11–18)</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BLOCK SPARSE ATTENTION</div>
+      <h2 class="head">不是固定 sparse pattern：先對 3D blocks 打分，再保留 top-r key blocks</h2>
+      <ol class="numbered"><li>將 query 與所有 key latents 分成不重疊的 temporal x height x width blocks。</li><li>以 query block 與每個 key block 的平均值算 similarity，選 top-r。</li><li>只在選中的 keys 內做正常 attention；報告稱保留少於 dense 計算的 10%。</li><li>實作還包括 ring block sparse attention，支援 context parallelism。</li></ol>
+      <div class="takeaway">這份 report 的速度數字只能歸因給 <b>distillation + C2F + BSA 的組合</b>，不能把 12.3x 說成 BSA-only。</div>
+      <div class="cite">§3.4.2 pp.15–16 · Table 2 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRAINING STACK</div>
+      <h2 class="head">讓 LoRA 成為 post-training 與 serving optimization 的可堆疊介面</h2>
+      <ul class="bullets"><li>Progressive pretraining：256p images -> 256p T2V -> joint T2I/T2V/I2V/VC -> 480p/720p。</li><li>SFT 使用多種 quality filter，並以 caption embedding density 做逆比例採樣維持類別平衡。</li><li>RLHF 是 T2V-only：group 4、64 prompts/step、16 sampling steps、SDE range [0,6]。</li><li>Refinement expert 先以 full attention 收斂，再開 93.75% sparse BSA；資料偏向 rich texture。</li></ul>
+      <div class="cite">§4.1 pp.16–17 · §4.2 p.18 · §4.3 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SERVING RESULT</div>
+      <h2 class="head">720p x 93 frames：組合優化把 1429.5 s 降到 116.5 s</h2>
+      <table class="bench"><thead><tr><th>configuration</th><th class="num">latency</th><th class="num">speedup</th></tr></thead><tbody><tr><td>Dense, 50 steps</td><td class="num">1429.5 s</td><td class="num">1.0x</td></tr><tr><td>Distilled, 16 steps</td><td class="num">244.6 s</td><td class="num">5.8x</td></tr><tr><td>Distilled + C2F, 16/5</td><td class="num">135.3 s</td><td class="num">10.6x</td></tr><tr class="win"><td>Distilled + C2F + BSA, 16/5</td><td class="num best">116.5 s</td><td class="num best">12.3x</td></tr></tbody></table>
+      <p class="note">單張 H800、FlashAttention3；表中是 720p x 93 frames，同一份報告內的比較。</p>
+      <div class="cite">§3.4 p.13 · Table 2 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">INTERNAL T2V MOS</div>
+      <h2 class="head">作者的 internal MOS：LongCat 的 overall 3.38，Veo3 3.48</h2>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure14_p20.jpg" alt="Internal text-to-video MOS chart"><figcaption>Fig.14：internal T2V MOS，含 Text-Alignment、Visual Quality、Motion Quality、Overall Quality。</figcaption></figure>
+      <p class="note">LongCat：TA 3.76、VQ 3.25、MQ 3.74、Overall 3.38；比較只在作者設計的 benchmark 與 protocol 下成立。</p>
+      <div class="cite">§5.1 p.20 · Fig.14 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PUBLIC BENCHMARK</div>
+      <h2 class="head">VBench 2.0：LongCat 的 Commonsense 70.94 為表內最高，但 total 62.11</h2>
+      <table class="bench"><thead><tr><th>model</th><th class="num">commonsense</th><th class="num">total</th></tr></thead><tbody><tr><td>Veo3</td><td class="num">69.48</td><td class="num">66.72</td></tr><tr><td>Vidu Q1</td><td class="num">65.98</td><td class="num">62.70</td></tr><tr><td>Wan2.1</td><td class="num">63.98</td><td class="num">60.20</td></tr><tr class="win"><td>LongCat-Video</td><td class="num best">70.94</td><td class="num best">62.11</td></tr></tbody></table>
+      <div class="takeaway">它的對外 benchmark 故事不是 total-first，而是 commonsense / motion-rationality 的相對強項。</div>
+      <div class="cite">§5.2 p.21 · Table 8 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION PROTOCOL</div>
+      <h2 class="head">內部 benchmark 有設計，但它仍是內部 benchmark</h2>
+      <div class="two-col"><div><p class="big">1,628</p><div class="sub">總 samples：1,228 T2V + 400 I2V</div></div><div><ul class="bullets"><li>T2V：500 human + 728 automatic assessments。</li><li>最終分數 human : automatic = 2 : 1。</li><li>每支影片 3 位 annotators；顯著分歧則增加 2 位。</li><li>作者報告 automatic judge 與 human correlation > 0.92。</li></ul></div></div>
+      <div class="cite">§5.1 pp.19–20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">I2V TRADE-OFF</div>
+      <h2 class="head">視覺品質第一，不等於 I2V 整體第一</h2>
+      <table class="bench"><thead><tr><th>I2V MOS</th><th class="num">LongCat</th><th class="num">best in chart</th></tr></thead><tbody><tr><td>Image-Alignment</td><td class="num">4.04</td><td class="num">4.18 (Hailuo / Wan)</td></tr><tr><td>Text-Alignment</td><td class="num">3.49</td><td class="num">3.85 (Hailuo)</td></tr><tr class="win"><td>Visual Quality</td><td class="num best">3.27</td><td class="num best">3.27 (LongCat)</td></tr><tr><td>Motion Quality</td><td class="num">3.59</td><td class="num">3.80 (Hailuo)</td></tr><tr><td>Overall Quality</td><td class="num">3.17</td><td class="num">3.35 (Seedance)</td></tr></tbody></table>
+      <div class="takeaway">作者自己承認：I2V 的 alignment、motion、overall 還有空間。這比只摘 Visual Quality 更有用。</div>
+      <div class="cite">§5.1 p.21 · Fig.16 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · CROWN PAGE</div>
+      <p class="big">效率不是把 attention 隨便砍掉，而是把「哪些 state 可以固定、哪些 token 必須互看」先定義清楚。</p>
+      <ul class="bullets"><li>condition K/V 不受 noisy denoising state 影響 -> 可 reuse。</li><li>C2F 讓 base stage 做 global structure，refinement 專注於 detail。</li><li>BSA 以 data-dependent block similarity 篩選 interaction，而不是盲目固定窗口。</li><li>多 reward 加上 robust normalization，避免訓練只追一個容易被 hack 的分數。</li></ul>
+      <div class="cite">§3.2 p.8 · §3.3 pp.10–13 · §3.4 pp.13–16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHAT TO REUSE</div>
+      <h2 class="head">對影像 / video 工程實作，最可遷移的不是 13.6B 本身</h2>
+      <ol class="numbered"><li>先檢查 condition branch 是否真的 state-invariant；若是，cache interface 能直接改變 serving cost。</li><li>對 flow/diffusion RL，先做 gradient scaling 與 credit-assignment audit，再比較 reward model。</li><li>把 C2F 的 low-res output 視為 distribution-shifted condition，而不是單純 upscale image。</li><li>稀疏 attention 要報 pattern、訓練策略、品質對照與 combined-vs-isolated ablation；只有 end-to-end speedup 不夠。</li></ol>
+      <div class="cite">§3.2 p.8 · §3.3 pp.10–13 · §3.4 pp.13–16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">這份報告自己留下的缺口</h2>
+      <ul class="bullets"><li>RLHF 只在 T2V 訓練；針對 video continuation 的 quality-degradation reward 是 future work。</li><li>I2V 的 image alignment、motion、overall 沒有領先比較模型。</li><li>內部 benchmark 與自訓 judge 讓一些排名難以脫離作者 protocol 解讀。</li><li>作者下一步指向更好的 physical knowledge、multimodal memory，以及 LLM/MLLM knowledge integration。</li></ul>
+      <div class="cite">§4.2 p.18 · §5.1 pp.19–21 · §6 p.25</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · HIGHLIGHTS</div>
+      <h2 class="head">四句原文，對應四個真正的設計槓桿</h2>
+      <div class="hl"><p class="hl__en">The condition sequence remains fixed throughout both training and inference.</p><p class="hl__zh">固定條件序列，是任務統一與 K/V cache 能同時成立的計算前提。<span class="hl__src">§3.2 p.7</span></p></div>
+      <div class="hl"><p class="hl__en">This approach enables precise credit assignment and leads to more stable, interpretable policy optimization.</p><p class="hl__zh">只保留一個 stochastic timestep，讓 reward 的責任能落回特定步。<span class="hl__src">§3.3.1 p.10</span></p></div>
+      <div class="hl"><p class="hl__en">the mutual constraints imposed by multiple rewards create a natural regularization effect</p><p class="hl__zh">多 reward 的角色是互相限制，不是把所有 score 相加。<span class="hl__src">§3.3.2 p.13</span></p></div>
+      <div class="cite">LongCat-Video Technical Report, cited sections/pages above</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">SOURCE & SCOPE</div>
+      <h2 class="head">Artifact trail</h2>
+      <ul class="bullets"><li>Paper: <b>LongCat-Video Technical Report</b>, Meituan LongCat Team, arXiv:2510.22200v2 (2025-10-28).</li><li>Code/model repository: github.com/meituan-longcat/LongCat-Video; selected from 2026-10-04 GitHub Trending discovery.</li><li>Deck claims cite the PDF section + page; benchmark values are reported values, not independently reproduced results.</li><li>No public reviewer score was available because this is an arXiv technical report.</li></ul>
+      <div class="cite">https://arxiv.org/abs/2510.22200v2 · https://github.com/meituan-longcat/LongCat-Video</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">LongCat-Video</h2>
+      <p class="end__sub">統一條件幀、穩定化 Flow-GRPO、C2F + BSA：把長影片從架構、訓練與 serving 一起設計。</p>
+      <div class="end__next">Next rotation: Monday · LLM architecture / training / alignment</div>
+      <div class="cite">Daily AI Research · 2026-10-04 · 27 slides</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
