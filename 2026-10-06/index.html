@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECAD — Evolutionary Caching for Diffusion Models</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · TUESDAY / IMAGE GENERATION</div>
+      <h1 class="title">Evolutionary Caching to Accelerate Your Off-the-Shelf Diffusion Model</h1>
+      <p class="lead">把 Diffusion Transformer 的 feature cache 從手調規則，改成可選擇的 <b>speed–quality Pareto frontier</b>。</p>
+      <div class="authors">Anirud Aggarwal · Abhinav Shrivastava · Matthew Gwilliam<br>University of Maryland, College Park</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv:2506.15682v3 · 2026-03-02</span></div>
+      <figure class="full" style="max-height:19vh; margin-top:.3rem;"><img src="figures/figure1_p2.jpg" alt="ECAD Pareto optimization overview"><figcaption>ECAD searches speed–quality Pareto frontiers. Figure 1, p.2.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不是問「cache 幾次」，而是搜尋：<br><b>哪個 component、哪個 block、哪個 denoising step 可以不重算。</b></p>
+      <div class="takeaway">ECAD 以 NSGA-II 搜尋 per-model schedule，把不同 latency budget 對應成一條 frontier。</div>
+      <div class="cite">§1 pp.1–2 · §3.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE COST</div>
+      <h1 class="title">Diffusion 的品質來自反覆 denoise，也因此慢</h1>
+      <ul class="bullets"><li>典型生成需 <b>20–50</b> 個 denoising steps；每步都穿過整個網路。</li><li>Training-free caching 重用前一 timestep 的 intermediate features，因此跳過部分計算、但不改權重。</li><li>難點不在「能不能 cache」，而在 caching 變激進時，品質與可遷移性會一起掉。</li></ul>
+      <div class="takeaway">工程上真正需要的是一組可選 operating points，而不是一個固定 heuristic。</div>
+      <div class="cite">§1 p.1 · §2.2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRIOR METHODS</div>
+      <h1 class="title">固定 cache rule 把 deployment choice 壓成幾個點</h1>
+      <div class="two-col"><div><h2 class="head">既有 heuristic</h2><ul class="bullets"><li>固定 timestep interval / component 範圍。</li><li>通常只能給少數 2x、3x 類的速度設定。</li><li>跨 DiT architecture 常要重調。</li></ul></div><div><h2 class="head">ECAD 的改寫</h2><ul class="bullets"><li>把每個 schedule 視為一個搜尋候選。</li><li>同時評估 quality 與 cost。</li><li>保留整條 Pareto frontier 給部署端選。</li></ul></div></div>
+      <div class="cite">§1 pp.1–2 · §2.2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">REFRAMING</div>
+      <p class="big"><b>cache schedule = multi-objective optimization</b><br>min<sub>S</sub> ( C(S), Q(S) )</p>
+      <div class="sub">C(S)：compute / MACs；Q(S)：generation quality。改善一側通常會傷另一側。</div>
+      <div class="cite">§3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REPRESENTATION</div>
+      <h1 class="title">一張 binary tensor 指定每次「重算」或「重用」</h1>
+      <div class="formula">S in {0,1}<sup>N x B x C</sup></div>
+      <ul class="bullets"><li><b>N</b> = diffusion steps；<b>B</b> = transformer blocks；<b>C</b> = cacheable components。</li><li>S[n,b,c] = 0：使用 t+1 的 cached feature；更多 0 會降 compute，但可能傷品質。</li><li>可分別處理 self-attention、cross-attention、feedforward，而非整個 block 一刀切。</li></ul>
+      <div class="cite">§3.1 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD FIGURE</div>
+      <h1 class="title">Component-level caching + evolutionary search</h1>
+      <figure class="full" style="max-height:54vh;"><img src="figures/figure2_p3.jpg" alt="DiT component caching and evolutionary step"><figcaption>Left: split cache decisions within DiT blocks. Right: crossover / mutation between schedules.</figcaption></figure>
+      <div class="takeaway">搜尋粒度足夠細：不是只挑 block，也能挑每個 component 在每個 step 要不要重算。</div>
+      <div class="cite">Fig.2 p.3 · §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ALGORITHM</div>
+      <h1 class="title">ECAD 的一次 evolutionary loop</h1>
+      <ol class="numbered"><li><b>Initialize</b>：random 或 seed 一組 cache schedules。</li><li><b>Evaluate</b>：以 calibration prompts 生成影像，記 Image Reward 與 MACs。</li><li><b>Select</b>：NSGA-II 保留 non-dominated candidates。</li><li><b>Breed</b>：4-point crossover + bit-flip mutation，重複到指定 generations。</li><li><b>Return</b>：跨所有 generations 的 Pareto frontier。</li></ol>
+      <div class="cite">Algorithm 1 p.4 · §3.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHAT YOU CONFIGURE</div>
+      <h1 class="title">它不是 black box；四個 knob 決定搜尋問題</h1>
+      <div class="two-col"><div><ul class="bullets"><li><b>Tensor shape</b>：N / B / C 決定可 cache 的粒度。</li><li><b>Calibration prompts</b>：paper 使用 100 Image Reward prompts。</li></ul></div><div><ul class="bullets"><li><b>Metrics</b>：quality 用 Image Reward，cost 用 MACs。</li><li><b>Initial population</b>：可 random，也可用 FORA 等既有 schedule 作 seed。</li></ul></div></div>
+      <div class="takeaway">輸出是「特定 model + scheduler + step count」的 frontier，不是通用 cache rule。</div>
+      <div class="cite">§3.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE OUTPUT</div>
+      <h1 class="title">Frontier 讓 latency budget 成為第一級選擇</h1>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure1_p2.jpg" alt="Pareto frontier samples"><figcaption>ECAD models caching as Pareto optimization; the paper shows FLUX.1-dev example samples.</figcaption></figure>
+      <ul class="bullets"><li>部署端可以選 fast / faster / fastest，而不是接受單一作者預設。</li><li>對同一 model，frontier 預期保留在 quality 與 latency 都不被其他候選支配的 schedules。</li></ul>
+      <div class="cite">Fig.1 p.2 · §1 pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h1 class="title">三個 DiT，兩個 resolution，品質與成本分開量</h1>
+      <ul class="bullets"><li><b>Models</b>：PixArt-alpha、PixArt-Sigma、FLUX.1-dev；default sampler、20 steps。</li><li><b>Calibration</b>：256x256；evaluation 同時做 256x256 / 1024x1024。</li><li><b>Quality</b>：Image Reward、FID、CLIP ViT-B/32；<b>sets</b>：Image Reward, PartiPrompts, COCO2017-30K, MJHQ-30K。</li><li><b>Speed</b>：MACs + 1 x NVIDIA A6000 的 end-to-end latency。</li></ul>
+      <div class="cite">§4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MAIN RESULT · PIXART-ALPHA</div>
+      <h1 class="title">2.58x：比 ToCa 更快，兩個 FID 也更低</h1>
+      <table class="bench"><thead><tr><th>method</th><th class="num">latency ms/img</th><th class="num">speedup</th><th class="num">COCO FID</th><th class="num">MJHQ FID</th></tr></thead><tbody><tr><td>No cache</td><td class="num">165.74</td><td class="num">1.00x</td><td class="num">24.84</td><td class="num">9.75</td></tr><tr><td>ToCa N=3 R=90%</td><td class="num">70.58</td><td class="num">2.35x</td><td class="num">24.01</td><td class="num">11.80</td></tr><tr class="win"><td>ECAD fastest</td><td class="num best">64.24</td><td class="num best">2.58x</td><td class="num best">19.54</td><td class="num best">8.67</td></tr></tbody></table>
+      <div class="takeaway">這一個 selected point 比 ToCa N=3 R=90% 少 6.34 ms/img，COCO FID 低 4.47。</div>
+      <div class="cite">Table 1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MAIN RESULT · FLUX.1-DEV</div>
+      <h1 class="title">Frontier 的另一面：加速可再推，但品質不是免費</h1>
+      <table class="bench"><thead><tr><th>setting</th><th class="num">latency ms/img</th><th class="num">speedup</th><th class="num">Image Reward</th><th class="num">COCO FID</th></tr></thead><tbody><tr><td>No cache</td><td class="num">2620.09</td><td class="num">1.00x</td><td class="num">1.04</td><td class="num">25.76</td></tr><tr class="win"><td>ECAD fast</td><td class="num">1016.59</td><td class="num">2.58x</td><td class="num best">1.04</td><td class="num best">21.61</td></tr><tr><td>ECAD fastest</td><td class="num best">778.17</td><td class="num best">3.37x</td><td class="num">0.89</td><td class="num">26.66</td></tr></tbody></table>
+      <div class="takeaway">frontier 的價值正是把這個 trade-off 顯性化：fast 保品質，fastest 換取極限速度。</div>
+      <div class="cite">Table 1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SCHEDULE INSPECTION</div>
+      <h1 class="title">學到的 schedule 並不是均勻跳步</h1>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure5_p7.jpg" alt="ECAD schedules for PixArt and FLUX"><figcaption>Reds are cached components; grays are recomputed. Left columns show PixArt component types.</figcaption></figure>
+      <ul class="bullets"><li>不同 block / timestep 出現非均勻 pattern。</li><li>這正是 heuristic interval 不容易手寫、但 genetic search 能枚舉與比較的自由度。</li></ul>
+      <div class="cite">Fig.5 p.7 · §3.1 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SCALING</div>
+      <h1 class="title">更多 generations：速度持續下探，品質小幅交換</h1>
+      <table class="bench"><thead><tr><th class="num">generations</th><th class="num">latency ms/img</th><th class="num">speedup</th><th class="num">Image Reward</th><th class="num">MJHQ FID</th></tr></thead><tbody><tr><td class="num">1</td><td class="num">145.09</td><td class="num">1.14x</td><td class="num best">1.00</td><td class="num">9.40</td></tr><tr><td class="num">50</td><td class="num">92.76</td><td class="num">1.79x</td><td class="num">0.98</td><td class="num best">7.97</td></tr><tr><td class="num">500</td><td class="num best">76.52</td><td class="num best">2.17x</td><td class="num">0.96</td><td class="num">8.49</td></tr></tbody></table>
+      <div class="takeaway">搜尋不是 instantaneous：offline optimization 的計算預算，換到更完整的 deployment frontier。</div>
+      <div class="cite">Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODEL TRANSFER</div>
+      <h1 class="title">可 transfer，但用少量再演化收回效能</h1>
+      <table class="bench"><thead><tr><th>schedule discovery</th><th>evaluated model</th><th class="num">extra generations</th><th class="num">speedup</th><th class="num">MJHQ FID</th></tr></thead><tbody><tr><td>PixArt-alpha</td><td>PixArt-alpha</td><td class="num">200</td><td class="num">1.76x</td><td class="num">8.00</td></tr><tr><td>PixArt-alpha</td><td>PixArt-Sigma</td><td class="num">0</td><td class="num">1.62x</td><td class="num">9.27</td></tr><tr class="win"><td>PixArt-alpha -> Sigma</td><td>PixArt-Sigma</td><td class="num">50</td><td class="num best">1.98x</td><td class="num best">8.91</td></tr></tbody></table>
+      <div class="takeaway">直接搬 schedule 能工作，但 50 代 model-specific refinement 才把速度與 FID 拉回來。</div>
+      <div class="cite">Table 3 p.8 · §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESOLUTION TRANSFER</div>
+      <h1 class="title">256x256 找到的 FLUX schedule 可直接跑 1024x1024</h1>
+      <table class="bench"><thead><tr><th>setting</th><th class="num">latency s/img</th><th class="num">speedup</th><th class="num">Image Reward</th><th class="num">COCO FID</th></tr></thead><tbody><tr><td>No cache</td><td class="num">18.30</td><td class="num">1.00x</td><td class="num best">1.14</td><td class="num best">25.45</td></tr><tr><td>ECAD fast 256->1024</td><td class="num best">6.96</td><td class="num best">2.63x</td><td class="num">1.05</td><td class="num">26.69</td></tr></tbody></table>
+      <div class="takeaway">速度可泛化；但 COCO FID 不勝 baseline，所以 target-resolution optimization 仍是更保守的選擇。</div>
+      <div class="cite">Table 4 p.8 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · CROWN PAGE</div>
+      <p class="big">ECAD 的增益不是「cache 更多」，而是<br><b>把不可重算的地方留下，把可重用的地方找出來。</b></p>
+      <div class="sub">Search space = component x block x timestep；固定 interval 只是在這個 space 裡挑一小撮手寫點。</div>
+      <div class="cite">§3.1–§3.2 pp.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CALIBRATION ABLATION</div>
+      <h1 class="title">省 GPU 預算時，少 sample 不如少 prompt 危險</h1>
+      <ul class="bullets"><li>Population 72->24、每 prompt images 10->3、prompts 100->33，各自約省 <b>66%</b> GPU time。</li><li>少 images / prompt 並不明顯有害。</li><li>只留 33 prompts 則顯著傷害 frontier；作者認為關鍵是 set size，不是 diversity。</li><li>100 個由 ChatGPT 產生的 prompts 在 appendix 中與 human-curated set 相近。</li></ul>
+      <div class="cite">§4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRACTICAL RECIPE</div>
+      <h1 class="title">如果要把它放進 image serving pipeline</h1>
+      <ol class="numbered"><li>鎖定 <b>model + sampler + steps + target resolution</b>，不要把 schedule 當作完全通用。</li><li>準備大而足夠多的 calibration prompt set；paper 的 evidence 不支持只縮到 33 prompts。</li><li>先以 Image Reward / MACs 快速找 frontier，再把 selected points 用你的 downstream metric 抽驗。</li><li>將 fast / faster / fastest 映射到產品 SLO，而不是只挑 paper 最快點。</li></ol>
+      <div class="cite">§3.2 pp.5–6 · §4.3–§4.4 pp.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE HIDDEN BILL</div>
+      <h1 class="title">Training-free inference 不代表 search-free</h1>
+      <div class="scorebox"><span class="score score--hi">550 generations</span><span class="score score--hi">72 schedules / gen</span><span class="score score--lo">1,000 imgs / candidate</span></div>
+      <ul class="bullets"><li>PixArt-alpha main run 的候選評估規模很大：這是 offline optimization cost，不是 runtime cost。</li><li>若 deployment 只跑一次或 model 頻繁變更，這筆 amortization 必須先算。</li></ul>
+      <div class="takeaway">ECAD 改善的是「同一模型大量 serving 時」的 frontier，而非免費 shortcut。</div>
+      <div class="cite">§4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h1 class="title">這篇有三個不能偷掉的前提</h1>
+      <ul class="bullets"><li><b>Metric alignment：</b>fitness 綁 Image Reward；作者也承認 human ranking 可能更好。</li><li><b>Trade-off remains：</b>更激進 schedule 在部分 metrics 仍會退化。</li><li><b>Target mismatch：</b>256x256 schedule 能 transfer，但若 compute 允許，作者仍建議在目標 resolution 重優化。</li></ul>
+      <div class="cite">§5 p.9 · Table 1 p.5 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">BOTTOM LINE</div>
+      <p class="big"><b>把 cache policy 視為可搜索的 Pareto object，<br>比把它寫成固定 heuristic 更符合部署現實。</b></p>
+      <div class="sub">最值得帶走的不是一組 bits，而是 component-level search + multi-objective frontier 這個介面。</div>
+      <div class="cite">§1–§3.2 pp.1–6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · AUTHOR WORDS</div>
+      <h1 class="title">原文螢光筆：從手調移到遺傳搜尋</h1>
+      <div class="hl"><p class="hl__en">We propose a different paradigm that does not rely on human-defined heuristics or hyperparameters, instead discovering effective caching schedules via genetic algorithm.</p><p class="hl__zh">作者不依賴人手定義的 heuristic 或 hyperparameter，而是以遺傳演算法找出有效 cache schedules。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="cite">Quoted from §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · ABLATION</div>
+      <h1 class="title">原文螢光筆：prompt set 的大小比每 prompt 採樣數更敏感</h1>
+      <div class="hl"><p class="hl__en">Reducing the number of images per prompt is not notably harmful, while using a smaller set of only 33 prompts is very detrimental.</p><p class="hl__zh">減少每個 prompt 的影像數沒有明顯傷害；但把 prompt 集合縮到僅 33 個則非常不利。<span class="hl__src">§4.4 p.9</span></p></div>
+      <div class="cite">Quoted from §4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · SOURCES</div>
+      <h1 class="title">Source trail</h1>
+      <ul class="bullets"><li><b>Paper:</b> Evolutionary Caching to Accelerate Your Off-the-Shelf Diffusion Model — ICLR 2026.</li><li><b>arXiv:</b> https://arxiv.org/abs/2506.15682</li><li><b>OpenReview:</b> https://openreview.net/forum?id=z9MlGsQbzR</li><li><b>Code / project:</b> https://research.aniaggarwal.com/ecad</li></ul>
+      <p class="note">OpenReview reviewer JSON was unavailable via automated retrieval (HTTP 403); this deck does not synthesize reviewer scores.</p>
+      <div class="cite">Paper cover p.1 · §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">ECAD: search the cache schedule, then deploy the frontier.</h2>
+      <p class="end__sub">Tomorrow: video generation / temporal models</p>
+      <div class="end__next">AI Research Daily · 2026-10-06</div>
+      <div class="cite">Source: Aggarwal et al., ICLR 2026</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
