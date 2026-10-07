@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transition Matching Distillation for Fast Video Generation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">WEDNESDAY / VIDEO GENERATION</div>
+      <h1 class="title">Transition Matching Distillation<br>for Fast Video Generation</h1>
+      <p class="lead">把長 denoising trajectory 拆成少數外層 transition；每次 backbone 取一次語義，flow head 再做低成本內層細化。</p>
+      <div class="authors">Weili Nie, Julius Berner, Nanye Ma, Chao Liu, Saining Xie, Arash Vahdat · NVIDIA / NYU</div>
+      <div class="meta-row"><span class="badge tier">CVPR 2026</span><span class="badge date">arXiv v2 · 2026-07-09</span></div>
+      <figure class="full" style="max-height:26vh; margin-top:.2rem;"><img src="figures/figure1_p1.jpg" alt="TMD generated video frames"><figcaption>Figure 1 · 5-second 480p samples at different effective NFE</figcaption></figure>
+      <div class="cite">Paper: Transition Matching Distillation for Fast Video Generation · CVPR 2026 · pp. 4645–4655</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">TMD 的關鍵不是「少跑幾步」；而是<b>把昂貴語義 backbone 與可重複執行的 refinement 分開</b>。</p>
+      <div class="takeaway">Wan2.1 14B 近單步：effective NFE 1.38 時 VBench 84.24，勝過 one-step rCM 的 83.02。</div>
+      <div class="cite">§4.2 · Table 2 · p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM</div>
+      <h1 class="title">影片 diffusion 的瓶頸是 sampling，不是只看模型大小</h1>
+      <ul class="bullets"><li>標準 diffusion 要反覆把 noise 轉成資料，常需數十到數百個 denoising steps。</li><li>這讓 interactive video generation、editing、world-model data generation 的 latency 與 cost 難以接受。</li><li>影片還有高 spatiotemporal dimensionality：few-step 壓縮必須同時保住 motion coherence 和細節。</li></ul>
+      <div class="takeaway">只把整個 network 當 monolithic mapping，會浪費 backbone 本來就有的層級式語義表徵。</div>
+      <div class="cite">§1 · pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRIOR DISTILLATION</div>
+      <h1 class="title">兩種既有路線，都有影片尺度下的缺口</h1>
+      <div class="two-col"><div><h2 class="head">Trajectory matching</h2><ul class="bullets"><li>直接回歸 teacher 的 denoising trajectory。</li><li>可壓縮 sampling，但高維影片的長路徑與曲率使訓練、品質維持困難。</li></ul></div><div><h2 class="head">Distribution matching</h2><ul class="bullets"><li>用 GAN / reverse-KL 等對齊 student 與 teacher distribution。</li><li>監督較穩定，但若不顯式處理 hierarchy，細節與條件遵循仍會損失。</li></ul></div></div>
+      <div class="cite">§1–2 · pp.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h1 class="title">TMD 的四件事</h1>
+      <ol class="numbered"><li>將長 denoising process 近似成少數 probability transitions。</li><li>拆分 student：main backbone 管語義，flow head 管內層 iterative refinement。</li><li>先做 TM-MF pretraining，再以 DMD2-v distribution matching 與 rollout 蒸餾。</li><li>在 Wan2.1 1.3B / 14B 上用 VBench + blinded 2AFC 驗證。</li></ol>
+      <div class="cite">§1 · p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ARCHITECTURE</div>
+      <h1 class="title">一次 backbone，N 次小 head：外層與內層的分工</h1>
+      <figure class="full" style="max-height:52vh;"><img src="figures/figure2_p3.jpg" alt="TMD architecture and transition process"><figcaption>Figure 2 · (a) decoupled architecture；(b) each outer transition contains inner flow-head rollout</figcaption></figure>
+      <div class="takeaway">main feature 被共享；不是為每個 refinement 重跑全部 DiT。</div>
+      <div class="cite">§3 · Figure 2 · pp.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRANSITION MATCHING</div>
+      <h1 class="title">從「瞬時 velocity」改成可跨大步的 transition</h1>
+      <div class="formula">x<sub>t</sub> = (1-t)x + tx<sub>1</sub> &nbsp;&nbsp; | &nbsp;&nbsp; y = x<sub>1</sub> - x &nbsp;&nbsp; | &nbsp;&nbsp; x<sub>t(i-1)</sub> = x<sub>t(i)</sub> - (t<sub>i</sub>-t<sub>i-1</sub>)y</div>
+      <ul class="bullets"><li>傳統 flow matching 學局部 velocity，生成時需許多小步。</li><li>Transition Matching 直接學兩個離散 noise states 間的 probability transition。</li><li>TMD 用 Difference Transition Matching target y，讓 outer step 可跨更大的 noise interval。</li></ul>
+      <div class="cite">§2 · Eq.1–6 · p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DECISION</div>
+      <h1 class="title">Decoupling 的設計，刻意不破壞 pretrained teacher</h1>
+      <div class="two-col"><div><h2 class="head">Main backbone m_theta</h2><ul class="bullets"><li>輸入 noisy sample、timestep、text condition。</li><li>只在每個 outer transition 抽取高階 semantic representation。</li></ul></div><div><h2 class="head">Flow head f_theta</h2><ul class="bullets"><li>以 main feature + noisy target 做內層更新。</li><li>time-conditioned gating fusion 保持初始 forward pass 與 teacher 相符。</li></ul></div></div>
+      <div class="takeaway">作者也比較 target：DTM 的 y = x1 - x 優於直接 sample prediction y = x。</div>
+      <div class="cite">§3 · p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">STAGE 1 / TM-MF</div>
+      <h1 class="title">先把 flow head 變成可 few-step 執行的 conditional flow map</h1>
+      <div class="formula">f<sub>theta</sub>(y<sub>s</sub>, s, r; m) = y<sub>s</sub> + (s-r)u<sub>theta</sub>(y<sub>s</sub>, s, r; m)</div>
+      <ul class="bullets"><li>直接 flow matching 仍要多個 inner steps；TM-MF 學的是區間平均 velocity。</li><li>u_theta 以 y1 - head_theta(...) 參數化，r 接近 s 時對齊 pretrained teacher 的 velocity prediction。</li><li>以 finite-difference 近似 JVP，避免鎖死在特定 large-scale training stack。</li></ul>
+      <div class="cite">§3.1 · Eq.13–14 · p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">STAGE 2 / DMD2-v</div>
+      <h1 class="title">影片版 distribution matching 的三個務實調整</h1>
+      <ol class="numbered"><li><b>Conv3D GAN discriminator</b>：直接看 localized spatiotemporal features。</li><li><b>KD warm-up 只用於 one-step</b>：multi-step 反而可能留下粗糙 artifact。</li><li><b>Timestep shifting</b>：調整 outer transition 與 VSD 加噪的 sampling distribution，避免 mode collapse。</li></ol>
+      <div class="cite">§3.2 · pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ROLLOUT</div>
+      <h1 class="title">把 inner loop 放進 training，才不會 train / inference mismatch</h1>
+      <ul class="bullets"><li>每個 outer transition 都 unroll N 個 inner flow-head updates；VSD loss 的 gradients 穿過整段 rollout。</li><li>head 很小：30-block DiT 取最後 5 blocks、unroll 2 次時，更新 student 的額外計算 <b>低於 17%</b>。</li><li>這讓模型在訓練時學到真正 sampling 時會遇到的 recurrent refinement。</li></ul>
+      <div class="takeaway">Rollout 不是裝飾性 recurrence；它是 closing train–inference gap 的訓練約束。</div>
+      <div class="cite">§3.2 · Eq.15 · p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENT SETUP</div>
+      <h1 class="title">同尺寸 Wan2.1 student，直接量 speed–quality trade-off</h1>
+      <div class="two-col"><div><h2 class="head">Training</h2><ul class="bullets"><li>Teacher / student：Wan2.1 1.3B、14B T2V-480p。</li><li>500k text-video pairs；text from VidProM + Qwen-2.5 extension。</li><li>latent [21,60,104] → 81 frames at 480×832。</li></ul></div><div><h2 class="head">Evaluation</h2><ul class="bullets"><li>VBench：overall、quality、semantic。</li><li>Blinded 2AFC：60 challenging prompts × 5 seeds / model。</li><li>effective NFE = total DiT blocks used / teacher blocks。</li></ul></div></div>
+      <div class="cite">§4.1 · p.5; §4.2 · pp.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">1.3B RESULT</div>
+      <h1 class="title">TMD 用 fractional NFE 擠出更好的 1.3B frontier</h1>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">NFE</th><th class="num">Overall</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>DMD2-v</td><td class="num">2.00</td><td class="num">84.39</td><td class="num">85.65</td><td class="num">79.32</td></tr><tr><td>rCM</td><td class="num">4.00</td><td class="num">84.43</td><td class="num">85.38</td><td class="num">80.63</td></tr><tr class="win"><td>TMD-N2H5</td><td class="num">2.33</td><td class="num best">84.68</td><td class="num best">85.71</td><td class="num">80.55</td></tr><tr class="win"><td>TMD-N2H5</td><td class="num">1.17</td><td class="num best">83.80</td><td class="num best">85.07</td><td class="num">78.69</td></tr></tbody></table>
+      <div class="takeaway">兩 outer steps + 5-block head 時，84.68 超過 rCM 84.43，effective NFE 只有 2.33。</div>
+      <div class="cite">§4.2 · Table 1 · pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">14B NEAR-ONE-STEP</div>
+      <h1 class="title">最大收益出現在最緊的 compute regime</h1>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">NFE</th><th class="num">Overall</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>rCM</td><td class="num">1.00</td><td class="num">83.02</td><td class="num">83.57</td><td class="num">80.81</td></tr><tr><td>DMD2-v</td><td class="num">1.00</td><td class="num">83.69</td><td class="num">84.46</td><td class="num">80.61</td></tr><tr class="win"><td>TMD-N4H5</td><td class="num">1.38</td><td class="num best">84.24</td><td class="num best">84.89</td><td class="num best">81.65</td></tr></tbody></table>
+      <div class="scorebox"><span class="score score--hi">+1.22</span><span class="score score--hi">NFE 1.38</span></div>
+      <div class="takeaway">相對 one-step rCM，TMD 多一點 head compute，換到 1.22 overall VBench 的提升。</div>
+      <div class="cite">§4.2 · Table 2 · p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HONEST BOUNDARY</div>
+      <h1 class="title">兩步 14B 並非每一格都贏</h1>
+      <div class="two-col"><div><h2 class="head">TMD-N4H5</h2><ul class="bullets"><li>M=2，effective NFE 2.75。</li><li>Overall 84.92；Quality 85.54；Semantic 82.42。</li></ul></div><div><h2 class="head">rCM</h2><ul class="bullets"><li>M=2，NFE 2.00。</li><li>Overall 85.05；Quality 85.57；Semantic 82.95。</li></ul></div></div>
+      <div class="takeaway">論文最強的論點是 near-one-step 的 trade-off，不是聲稱所有 two-step setting 均為 SOTA。</div>
+      <div class="cite">§4.2 · Table 2 · p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">VISUAL EVIDENCE</div>
+      <h1 class="title">在相近 cost 下，作者把改善指向視覺品質與 prompt adherence</h1>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure4_p6.jpg" alt="TMD and DMD2-v visual comparison"><figcaption>Figure 4 · Wan2.1 14B examples; paper attributes the visual difference to stronger prompt adherence</figcaption></figure>
+      <div class="cite">§4.2 · Figure 4 · p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HUMAN PREFERENCE</div>
+      <h1 class="title">數字之外：blind 2AFC 對 TMD 的偏好更集中在 alignment</h1>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure5_p7.jpg" alt="User preference study"><figcaption>Figure 5 · % of comparisons preferring TMD over DMD2-v; dashed line = parity</figcaption></figure>
+      <ul class="bullets"><li>One-step：visual quality 51.8%，prompt alignment 63.3%。</li><li>Two-step：visual quality 63.2%，prompt alignment 71.9%。</li></ul>
+      <div class="cite">§4.2 · Figure 5 · p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION / DMD2-v</div>
+      <h1 class="title">影片 discriminator 需要 joint spatiotemporal features</h1>
+      <table class="bench"><thead><tr><th>Head</th><th class="num">Overall</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr class="win"><td>Conv3D</td><td class="num best">83.24</td><td class="num best">84.28</td><td class="num best">79.10</td></tr><tr><td>Conv1D-2D</td><td class="num">82.32</td><td class="num">83.54</td><td class="num">77.44</td></tr><tr><td>Attention</td><td class="num">82.36</td><td class="num">83.32</td><td class="num">78.51</td></tr><tr><td>w/o GAN</td><td class="num">81.63</td><td class="num">82.70</td><td class="num">77.35</td></tr></tbody></table>
+      <div class="takeaway">Conv3D 的結果支持：GAN loss 應保留 local spatiotemporal structure，而不是把它純 token 化。</div>
+      <div class="cite">§4.3 · Table 3 · p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION / SCHEDULE</div>
+      <h1 class="title">KD warm-up 與 timestep shift 都是 regime-dependent</h1>
+      <div class="two-col"><div><h2 class="head">KD warm-up</h2><ul class="bullets"><li>one-step：overall 83.06 → <b>83.24</b>。</li><li>two-step：overall <b>84.39</b> → 83.79，反而下降。</li></ul></div><div><h2 class="head">Timestep shift</h2><ul class="bullets"><li>two-step student：overall 83.44 → <b>84.39</b>；semantic 77.33 → <b>79.32</b>。</li><li>不對 t_dmd shift 甚至會 severe mode collapse，VBench 分數未必能捕捉。</li></ul></div></div>
+      <div class="cite">§4.3 · Tables 4–5 · p.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big">真正的加速單位不必是「完整 denoising step」。<br>只要語義已取出，<b>細節 refinement 可以有自己的小循環</b>。</p>
+      <div class="takeaway">因此 N（inner steps）與 H（head layers）能連續調整 quality–efficiency frontier；effective NFE 不再只能是整數 full-model passes。</div>
+      <div class="cite">§4.1 Eq.16 p.5 · §4.3 Figure 6 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRADE-OFF</div>
+      <h1 class="title">N 與 H 是可調旋鈕，不是固定蒸餾倍率</h1>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure6_p7.jpg" alt="Performance efficiency tradeoff"><figcaption>Figure 6 · 1.3B / M=2; varying inner steps N and head layers H against DMD2-v</figcaption></figure>
+      <ul class="bullets"><li>隨 effective NFE 增加，overall score 整體上升。</li><li>該圖支持的主張是 fine-grained control，而非單一設定永遠最佳。</li></ul>
+      <div class="cite">§4.3 · Figure 6 · p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ROLLOUT ABLATION</div>
+      <h1 class="title">把 recurrence 納入 loss，收斂也會變快</h1>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure7_p8.jpg" alt="Rollout convergence ablation"><figcaption>Figure 7 · TMD with vs. without flow-head rollout during stage-2 training</figcaption></figure>
+      <div class="takeaway">作者觀察到 rollout 帶來更快的 convergence 與較好的 performance；這是 architecture 與 optimization 互相配合的證據。</div>
+      <div class="cite">§4.3 · Figure 7 · p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRETRAINING ABLATION</div>
+      <h1 class="title">TM-MF 不是可有可無的初始化</h1>
+      <table class="bench"><thead><tr><th>Setting</th><th class="num">Pretrain</th><th class="num">Overall</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>N2H5</td><td class="num">TM</td><td class="num">84.61</td><td class="num">85.64</td><td class="num">80.46</td></tr><tr class="win"><td>N2H5</td><td class="num">TM-MF</td><td class="num best">84.68</td><td class="num best">85.71</td><td class="num best">80.55</td></tr><tr><td>N4H5</td><td class="num">TM</td><td class="num">84.29</td><td class="num">85.45</td><td class="num">79.68</td></tr><tr class="win"><td>N4H5</td><td class="num">TM-MF</td><td class="num best">84.67</td><td class="num best">85.72</td><td class="num best">80.47</td></tr></tbody></table>
+      <div class="takeaway">尤其 N4H5：TM-MF 將 overall 從 84.29 拉到 84.67。</div>
+      <div class="cite">§4.3 · Table 6 · p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h1 class="title">這篇沒有把所有速度–品質格點都塗成綠色</h1>
+      <ul class="bullets"><li>14B、M=2 / NFE 2.75 時，TMD-N4H5 不及 rCM 的 two-step 結果。</li><li>作者尚未導出能直接從 teacher velocity 取得 inner-flow velocity 的形式。</li><li>未來方向：把兩階段合成 single-stage pipeline，並和 efficient attention / feature caching 結合。</li></ul>
+      <div class="cite">§3.1 p.4 · §4.2 p.6 · §6 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAY</div>
+      <h1 class="title">給 video inference engineer 的三個可移植想法</h1>
+      <ol class="numbered"><li>先辨識哪些 computation 真的是語義抽取，哪些只是可反覆做的局部 refinement。</li><li>不要只報 raw step count；用 effective NFE / block-equivalent cost 表達真正 compute。</li><li>recurrence 若會在 inference 跑，training loss 就要 unroll 它；否則最容易出現 deployment gap。</li></ol>
+      <div class="cite">Synthesis grounded in §3–4 · pp.4–8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / HIGHLIGHTS</div>
+      <h1 class="title">作者最直接的三句話</h1>
+      <div class="hl"><p class="hl__en">This hierarchical decomposition allows the student to share representations from the main backbone with the flow head.</p><p class="hl__zh">這個層級式拆分讓 student 可把 main backbone 的表徵共享給 flow head。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">Distillation with flow head rollout effectively avoids the mismatch between training and inference.</p><p class="hl__zh">以 flow-head rollout 蒸餾能有效避開訓練與推論不匹配。<span class="hl__src">§3.2 p.5</span></p></div>
+      <div class="hl"><p class="hl__en">TMD can provide consistent performance gains for increasing NFE.</p><p class="hl__zh">隨著 effective NFE 增加，TMD 能提供一致的效能提升。<span class="hl__src">§4.3 Fig.6 p.7</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Tomorrow: compute acceleration</h2>
+      <p class="end__sub">Attention、kernel、hardware：下一份看哪些成本真的卡住。</p>
+      <div class="end__next">Source · https://arxiv.org/abs/2601.09881v2</div>
+      <div class="cite">Daily AI Research · 2026-10-07 · Video generation / temporal models</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
