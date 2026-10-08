@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FSA: An Alternative Efficient Implementation of Native Sparse Attention Kernel</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · THU · COMPUTE ACCELERATION</div>
+      <h1 class="title">FSA: efficient Native Sparse Attention kernels</h1>
+      <p class="lead">Flip the kernel loop order, not the sparse-attention algorithm.</p>
+      <div class="authors">Ran Yan · Youhe Jiang · Zhuoming Chen · Haohui Mai · Beidi Chen · Binhang Yuan<br>HKUST · Carnegie Mellon University</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv:2508.18224v3</span></div>
+      <p class="note">Full paper title: FSA: An Alternative Efficient Implementation of Native Sparse Attention Kernel</p>
+      <div class="cite">Paper cover p.1 · ICLR 2026</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">FSA makes NSA fast for <b>small GQA groups</b> by batching query tokens per KV block instead of padding query heads.</p>
+      <div class="takeaway">It is a kernel implementation change: retain NSA sparsity, remove hardware-unfriendly padding.</div>
+      <div class="scorebox"><span class="score score--hi">3.5x</span><span class="score score--hi">1.25x</span><span class="score score--hi">1.36x</span></div>
+      <ul class="bullets"><li>Kernel latency vs NSA: up to <b>3.5x</b> lower.</li><li>End-to-end training vs NSA: up to <b>1.25x</b> faster.</li><li>Inference prefill vs NSA: up to <b>1.36x</b> faster.</li></ul>
+      <div class="cite">Abstract p.1 · §4.2-4.3 pp.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY THIS MATTERS</div>
+      <h2 class="head">Sparse attention still loses if the kernel wastes tensor-core work</h2>
+      <ul class="bullets"><li>At 64K context, attention can account for <b>70-80%</b> of decoding latency.</li><li>NSA reduces algorithmic work using compressed, selected, and sliding-window KV attention.</li><li>But irregular selected-token access and padded tile shapes can erase the theoretical FLOP advantage.</li></ul>
+      <div class="takeaway">The paper targets the gap between sparse complexity and elapsed latency.</div>
+      <div class="cite">§1 pp.1-2 · §2.2 pp.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HARDWARE ROOT CAUSE</div>
+      <h2 class="head">Vanilla NSA batches heads; small GQA groups force padding</h2>
+      <div class="two-col"><div><ul class="bullets"><li>NSA outer loop: query token / grouped query heads.</li><li>When GQA has fewer than 8 Q heads, tensor-core tile requirements are not met.</li><li>The kernel pads heads, loads masked data, and computes discarded results.</li></ul></div><div><div class="formula">GQA group size: g = h / h<sub>K</sub><br><br>On Hopper, matrix tile dimensions need at least 8 for single-warp processing.</div><div class="takeaway">Padding is a hardware tax, not an algorithmic requirement.</div></div></div>
+      <div class="cite">§1 p.2 · §2.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h2 class="head">Four claims, one systems thesis</h2>
+      <ol class="numbered"><li><b>Invert traversal:</b> KV block outer loop; query batches inner loop.</li><li><b>Repair the side effects:</b> gather non-contiguous queries, reduce partial outputs, and compute online-softmax statistics safely.</li><li><b>Account for total cost:</b> analyze memory access and FLOPs including the extra kernels.</li><li><b>Test end-to-end:</b> H20/H200, multiple GQA groups, NSA settings, LLMs, and context lengths.</li></ol>
+      <div class="cite">§1 p.2 · §3-4 pp.4-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BASELINE</div>
+      <h2 class="head">NSA selected attention: efficient sparsity, awkward scheduling</h2>
+      <div class="two-col"><div><div class="sub">NSA kernel</div><ul class="bullets"><li>Outer loop: one query token, batch query heads that share KV heads.</li><li>Inner loop: iteratively load selected KV blocks.</li><li>Works well only if each GQA group supplies enough heads to fill a dense tensor-core tile.</li></ul></div><div><div class="sub">FSA kernel</div><ul class="bullets"><li>Outer loop: one KV block.</li><li>Inner loop: batches of query tokens that selected that block.</li><li>Usually many query tokens exist, so the tile is filled without padding.</li></ul></div></div>
+      <div class="cite">§1 p.2 · §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · FIGURE 1</div>
+      <h2 class="head">Loop inversion changes which dimension supplies parallel work</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.25rem;"><img src="figures/figure1_p5.jpg" alt="NSA (left) iterates queries outside; FSA (right) iterates KV blocks outside and stores partial results for reduction."><figcaption>NSA (left) iterates queries outside; FSA (right) iterates KV blocks outside and stores partial results for reduction.</figcaption></figure>
+      <div class="takeaway">FSA trades a query-head batching problem for a query-token batching opportunity.</div>
+      <div class="cite">Fig.1 p.5 · §3.1-3.2 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FSA KERNEL DESIGN</div>
+      <h2 class="head">Assign each thread block a (query head, KV block) pair</h2>
+      <ul class="bullets"><li>Load the KV block once, then iterate non-contiguous batches of query tokens that selected it.</li><li>The selection tensor yields <b>I<sub>i</sub></b>, the valid queries for block i; mapping <b>O<sub>i</sub></b> makes intermediate writes contiguous.</li><li>Early return after I<sub>i</sub> is exhausted avoids loading or computing invalid work.</li><li>Backward pass reuses cached indices instead of rebuilding them.</li></ul>
+      <div class="cite">§3.2 pp.4-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CORRECTNESS</div>
+      <h2 class="head">Inverting loops distributes one query across thread blocks</h2>
+      <div class="two-col"><div><div class="sub">What breaks</div><ul class="bullets"><li>Partial attention results for a query come from distinct KV blocks / thread blocks.</li><li>Writing directly to the output needs atomic additions.</li><li>Computing online-softmax statistics independently gives incorrect maxima and outputs.</li></ul></div><div><div class="sub">FSA repair</div><ol class="numbered"><li>Selection kernel writes partial outputs to O<sub>buf</sub>.</li><li>Dedicated online-softmax kernel precomputes statistics.</li><li>Dedicated reduction kernel accumulates and scales final output.</li></ol></div></div>
+      <div class="takeaway">The separate kernels are mandatory correctness machinery, not optional optimization.</div>
+      <div class="cite">§3.2 pp.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">COST MODEL</div>
+      <h2 class="head">Extra kernels are cheaper than NSA padding at common GQA settings</h2>
+      <div class="formula">FSA memory = dN(6h + 2h<sub>K</sub>)(1 + T)<br>FSA FLOPs = dNB<sub>K</sub>T(4h + 2h<sub>K</sub>)</div>
+      <ul class="bullets"><li>The formula counts selection, online-softmax, and reduction kernels together.</li><li>At length 64K and (B<sub>K</sub>, T) = (64, 16), GQA=4: FSA estimates <b>21.3%</b> of NSA memory access and <b>56.2%</b> of NSA FLOPs.</li><li>The comparison is strongest where NSA otherwise pads up to 8 query heads.</li></ul>
+      <div class="cite">§3.3 p.6 · Appendix E p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ANALYTIC CHECK · FIGURE 2</div>
+      <h2 class="head">FSA remains below NSA after adding softmax and reduction work</h2>
+      <figure class="full" style="max-height:49vh;"><img src="figures/figure2_p6.jpg" alt="Normalized memory-access volume and FLOPs; FSA is normalized to 1."><figcaption>Normalized memory-access volume and FLOPs; FSA is normalized to 1.</figcaption></figure>
+      <div class="takeaway">At GQA 1-8, the avoided padded work outweighs FSA auxiliary kernels in the analysis.</div>
+      <div class="cite">Fig.2 p.6 · §3.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENTAL PROTOCOL</div>
+      <h2 class="head">Test the kernel, then test the full model path</h2>
+      <div class="two-col"><div><div class="sub">Hardware & precision</div><ul class="bullets"><li>NVIDIA H20: 148 TFLOPS, 4 TB/s.</li><li>NVIDIA H200: 989 TFLOPS, 4.8 TB/s.</li><li>BF16 training; FP16 inference; NVLink 450 GB/s for multi-GPU end-to-end runs.</li></ul></div><div><div class="sub">Sweep</div><ul class="bullets"><li>GQA group g = 1, 2, 4, 8.</li><li>(B<sub>K</sub>, T) = (64,16) or (128,8).</li><li>8K-64K kernel tests; 32K/64K Llama3-8B, Qwen3-14B, Qwen2.5-32B.</li></ul></div></div>
+      <div class="cite">§4.1 pp.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">KERNEL RESULTS · FIGURE 4</div>
+      <h2 class="head">FSA wins most where small GQA makes NSA padding visible</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure4_p7.jpg" alt="Kernel latency across H20/H200, GQA settings, sequence lengths, and two NSA configurations."><figcaption>Kernel latency across H20/H200, GQA settings, sequence lengths, and two NSA configurations.</figcaption></figure>
+      <div class="takeaway">Peak NSA gap: 3.5x at GQA=1 and 32K on H20; long sequences and small groups amplify the win.</div>
+      <div class="cite">Fig.4 p.7 · §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">KERNEL SUMMARY</div>
+      <h2 class="head">Sparse algorithm + FSA kernel also beats full attention at long context</h2>
+      <table class="bench"><thead><tr><th>Comparison</th><th class="num">H20</th><th class="num">H200</th><th>Where it grows</th></tr></thead><tbody><tr class="win"><td>FSA vs NSA</td><td class="num best">up to 3.5x; mean 1.8x</td><td class="num best">up to 2.9x; mean 1.4x</td><td>small GQA, longer sequences</td></tr><tr><td>FSA vs full attention</td><td class="num best">up to 6.4x; mean 2.4x</td><td class="num best">up to 4.9x; mean 2.3x</td><td>larger GQA, 64K</td></tr></tbody></table>
+      <ul class="bullets"><li>Vanilla NSA can still lose to full attention when GQA=1 at 32K; sparse FLOPs alone are not enough.</li><li>FSA maintains gains for both (64,16) and (128,8) NSA settings.</li></ul>
+      <div class="cite">§4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">END-TO-END TRAINING</div>
+      <h2 class="head">Kernel gains survive model-level training latency</h2>
+      <table class="bench"><thead><tr><th>Comparison</th><th class="num">Max speedup</th><th class="num">Mean speedup</th><th>Observation</th></tr></thead><tbody><tr class="win"><td>FSA vs NSA</td><td class="num best">1.25x</td><td class="num best">1.09x</td><td>consistent lower training latency</td></tr><tr><td>FSA vs full attention</td><td class="num best">2.47x</td><td class="num best">1.86x</td><td>larger gain at long sequences / H200</td></tr></tbody></table>
+      <div class="takeaway">The gap shrinks from microkernel to full model, but it does not disappear.</div>
+      <div class="cite">§4.3 p.8 · Fig.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">INFERENCE PREFILL</div>
+      <h2 class="head">Prefill improves; decoding stays comparable to NSA</h2>
+      <ul class="bullets"><li>FSA vs NSA prefill: up to <b>1.36x</b>, mean <b>1.11x</b> speedup.</li><li>FSA vs full attention prefill: up to <b>1.69x</b>, mean <b>1.39x</b> speedup.</li><li>For decoding, FSA matches NSA because NSA already loads only a sparse KV subset in that phase.</li></ul>
+      <div class="takeaway">This is a prefill / long-context kernel intervention, not a universal decode-speed claim.</div>
+      <div class="cite">§4.3 p.8 · Fig.6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · THE CROWN PAGE</div>
+      <p class="big">FSA wins because it attacks the <b>dominant selected-token bottleneck</b>, where sparse attention meets the GPU most badly.</p>
+      <div class="scorebox"><span class="score score--hi">79%</span><span class="score score--hi">65%</span><span class="score score--hi">7.6x</span></div>
+      <ul class="bullets"><li>Token selection accounts for up to <b>79%</b> and mean <b>65%</b> of NSA attention overhead.</li><li>FSA speeds this phase by up to <b>7.6x</b> and mean <b>3.4x</b> versus NSA.</li></ul>
+      <div class="cite">§4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FORWARD / BACKWARD</div>
+      <h2 class="head">Backward gains are larger because FSA avoids index-tensor costs</h2>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure7_p10.jpg" alt="Forward/backward latency breakdown for FSA, NSA, and full attention."><figcaption>Forward/backward latency breakdown for FSA, NSA, and full attention.</figcaption></figure>
+      <ul class="bullets"><li>Vs NSA forward: up to <b>2.36x</b>, mean <b>1.62x</b> lower latency.</li><li>Vs NSA backward: up to <b>4.32x</b>, mean <b>2.59x</b> lower latency.</li></ul>
+      <div class="cite">Fig.7 p.10 · §4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHERE TIME GOES</div>
+      <h2 class="head">Token selection is the component FSA actually repairs</h2>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure8_p10.jpg" alt="Breakdown of compression, selected-token, and sliding-window attention overhead."><figcaption>Breakdown of compression, selected-token, and sliding-window attention overhead.</figcaption></figure>
+      <div class="takeaway">The method is narrowly targeted: it improves selection, not every NSA component equally.</div>
+      <div class="cite">Fig.8 p.10 · §4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · FIGURE 9</div>
+      <h2 class="head">Both FSA-specific optimizations matter</h2>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure9_p10.jpg" alt="Ablation: full FSA versus removing inner-loop batching or early return."><figcaption>Ablation: full FSA versus removing inner-loop batching or early return.</figcaption></figure>
+      <table class="bench"><thead><tr><th>Removed component</th><th class="num">Worst slowdown</th><th class="num">Mean slowdown</th></tr></thead><tbody><tr><td>Inner-loop batching</td><td class="num">18.9%</td><td class="num">11.9%</td></tr><tr><td>Early return</td><td class="num">25.2%</td><td class="num">18.2%</td></tr></tbody></table>
+      <div class="cite">Fig.9 p.10 · §4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ACCURACY CHECK</div>
+      <h2 class="head">Kernel substitution does not visibly destabilize training</h2>
+      <ul class="bullets"><li>Llama3-8B fine-tuning shows FSA, NSA, and full attention with stable and similar convergence curves.</li><li>Additional Llama-3.2 1B/3B and Llama-3.1 8B LongBench experiments report loss, perplexity, and QA F1 across MQA, SQA, and synthetic tasks.</li><li>The paper characterizes FSA as preserving NSA/full-attention accuracy; this deck does not infer stronger accuracy superiority.</li></ul>
+      <div class="takeaway">The evidence supports implementation correctness, not a new modeling-quality claim.</div>
+      <div class="cite">Appendix D pp.14-15 · Fig.11 p.15 · Tables 2-4 pp.15-16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRADE-OFFS</div>
+      <h2 class="head">FSA swaps padding waste for irregular access and buffers</h2>
+      <ul class="bullets"><li>Non-contiguous query loads reduce cache-friendly coalescing; the real-hardware gain is therefore smaller than the FLOP-model gain.</li><li>At 64K, T=16, d=128, the illustrative O<sub>buf</sub> consumes <b>1 GB</b> HBM.</li><li>Profiled buffer overhead reaches <b>5.01 GB</b> at 128K and <b>12.36 GB</b> at 256K for (64,16).</li><li>An attention-sink first KV block needs special dual-buffer allocation because it is dense.</li></ul>
+      <div class="cite">Appendix E pp.17-18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DEPLOYMENT RULE</div>
+      <h2 class="head">Use online profiling rather than treating FSA as a universal replacement</h2>
+      <ul class="bullets"><li>On first use of a hyperparameter set, FSA profiles candidate query-batch sizes such as 1, 64, and 128.</li><li>When GQA is large enough, batch size 1 can serve as a fallback to the original NSA strategy.</li><li>Cache the fastest choice for subsequent calls with the same hyperparameters.</li></ul>
+      <div class="takeaway">The paper’s own deployment story is conditional: profile, select, cache.</div>
+      <div class="cite">Appendix E p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">Three lessons for attention-kernel work</h2>
+      <ol class="numbered"><li><b>Match the parallel axis to hardware tile constraints.</b> A sparse algorithm can need a different traversal to become fast.</li><li><b>Price in correctness and memory plumbing.</b> Reductions, softmax statistics, index maps, and buffers are part of the design.</li><li><b>Measure at multiple levels.</b> Microkernel wins need kernel, end-to-end, ablation, and accuracy checks before they are deployment claims.</li></ol>
+      <div class="cite">§3-4 pp.4-10 · Appendix D-E pp.14-18</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · AUTHOR WORDING</div>
+      <h2 class="head">Three compact excerpts worth retaining</h2>
+      <div class="hl"><p class="hl__en">“FSA exchanges NSA kernel loop order and processes query heads one by one, looping over KV blocks in the outer loop and batches of query tokens in the inner loop.”</p><p class="hl__zh">FSA 交換 NSA kernel 的迴圈順序：外層走 KV blocks，內層才批次處理 query tokens。<span class="hl__src">§3.1 p.4</span></p></div>
+      <div class="hl"><p class="hl__en">“the token selection phase dominates overall attention computation performance, accounting for up to 79% and on average 65% of total attention overhead.”</p><p class="hl__zh">token selection 是主要瓶頸：最高佔 79%，平均佔 65% 的 attention overhead。<span class="hl__src">§4.4 p.9</span></p></div>
+      <div class="hl"><p class="hl__en">“FSA trades lowered memory access volume and FLOPs with non-contiguous loading and more buffer overhead.”</p><p class="hl__zh">FSA 用較少 memory access 與 FLOPs，交換 non-contiguous loading 和額外 buffer 成本。<span class="hl__src">Appendix E p.17</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">The sparse algorithm was not the bottleneck. Its loop order was.</h2>
+      <p class="end__sub">FSA shows how a kernel-level schedule can unlock existing long-context sparsity for the GQA configurations modern LLMs actually use.</p>
+      <div class="end__next">Tomorrow: model compression / efficiency</div>
+      <div class="cite">FSA · ICLR 2026 · arXiv:2508.18224</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
