@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scaling Laws Meet Model Architecture: Toward Inference-Efficient LLMs</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">DAILY AI RESEARCH · MONDAY / LLM ARCHITECTURE</div>
+      <h1 class="title">Scaling Laws Meet<br>Model Architecture</h1>
+      <p class="lead">Toward inference-efficient LLMs without treating architecture as an afterthought.</p>
+      <div class="authors">Song Bian · Tao Yu · Shivaram Venkataraman · Youngsuk Park<br>UW-Madison · Amazon Web Services</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv v3 · 2026-05-13</span></div>
+      <figure class="full" style="max-height:25vh; margin-top:.3rem;"><img src="figures/figure1_p1.jpg" alt="Fig. 1 — the paper's joint throughput / predicted-loss sweep"><figcaption>Fig. 1 — the paper's joint throughput / predicted-loss sweep</figcaption></figure>
+      <div class="cite">Full title: Scaling Laws Meet Model Architecture: Toward Inference-Efficient LLMs · cover / Fig.1 p.1 · arXiv:2510.18245</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">A scaling law can choose an LLM <b>shape</b>, not only its size.</p>
+      <p class="lead">Fit loss against width and MLP/attention allocation, constrain quality, then search GQA for serving throughput.</p>
+      <div class="scorebox"><span class="score score--hi">+2.1% avg accuracy</span><span class="score score--hi">+42% throughput</span></div>
+      <div class="cite">Abstract p.1; §5.1 p.9 · comparison is against LLaMA-3.2 under the paper's setup</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE DEPLOYMENT GAP</div>
+      <h1 class="title">Chinchilla answers <i>how big?</i> — not <i>what shape?</i></h1>
+      <ul class="bullets"><li>Classic scaling laws model loss from parameter count <b>N</b> and training tokens <b>D</b>.</li><li>They omit deployment-time inference cost, which the paper identifies as a central practical expense.</li><li>A prior inference-aware law needs a model's total lifetime output tokens — unknowable before deployment.</li><li>The missing decision variable is architecture: width, MLP/attention split, and KV-head grouping.</li></ul>
+      <div class="takeaway">The target is fixed-budget <b>accuracy + throughput</b>, not training loss alone.</div>
+      <div class="cite">§1 p.2; §2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MOTIVATING COUNTEREXAMPLE</div>
+      <h1 class="title">Parameter count does not order serving speed</h1>
+      <div class="two-col"><div><figure class="full" style="max-height:47vh;"><img src="figures/figure2_p2.jpg" alt="Fig. 2 — Qwen2.5-1.5B can out-throughput Qwen3-0.6B"><figcaption>Fig. 2 — Qwen2.5-1.5B can out-throughput Qwen3-0.6B</figcaption></figure></div><div><ul class="bullets"><li>The 1.5B Qwen2.5 variant can be faster than 0.6B Qwen3 in the paper's comparison.</li><li>The explanation is architectural: higher hidden size, GQA, and MLP-to-attention ratio.</li><li>So an aspect ratio by itself is not a sufficient predictor of inference efficiency.</li></ul><div class="takeaway"><b>N</b> is a budget; architecture decides how that budget is spent.</div></div></div>
+      <div class="cite">Fig.2 / §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h1 class="title">Four moves turn architecture into a search problem</h1>
+      <ol class="numbered"><li>Condition Chinchilla-style loss on normalized hidden size and MLP-to-attention ratio.</li><li>Train 200+ controlled variants, spanning 80M to 3B parameters.</li><li>Optimize candidate architectures subject to a predicted loss constraint.</li><li>Locally search GQA and validate at 1B / 3B against LLaMA-3.2.</li></ol>
+      <div class="cite">Abstract p.1; §3.3–§3.4 p.5–6; §5.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENTAL CONTROL</div>
+      <h1 class="title">Hold the budget fixed; move the architecture knobs</h1>
+      <div class="two-col"><div><h2 class="head">Fixed within a parameter scale</h2><ul class="bullets"><li>Non-embedding parameter budget <b>N_non-embed</b></li><li>Number of layers <b>n_layers</b></li><li>Token budget <b>D</b></li></ul></div><div><h2 class="head">Varied / searched</h2><ul class="bullets"><li>Hidden size <b>d_model</b></li><li>MLP-to-attention ratio <b>r = r_mlp/attn</b></li><li>Grouped-query attention (<b>GQA</b>)</li></ul></div></div>
+      <div class="formula">Normalized width: d_model / sqrt(N_non-embed)</div>
+      <div class="cite">§3.1 p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THROUGHPUT ABLATION</div>
+      <h1 class="title">Wider and more MLP-heavy can serve faster</h1>
+      <figure class="full" style="max-height:42vh;"><img src="figures/figure3_p4.jpg" alt="Fig. 3 — at fixed N_non-embed, larger d_model and higher r_mlp/attn raise throughput"><figcaption>Fig. 3 — at fixed N_non-embed, larger d_model and higher r_mlp/attn raise throughput</figcaption></figure>
+      <ul class="bullets"><li>On 8B LLaMA-3.1 variants, larger hidden size / fewer heads improve throughput across batch sizes.</li><li>Higher MLP-to-attention ratio also improves throughput at fixed width and budget.</li><li>GQA is tested separately because it affects serving strongly but its loss relation is not smooth.</li></ul>
+      <div class="cite">Fig.3 / §3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · CROWN PAGE</div>
+      <p class="big">Speed rises when attention work and KV-cache traffic shrink.<br><br>But accuracy has an <b>interior optimum</b>.</p>
+      <p class="lead">The study does not claim a free speedup: it makes efficiency gains admissible only while predicted loss stays below a target.</p>
+      <div class="cite">§3.2 p.4; Eq.4 / §3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LOSS LANDSCAPE · WIDTH</div>
+      <h1 class="title">Normalized hidden size has a U-shaped loss curve</h1>
+      <figure class="full" style="max-height:38vh;"><img src="figures/figure4_p5.jpg" alt="Fig. 4 — loss versus d_model / sqrt(N) across 80M, 145M, and 297M"><figcaption>Fig. 4 — loss versus d_model / sqrt(N) across 80M, 145M, and 297M</figcaption></figure>
+      <ul class="bullets"><li>At fixed ratio and GQA, optima align across model sizes after width normalization.</li><li>Too-wide models reduce attention-head count and can degrade accuracy.</li><li>The law needs to locate the valley, not merely push width upward.</li></ul>
+      <div class="cite">Fig.4 / §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LOSS LANDSCAPE · ALLOCATION</div>
+      <h1 class="title">The MLP-to-attention split also has a U-shaped optimum</h1>
+      <figure class="full" style="max-height:38vh;"><img src="figures/figure5_p5.jpg" alt="Fig. 5 — loss versus r_mlp/attn for multiple widths"><figcaption>Fig. 5 — loss versus r_mlp/attn for multiple widths</figcaption></figure>
+      <ul class="bullets"><li>Recent open models often allocate a smaller parameter fraction to attention as they scale.</li><li>The paper finds this trend is not universally optimal: either side of an interior ratio harms loss.</li><li>That turns the ratio from a hand-tuned convention into a fitted decision variable.</li></ul>
+      <div class="cite">Fig.5 / §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONDITIONAL SCALING LAW</div>
+      <h1 class="title">Use Chinchilla as a reference, then calibrate architecture</h1>
+      <div class="formula">L_arch = f(d_model / sqrt(N)) x g(r_mlp/attn) x L_opt(N, D)</div>
+      <div class="two-col"><div><h2 class="head">Step 1 · reference</h2><ul class="bullets"><li>Get optimal baseline loss <b>L_opt(N,D)</b> from a Chinchilla-style law.</li></ul></div><div><h2 class="head">Step 2 · architecture</h2><ul class="bullets"><li>Fit transparent U-shape factors <b>c0 + c1 log(x) + c2/x</b> for width and ratio.</li></ul></div></div>
+      <p class="note">The multiplicative and additive forms assume separable effects of width and ratio.</p>
+      <div class="cite">§3.3 p.5–6 · Eq.3 shown here in HTML-safe shorthand</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SEARCH, NOT GUESSWORK</div>
+      <h1 class="title">Constrained optimization closes the loop</h1>
+      <div class="formula">maximize IN(P)  subject to  L(P | N, D) <= L_target</div>
+      <ol class="numbered"><li>Fit the reference and conditional loss law from smaller architectures.</li><li>Solve for width and MLP-to-attention ratio under the loss target.</li><li>Enumerate feasible GQA values and early-stop once below the GQA=4 baseline.</li><li>Measure the Pareto candidates on the target serving stack.</li></ol>
+      <div class="takeaway">GQA is handled as a discrete local search because its loss response is variable, unlike the smooth width/ratio trends.</div>
+      <div class="cite">§3.4 p.6 · Algorithm 1 / Eq.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SETUP</div>
+      <h1 class="title">The law is fitted small, then tested at larger scale</h1>
+      <div class="two-col"><div><h2 class="head">Pretraining sweep</h2><ul class="bullets"><li>LLaMA-3.2-style decoder-only models</li><li>80M, 145M, 297M, 1B, 3B N_non-embed</li><li>Dolma-v1.7; 100 x N_non-embed tokens</li></ul></div><div><h2 class="head">Evaluation</h2><ul class="bullets"><li>vLLM, A100 40GB by default</li><li>4096 input + 1024 output tokens</li><li>Five throughput repeats; zero-shot, nine lm-eval tasks</li></ul></div></div>
+      <div class="cite">§4 p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXTRAPOLATION CHECK</div>
+      <h1 class="title">Predicted loss tracks held-out architectures</h1>
+      <figure class="full" style="max-height:38vh;"><img src="figures/figure6_p7.jpg" alt="Fig. 6 — predicted vs. actual loss from 80M→145M, 80/145M→297M, and 80/145/297M→1B"><figcaption>Fig. 6 — predicted vs. actual loss from 80M→145M, 80/145M→297M, and 80/145/297M→1B</figcaption></figure>
+      <div class="scorebox"><span class="score score--hi">MSE 0.0002 / 0.0001 / 0.0001</span><span class="score score--hi">Spearman 0.8909 / 0.7920 / 0.7451</span></div>
+      <div class="cite">Fig.6 / §4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LARGE-SCALE RESULTS</div>
+      <h1 class="title">Accuracy improves at both 1B and 3B</h1>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Loss</th><th class="num">Avg. 9-task acc.</th></tr></thead><tbody><tr><td>LLaMA-3.2-1B</td><td class="num">2.803</td><td class="num">54.9</td></tr><tr class="win"><td>Panda-1B</td><td class="num best">2.782</td><td class="num best">57.0</td></tr><tr><td>LLaMA-3.2-3B</td><td class="num">2.625</td><td class="num">61.9</td></tr><tr><td>Panda-3B</td><td class="num best">2.619</td><td class="num">62.5</td></tr><tr class="win"><td>Surefire-3B</td><td class="num">2.620</td><td class="num best">62.6</td></tr></tbody></table>
+      <div class="takeaway">Panda minimizes predicted-loss architecture; Surefire is the loss-constrained throughput Pareto candidate.</div>
+      <div class="cite">Table 1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SERVING OUTCOME</div>
+      <h1 class="title">The Pareto candidates stay faster across batch sizes</h1>
+      <figure class="full" style="max-height:38vh;"><img src="figures/figure7_p8.jpg" alt="Fig. 7 — Panda follows the loss law; Surefire improves throughput versus LLaMA-3.2"><figcaption>Fig. 7 — Panda follows the loss law; Surefire improves throughput versus LLaMA-3.2</figcaption></figure>
+      <ul class="bullets"><li>Surefire-1B and -3B satisfy loss targets matched to the LLaMA-3.2 baselines.</li><li>They achieve up to <b>42% higher throughput</b> with vLLM on A100.</li><li>The paper also reports up to <b>47% higher throughput</b> with SGLang on H200.</li></ul>
+      <div class="cite">Fig.7 p.8; §5.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FIT-DATA ABLATION</div>
+      <h1 class="title">Fit closer to the deployment scale</h1>
+      <figure class="full" style="max-height:38vh;"><img src="figures/figure8_p10.jpg" alt="Fig. 8 — predicting 3B from 1B variants can outperform fitting from much smaller scales"><figcaption>Fig. 8 — predicting 3B from 1B variants can outperform fitting from much smaller scales</figcaption></figure>
+      <ul class="bullets"><li>For 3B, a fit using only 1B variants shows lower MSE and higher Spearman than the broad progressive fit.</li><li>Coefficients shift with scale; the law is useful, but not perfectly scale-invariant.</li><li>The authors suggest using a fitting scale around one-third of the target when possible.</li></ul>
+      <div class="cite">Fig.8 / §5.1 p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">INTERPRETATION</div>
+      <p class="big">The useful output is not “make the model wider.”<br><br>It is a <b>hardware-aware frontier</b> between accuracy and serving cost.</p>
+      <p class="lead">The framework works because it separates a smooth accuracy model for width/ratio from an empirical discrete search over GQA and measured throughput.</p>
+      <div class="cite">§3.2–§3.4 p.4–6; §5.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ROBUSTNESS CHECKS</div>
+      <h1 class="title">Simple calibration wins; extreme ratios distort the fit</h1>
+      <div class="two-col"><div><h2 class="head">Outlier policy</h2><ul class="bullets"><li>Fit primarily over r_mlp/attn in [0.5, 5].</li><li>Including values such as 0.1 and 12.6 degrades Task-3 rank correlation.</li></ul></div><div><h2 class="head">Function-class policy</h2><ul class="bullets"><li>Multiplicative and additive calibration perform similarly.</li><li>More complex joint, non-separable alternatives do not improve prediction.</li></ul></div></div>
+      <div class="takeaway">Prefer a calibrated, interpretable frontier over an overfit universal formula.</div>
+      <div class="cite">§5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h1 class="title">What this paper has not established</h1>
+      <ul class="bullets"><li>No evaluation at 7B or beyond; the demonstrated scale stops at 3B.</li><li>The analysis is for dense models. MoE throughput is measured, but no MoE scaling law is fitted.</li><li>The study is about pre-training; post-training may change the accuracy–efficiency trade-off.</li><li>Inference efficiency depends on hardware and serving stack, so the objective is measured rather than purely analytic.</li></ul>
+      <div class="cite">§7 p.10; §5.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAYS</div>
+      <h1 class="title">A practical loop for model builders</h1>
+      <ol class="numbered"><li>Benchmark the actual deployment stack before naming an architecture “efficient.”</li><li>Sweep width and MLP/attention allocation under fixed parameter and token budgets.</li><li>Fit only where the loss landscape is stable; validate extrapolation near the intended scale.</li><li>Treat GQA as a constrained discrete serving choice, not a default inherited from a baseline.</li></ol>
+      <div class="takeaway">Architecture search belongs beside data / compute scaling decisions — not after training has frozen the design.</div>
+      <div class="cite">Synthesis grounded in §3.1–§3.4 p.3–6 and §5.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER IN ITS OWN WORDS</div>
+      <h1 class="title">Why the law needs an optimum</h1>
+      <div class="hl"><p class="hl__en">both hidden size and the MLP-to-attention ratio exhibit U-shaped relationships with training loss.</p><p class="hl__zh">hidden size 與 MLP-to-attention ratio 對 training loss 都呈 U 型關係。<span class="hl__src">§3.3 p.5</span></p></div>
+      <p class="note">This is the central correction to the naive rule “allocate less to attention” or “make the model wider.”</p>
+      <div class="cite">§3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER IN ITS OWN WORDS</div>
+      <h1 class="title">Why keep the calibration simple</h1>
+      <div class="hl"><p class="hl__en">The two-step reference-and-calibration framework appears robust enough that simple calibrations perform well.</p><p class="hl__zh">兩步式 reference-and-calibration 架構看來已足夠穩健，簡單校正也能有效。<span class="hl__src">§5 p.8</span></p></div>
+      <p class="note">The paper reports no gain from the more complex joint non-separable formulations it ablated.</p>
+      <div class="cite">§5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · REPRODUCIBILITY</div>
+      <h1 class="title">Inputs that define the reported frontier</h1>
+      <div class="two-col"><div><h2 class="head">Accuracy side</h2><ul class="bullets"><li>Dolma-v1.7 sampling</li><li>100 x N_non-embed training tokens</li><li>Nine zero-shot lm-eval-harness benchmarks</li></ul></div><div><h2 class="head">Serving side</h2><ul class="bullets"><li>vLLM on A100 40GB by default</li><li>4096-token input + 1024-token output</li><li>Five repeated throughput runs</li></ul></div></div>
+      <div class="cite">§4 p.6–7 · source code / paper: https://arxiv.org/abs/2510.18245</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Architecture is a scaling variable.</h2>
+      <p class="end__sub">Tomorrow: image generation / understanding — Tuesday rotation.</p>
+      <div class="end__next">Source deck: arXiv:2510.18245 · ICLR 2026</div>
+      <div class="cite">Daily AI Research · 2026-10-12 Asia/Taipei</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
