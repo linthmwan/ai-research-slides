@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TS-Attn: Temporal-wise Separable Attention for Multi-Event Video Generation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">DAILY AI RESEARCH · WED · VIDEO / TEMPORAL MODELS</div>
+      <h1 class="title">TS-Attn</h1>
+      <p class="lead">Temporal-wise Separable Attention for Multi-Event Video Generation</p>
+      <div class="sub">不訓練、不重生影片；只在早期 cross-attention 把「這一幀該看哪個事件」重新排好。</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv v1 · 2026-04-21</span></div>
+      <div class="authors">Hongyu Zhang et al. · Peking University Shenzhen Graduate School, Zhejiang University, Nankai University, MIT, Nanjing University, UC Santa Barbara</div>
+      <figure class="full" style="max-height:28vh;"><img src="figures/figure1_p1.jpg" alt=""><figcaption>Figure 1 · TS-Attn overview, examples, and latency-performance trade-off. (p.1)</figcaption></figure>
+      <p class="note">Full paper title: TS-Attn: Temporal-wise Separable Attention for Multi-Event Video Generation</p>
+      <div class="cite">Paper cover p.1 · arXiv:2604.19473 · OpenReview: QixNhagZ9t</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">讓 motion token 對準<b>此刻</b>對應的 event token；其餘事件仍留在全域 context，不用硬切掉。</p>
+      <div class="takeaway">Wan2.2-A14B：StoryEval-Bench average 48.3% → <b>56.2%</b>，單張 A100 latency 846 s → 863 s。</div>
+      <div class="cite">Abstract pp.1–2 · Table 1 p.8 · Table 3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE PROBLEM</div>
+      <h2 class="head">Multi-event prompts force a bad trade-off</h2>
+      <div class="two-col"><div><p class="col-hint">MULTI-PROMPT / CLIP-BY-CLIP</p><ul class="bullets"><li>每個短 prompt 的 action fidelity 較好。</li><li>但重複生成、KV / noise stitching 帶來 drift、時間不連續和昂貴的延遲。</li></ul></div><div><p class="col-hint">ONE GLOBAL COMPLEX PROMPT</p><ul class="bullets"><li>同一個 generation pass 保留全域 coherence。</li><li>但 event omission 與 temporal hallucination 增加；模型不會在正確時段回應每個 action。</li></ul></div></div>
+      <div class="takeaway">目標不是二選一：保留 single-pass coherence，同時讓 event-following 有時間感。</div>
+      <div class="cite">§1 pp.2–3 · §2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DIAGNOSIS</div>
+      <h2 class="head">Vanilla cross-attention mixes events in the same frame</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure2_p3.jpg" alt=""><figcaption>Figure 2 · TS-Attn separates action attention over time; vanilla attention couples multiple event verbs. (p.3)</figcaption></figure>
+      <div class="takeaway">兩個根因：<b>motion-event temporal misalignment</b>，以及跨事件 verb 對同一 video region 的 attention coupling。</div>
+      <div class="cite">§3.1 p.4 · Figure 2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHAT THE PAPER CONTRIBUTES</div>
+      <h2 class="head">A small intervention with a clear causal story</h2>
+      <ol class="numbered"><li>先在 Wan2.2-A14B 的 early-denoising attention map 找出錯誤對齊。</li><li>以 motion-region mask 限制修改範圍，不碰無關背景 token。</li><li>依 temporal interval 對 matching event 加正 bias、other events 加負 bias。</li><li>以 attention sharpness 自適應調整介入強度；套件式接到多個 backbone。</li></ol>
+      <div class="cite">§1 pp.2–3 · §3 pp.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ARCHITECTURE</div>
+      <h2 class="head">TS-Attn replaces early cross-attention, not the full model</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure3_p4.jpg" alt=""><figcaption>Figure 3 · Motion Region Extraction (MRE) feeds Event-Aware Attention Modulation (EAM). (p.4)</figcaption></figure>
+      <div class="takeaway">Only early denoising cross-attention is changed: first <b>20%</b> steps for T2V and first <b>40%</b> for I2V.</div>
+      <div class="cite">§3.2 p.5 · §4.1 p.7 · Figure 3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">INPUT TO THE MECHANISM</div>
+      <h2 class="head">An event list becomes coarse temporal intervals</h2>
+      <div class="two-col"><div><p class="col-hint">PROMPT</p><p class="lead">“A cat watches a fish, dips its paw, then takes it out.”</p><ul class="bullets"><li>Events are parsed into [e<sub>1</sub>, e<sub>2</sub>, ..., e<sub>m</sub>].</li><li>Video queries are segmented into [Q<sub>1</sub>, Q<sub>2</sub>, ..., Q<sub>m</sub>].</li></ul></div><div><p class="col-hint">INTERVAL SOURCE</p><ul class="bullets"><li>User input, uniform segmentation, or GPT-4o-mini planning.</li><li>The paper reports minimal final-performance differences among them.</li><li>So exact timestamp labels are not the core dependency.</li></ul></div></div>
+      <div class="takeaway">It needs a time plan, but a <b>rough</b> plan is enough because routing is soft rather than a hard isolation mask.</div>
+      <div class="cite">§3.2 p.5 · Appendix E p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 1 · MRE</div>
+      <h2 class="head">Find where the subject is moving before changing attention</h2>
+      <div class="formula">A<sub>s</sub> = mean(subject-token attention) &nbsp; ; &nbsp; M<sub>s</sub> = erode(A<sub>s</sub> &gt;= mean(A<sub>s</sub>), K=3)</div>
+      <ul class="bullets"><li>Average attention over the subject’s text tokens to get a semantic layout.</li><li>Threshold at its own mean; erosion with K=3 removes scattered noise.</li><li>Use M<sub>s</sub> to confine modulation to motion-related foreground tokens.</li></ul>
+      <div class="takeaway">This is the guardrail: attention routing is not applied indiscriminately to the background.</div>
+      <div class="cite">§3.3 p.5 · Eqs.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 2 · REARRANGEMENT</div>
+      <h2 class="head">For interval Q<sub>i</sub>, reward e<sub>i</sub> and suppress other events</h2>
+      <div class="two-col"><div><p class="col-hint">MATCHING EVENT</p><div class="formula">B(Q<sub>i</sub>, K) = b<sup>+</sup><sub>i</sub> &nbsp; if token belongs to e<sub>i</sub></div><ul class="bullets"><li>Positive bias is derived from max(Q<sub>i</sub>K<sup>T</sup>) - mean(Q<sub>i</sub>K<sup>T</sup>).</li><li>Creates a strong temporal correspondence for the motion token.</li></ul></div><div><p class="col-hint">NONMATCHING EVENTS</p><div class="formula">B(Q<sub>i</sub>, K) = b<sup>-</sup><sub>i</sub> &nbsp; if token belongs to e<sub>j</sub>, j != i</div><ul class="bullets"><li>Negative bias is min(Q<sub>i</sub>K<sup>T</sup>) - mean(Q<sub>i</sub>K<sup>T</sup>).</li><li>Remaining prompt context has zero bias.</li></ul></div></div>
+      <div class="cite">§3.4 p.6 · Eqs.4–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 2 · REINFORCEMENT</div>
+      <h2 class="head">If the routing signal is flat, push harder — only as much as needed</h2>
+      <div class="formula">r<sup>+</sup><sub>i</sub> = r<sub>min</sub> + (1 - p'<sub>i</sub>) x (r<sub>max</sub> - r<sub>min</sub>) &nbsp; ; &nbsp; r<sub>min</sub>=1, r<sub>max</sub>=1.5</div>
+      <ul class="bullets"><li>Weak matching-event attention receives a larger positive strength.</li><li>Strong nonmatching-event attention receives a larger negative strength.</li><li>The factor R scales rearrangement B; it does not replace temporal routing.</li></ul>
+      <div class="takeaway">Reinforcement is adaptive calibration, not a generic “make attention bigger” trick.</div>
+      <div class="cite">§3.4 p.6 · Eqs.8–11</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM CROWN</div>
+      <p class="big">主要增益來自 <b>rearrangement</b>：把 attention 的時間歸屬重分配。<br>Reinforcement 只在分布太平時，補上強度。</p>
+      <div class="takeaway">Appendix ablation explicitly says removing rearrangement causes the larger drop; reinforcement alone lacks temporal correspondence.</div>
+      <div class="cite">§3.4 p.6 · Appendix D p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FULL OPERATOR</div>
+      <h2 class="head">A mask gates a time-aware, strength-aware bias inside softmax</h2>
+      <div class="formula">A = softmax((QK<sup>T</sup> + M<sub>s</sub> x R(Q,K) x B(Q,K)) / sqrt(d))</div>
+      <div class="two-col"><div><ul class="bullets"><li>M<sub>s</sub>: where to intervene — motion regions only.</li><li>B(Q,K): which event should own this temporal segment.</li></ul></div><div><ul class="bullets"><li>R(Q,K): how strongly to act when attention is flat.</li><li>softmax preserves a soft distribution rather than hard-blocking all context.</li></ul></div></div>
+      <div class="cite">§3.4 p.5 · Eq.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h2 class="head">StoryEval-Bench targets consecutive events, not just image quality</h2>
+      <div class="two-col"><div><p class="col-hint">T2V</p><div class="scorebox"><span class="score score--hi">423 prompts</span><span class="score score--hi">7 classes</span><span class="score score--hi">2–4 events/prompt</span></div><ul class="bullets"><li>GPT-4o and LLaVA-OV-Chat-72B evaluate event completeness, temporal accuracy, and subject consistency.</li></ul></div><div><p class="col-hint">I2V EXTENSION</p><ul class="bullets"><li>No existing multi-event I2V benchmark: authors construct StoryEval-Bench-I2V.</li><li>GPT-4o rewrites the initial state; Qwen-Image synthesizes the first frame.</li><li>423 image-text pairs keep the original prompt categories and evaluation method.</li></ul></div></div>
+      <div class="cite">§4.1 pp.7–8 · Appendix B pp.14–15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · T2V</div>
+      <h2 class="head">The plug-in improves every tested backbone on GPT-4o StoryEval-Bench</h2>
+      <table class="bench"><thead><tr><th>Backbone</th><th class="num">Base avg.</th><th class="num">TS-Attn avg.</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>CogVideoX-5B</td><td class="num">16.4%</td><td class="num best">25.8%</td><td class="num">+9.4</td></tr><tr class="win"><td>Wan2.1-1.3B</td><td class="num">29.1%</td><td class="num best">37.6%</td><td class="num">+8.5</td></tr><tr class="win"><td>Wan2.1-14B</td><td class="num">37.6%</td><td class="num best">50.2%</td><td class="num">+12.6</td></tr><tr class="win"><td>Wan2.2-A14B</td><td class="num">48.3%</td><td class="num best">56.2%</td><td class="num">+7.9</td></tr></tbody></table>
+      <div class="takeaway">The paper also reports a 33.5% relative increase for Wan2.1-14B (37.6% → 50.2%).</div>
+      <div class="cite">Table 1 p.8 · §4.3 pp.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · I2V</div>
+      <h2 class="head">The same attention intervention transfers to image-conditioned video</h2>
+      <table class="bench"><thead><tr><th>Backbone</th><th class="num">Base avg.</th><th class="num">TS-Attn avg.</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>CogVideoX-I2V-5B</td><td class="num">19.6%</td><td class="num best">28.3%</td><td class="num">+8.7</td></tr><tr class="win"><td>Wan2.1-I2V-14B</td><td class="num">37.0%</td><td class="num best">42.6%</td><td class="num">+5.6</td></tr><tr class="win"><td>Wan2.2-I2V-A14B</td><td class="num">47.5%</td><td class="num best">54.4%</td><td class="num">+6.9</td></tr></tbody></table>
+      <div class="takeaway">The intervention is architecture-agnostic within the tested cross-attention video generators, rather than tuned to one T2V model.</div>
+      <div class="cite">Table 2 p.8 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EFFICIENCY</div>
+      <h2 class="head">Single-pass routing avoids the multi-prompt latency bill</h2>
+      <table class="bench"><thead><tr><th>Model / method</th><th class="num">Latency (s)</th><th class="num">Relative to Wan2.2</th></tr></thead><tbody><tr><td>Wan2.2-A14B</td><td class="num">846</td><td class="num">1.00x</td></tr><tr class="win"><td>Wan2.2 + TS-Attn</td><td class="num best">863</td><td class="num">1.02x</td></tr><tr><td>Wan2.2 + MEVG</td><td class="num">2453</td><td class="num">2.90x</td></tr><tr><td>Wan2.2 + DiTCtrl</td><td class="num">2749</td><td class="num">3.25x</td></tr><tr><td>MAGI-1-24B</td><td class="num">2732</td><td class="num">3.23x</td></tr></tbody></table>
+      <p class="note">Table uses 480x832 videos on one A100; TS-Attn total includes an average 2.65 s GPT-4o-mini temporal-segmentation call.</p>
+      <div class="cite">Table 3 p.9 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">QUALITATIVE · T2V</div>
+      <h2 class="head">The evaluation asks whether each event actually happens</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure4_p7.jpg" alt=""><figcaption>Figure 4 · Multi-event T2V qualitative comparison; top-left lists jointly assessed event completion. (p.7)</figcaption></figure>
+      <div class="takeaway">The intended comparison is event sequence completion and smooth transitions, not a single attractive still frame.</div>
+      <div class="cite">Figure 4 p.7 · §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">QUALITATIVE · I2V</div>
+      <h2 class="head">Image conditioning does not solve temporal action execution by itself</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure5_p7.jpg" alt=""><figcaption>Figure 5 · Multi-event I2V qualitative comparison with event completion scores. (p.7)</figcaption></figure>
+      <div class="takeaway">TS-Attn is meant to retain the initial visual condition while correcting what happens across time.</div>
+      <div class="cite">Figure 5 p.7 · §4.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION</div>
+      <h2 class="head">EAM helps; MRE supplies the second, substantial gain</h2>
+      <table class="bench"><thead><tr><th>Wan2.2-A14B variant</th><th class="num">Easy</th><th class="num">Hard</th><th class="num">Average</th></tr></thead><tbody><tr><td>Baseline</td><td class="num">60.3%</td><td class="num">34.0%</td><td class="num">48.3%</td></tr><tr><td>+ EAM</td><td class="num">66.2%</td><td class="num">39.8%</td><td class="num">51.9%</td></tr><tr class="win"><td>+ EAM & MRE</td><td class="num best">70.5%</td><td class="num best">44.3%</td><td class="num best">56.2%</td></tr></tbody></table>
+      <div class="takeaway">The result supports the paper’s causal decomposition: <b>route attention in time</b>, then restrict the operation to <b>motion regions</b>.</div>
+      <div class="cite">Table 4 p.9 · §4.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY THE MASK MATTERS</div>
+      <h2 class="head">Without MRE, background tokens become collateral damage</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure7_p15.jpg" alt=""><figcaption>Figure 7 · Omitting the motion-region mask can introduce background flicker and degrade video quality. (p.15)</figcaption></figure>
+      <div class="takeaway">“More control” is not enough. The intervention must know <b>where not to act</b>.</div>
+      <div class="cite">§4.4 p.9 · Figure 7 pp.14–15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ROBUSTNESS</div>
+      <h2 class="head">Segmentation quality is a low-sensitivity knob</h2>
+      <div class="two-col"><div><p class="col-hint">SUPPORTED CHOICES</p><ul class="bullets"><li>Uniform segments by number of events.</li><li>User-provided interval ratios.</li><li>GPT-4o-mini event planning (about 2–3 s per prompt).</li></ul></div><div><p class="col-hint">PAPER’S INTERPRETATION</p><ul class="bullets"><li>Final-performance differences are minimal.</li><li>Overlapping event intervals do not significantly hurt performance.</li><li>Soft redistribution guides a primary focus, not total event isolation.</li></ul></div></div>
+      <div class="cite">Appendix E p.16 · Figure 8 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SCOPE / LIMITS</div>
+      <h2 class="head">The paper is explicit about the boundary conditions</h2>
+      <ul class="bullets"><li>Main method exposition is single-subject; multi-subject use sums each subject’s mask and modulation terms, without recomputing the attention matrix.</li><li>Van’s standard generation length is described as up to about 5 seconds and no more than 5 reasonably expressed events.</li><li>For more events, the paper applies TS-Attn to LongCat-Video-13.6B and splits 9 events into 3 clips.</li><li>A temporal plan is still required — robustness to coarse segmentation is not the same as removing planning.</li></ul>
+      <div class="cite">Appendix A p.14 · Appendix I pp.17–18 · Appendix E p.16</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · AUTHOR WORDING</div>
+      <h2 class="head">Three lines worth keeping</h2>
+      <div class="hl"><p class="hl__en">“TS-Attn first extracts and thresholds the cross-attention map associated with the event-performing entity to identify the motion-related regions.”</p><p class="hl__zh">先定位執行事件主體所對應的 motion region，再決定在哪裡修改 attention。<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">“Attention rearrangement contributes more to performance improvement... attention reinforcement... serves more as a supporting component.”</p><p class="hl__zh">重排是主要機制；強化是依分布狀態調節的輔助機制。<span class="hl__src">Appendix D p.15</span></p></div>
+      <div class="hl"><p class="hl__en">“TS-Attn only requires a rough temporal segmentation to effectively perform reasonable attention reallocation.”</p><p class="hl__zh">時間切分可以粗，但 attention 的重新分配必須對。<span class="hl__src">Appendix E p.16</span></p></div>
+      <div class="cite">§1 p.2 · Appendix D p.15 · Appendix E p.16</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Takeaway</h2>
+      <p class="end__sub">Multi-event video generation does not necessarily need a new model or a new training run. TS-Attn changes the temporal ownership of attention where motion happens.</p>
+      <div class="end__next">Tomorrow · Attention / kernel / hardware acceleration</div>
+      <div class="cite">TS-Attn · ICLR 2026 · arXiv:2604.19473</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
