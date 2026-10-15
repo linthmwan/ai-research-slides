@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLA: Beyond Sparsity in Diffusion Transformers via Fine-Tunable Sparse-Linear Attention</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · COMPUTE ACCELERATION</div>
+      <h1 class="title">SLA: Beyond Sparsity in Diffusion Transformers via Fine-Tunable Sparse-Linear Attention</h1>
+      <p class="lead">讓稀疏注意力負責<strong>高秩關鍵塊</strong>，讓線性注意力補償<strong>低秩邊際塊</strong>。</p>
+      <div class="authors">Jintao Zhang et al. · Tsinghua University · UC Berkeley</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv:2509.24006v2</span><span class="badge date">2026-10-15 briefing</span></div>
+      <p class="note">Source paper submitted 2025-11-19; accepted archival fallback after daily arXiv discovery returned HTTP 429.</p>
+      <div class="cite">Source: paper cover p.1 · OpenReview forum eD8IPvNoZB</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">THE ONE-LINE THESIS</div>
+      <p class="big">不要把所有非關鍵注意力都丟掉。<br>把<strong>少量高秩</strong>部分算準，把<strong>大量低秩</strong>部分交給可學的線性補償。</p>
+      <div class="takeaway">SLA reports 95% attention sparsity while retaining its reported video quality.</div>
+      <div class="cite">Abstract p.1 · §3.2 p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 · BOTTLENECK</div>
+      <h2 class="head">影片 DiT 的問題不是 attention 很貴而已</h2>
+      <ul class="bullets"><li>Video Diffusion Transformer 的序列長度通常是 <b>10K–100K tokens</b>。</li><li>Attention 是 Transformer 中唯一隨序列長度呈二次成長的主操作。</li><li>因此只把 kernel 做快不夠；要改變被計算的 attention 結構。</li></ul>
+      <div class="takeaway">目標是減少 attention 計算，同時不把影片品質換掉。</div>
+      <div class="cite">§1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">02 · WHY EXISTING ROUTES STALL</div>
+      <h2 class="head">Sparse-only 與 linear-only 各自卡住一半問題</h2>
+      <div class="two-col"><div><p class="col-hint">Sparse attention</p><ul class="bullets"><li>能保留精確高值，但在 <50K token 時通常只到 <b>40–60% sparsity</b>。</li><li>再往上切，邊際權重的誤差迅速累積。</li></ul></div><div><p class="col-hint">Linear attention</p><ul class="bullets"><li>理論上是 O(N) 路線，但直接套到影片 diffusion 會嚴重傷害品質。</li><li>它受可表示的低秩結構限制。</li></ul></div></div>
+      <div class="cite">§1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · EMPIRICAL CLUE</div>
+      <h2 class="head">權重分佈指出「什麼可以跳過」還不夠</h2>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure1_p3.jpg" alt="attention weight distribution and sparse error"><figcaption>Figure 1: skipping the smallest mass is cheap; retaining only the largest mass is not.</figcaption></figure>
+      <ul class="bullets"><li>約 <b>45%</b> 權重低於 1/(100N)：跳過後相對 L1 error <b><3%</b>。</li><li>只保留最大 <b>8.1%</b>（92% sparsity）：error 約 <b>33%</b>。</li></ul>
+      <div class="cite">Fig.1 · §3.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · STRUCTURAL OBSERVATION</div>
+      <h2 class="head">Top 8% preserves rank; bottom 92% becomes low-rank</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure3_p4.jpg" alt="rank decomposition of attention weights"><figcaption>Figure 3: high-rank structure is concentrated in the top weights.</figcaption></figure>
+      <div class="scorebox"><span class="score score--hi">full rank 6226</span><span class="score score--hi">top 8% rank 6230</span><span class="score score--lo">bottom 92% rank 9</span></div>
+      <div class="cite">Fig.3 · §3.2 p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM</div>
+      <p class="big"><strong>Sparsity</strong> is for the high-rank few.<br><strong>Low-rank / linear</strong> structure is for the many.</p>
+      <div class="formula">P = P x M + P x (1 - M)</div>
+      <div class="takeaway">The paper changes the target from “approximate all attention” to “route different attention structure to different computation.”</div>
+      <div class="cite">Eq.1 · §3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 · SLA ROUTING</div>
+      <h2 class="head">一個 compressed mask，三種運算路徑</h2>
+      <div class="two-col"><div><p class="col-hint">Mask construction</p><ul class="bullets"><li>Mean-pool Q and K, then form a compressed attention map P<sub>c</sub>.</li><li>Per row: top k<sub>h</sub>% -> critical; bottom k<sub>l</sub>% -> negligible; the rest -> marginal.</li></ul></div><div><p class="col-hint">Compute assignment</p><ul class="bullets"><li><b>Critical:</b> exact sparse FlashAttention</li><li><b>Marginal:</b> linear attention</li><li><b>Negligible:</b> skip</li></ul></div></div>
+      <div class="formula">P<sub>c</sub> = softmax(pool(Q) pool(K)<sup>T</sup> / sqrt(d))</div>
+      <div class="cite">Eq.2–3 · §4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 · CRITICAL PATH</div>
+      <h2 class="head">Critical blocks stay exact</h2>
+      <ul class="bullets"><li>Compressed mask selects the high-value blocks; only those run score, OnlineSoftmax, and value accumulation.</li><li>This preserves the rare high-rank content that linear attention cannot faithfully represent.</li><li>The implementation is blockwise, so it is compatible with sparse FlashAttention-style execution.</li></ul>
+      <div class="formula">S<sub>ij</sub> = Q<sub>i</sub>K<sub>j</sub><sup>T</sup> / sqrt(d) &nbsp; ; &nbsp; O<sub>s</sub> = sparse exact output</div>
+      <div class="cite">§4.1 · Eq.4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">07 · MARGINAL PATH</div>
+      <h2 class="head">Marginal blocks use aggregated linear statistics</h2>
+      <ul class="bullets"><li>For blocks marked marginal, SLA accumulates H<sub>i</sub> and Z<sub>i</sub> from phi(K)<sup>T</sup>V and row sums.</li><li>The operation avoids materializing an N x N matrix.</li><li>The paper precomputes per-K/V-block statistics so routing only requires additions.</li></ul>
+      <div class="formula">O<sub>l,i</sub> = phi(Q<sub>i</sub>) H<sub>i</sub> / (phi(Q<sub>i</sub>) Z<sub>i</sub>)</div>
+      <div class="cite">§4.2 · Eq.5 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">08 · THE IMPORTANT CAVEAT</div>
+      <h2 class="head">Linear attention is not claimed to approximate the marginal output directly</h2>
+      <div class="two-col"><div><p class="col-hint">What SLA does</p><ul class="bullets"><li>Combines exact sparse output with a projected linear branch.</li><li>Fine-tunes the model so it adapts to the altered computation.</li></ul></div><div><p class="col-hint">What SLA does not claim</p><ul class="bullets"><li>Linear-only attention is not sufficient for lossless video generation.</li><li>Simply adding independent sparse and linear outputs is not the same as SLA.</li></ul></div></div>
+      <div class="formula">O = O<sub>s</sub> + Proj(O<sub>l</sub>)</div>
+      <div class="takeaway">The learned projection manages the softmax-versus-linear distribution mismatch.</div>
+      <div class="cite">Eq.6 · §4.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">09 · TRAINING</div>
+      <h2 class="head">Fine-tuning is part of the method, not a footnote</h2>
+      <ul class="bullets"><li>Replace attention with SLA and fine-tune on data consistent with pretraining.</li><li>Main video setup: <b>2,000 steps</b>, batch <b>64</b>, using 20,000 five-second 480p videos.</li><li>The authors describe this as <b><0.1%</b> of typical pretraining cost.</li></ul>
+      <div class="takeaway">SLA buys its hybrid approximation with a small adaptation budget; it is not training-free.</div>
+      <div class="cite">§5 p.5 · §6.1 p.7 · §6.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">10 · GPU KERNEL</div>
+      <h2 class="head">The algorithm and the kernel are co-designed</h2>
+      <div class="two-col"><div><p class="col-hint">Forward / backward</p><ul class="bullets"><li>Sparse and linear components are fused into GPU kernels.</li><li>Backward computes gradients for both components with precomputed linear derivatives.</li></ul></div><div><p class="col-hint">High-sparsity engineering</p><ul class="bullets"><li>Lookup table reduces mask-scanning traffic above 90% sparsity.</li><li>Pre-aggregation changes many additions into fewer subtractions.</li></ul></div></div>
+      <div class="cite">§5.1–5.2 p.5–7 · Appendix A.3 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">11 · EXPERIMENT DESIGN</div>
+      <h2 class="head">Main benchmark: Wan2.1-1.3B video generation</h2>
+      <ul class="bullets"><li>Baselines include VSA, VMoBa, training-free Sparge-F, trainable Sparge-T, Linear Only, Sparse Only, and L+S.</li><li>Quality: VBench IQ / OC / AQ / SC, Vision Reward, VA, VT.</li><li>Cost: FLOPs, attention kernel FLOPS, and end-to-end generation latency.</li><li>Main routing hyperparameters: k<sub>h</sub> = 5%, k<sub>l</sub> = 10%, b<sub>q</sub> = b<sub>kv</sub> = 64.</li></ul>
+      <div class="cite">§6.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">12 · MAIN QUALITY / COMPUTE RESULT</div>
+      <h2 class="head">95% sparse SLA retains the reported quality while cutting FLOPs</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">VA</th><th class="num">VT</th><th class="num">FLOPs</th><th class="num">Sparsity</th></tr></thead><tbody><tr><td>Full Attention</td><td class="num">76.78</td><td class="num">82.88</td><td class="num">52.75T</td><td class="num">0%</td></tr><tr><td>VSA</td><td class="num">55.37</td><td class="num">64.61</td><td class="num">5.92T</td><td class="num">89%</td></tr><tr class="win"><td>SLA</td><td class="num best">76.96</td><td class="num best">83.92</td><td class="num best">2.74T</td><td class="num best">95%</td></tr></tbody></table>
+      <div class="takeaway">SLA reports roughly 19.3x efficiency gain over full attention, with VA/VT comparable to or above the listed full-attention values.</div>
+      <div class="cite">Tab.1 · §6.2 p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">13 · END-TO-END DOES NOT SCALE LIKE KERNEL SPEED</div>
+      <h2 class="head">Attention becomes cheap; other generation work remains</h2>
+      <table class="bench"><thead><tr><th>Measurement</th><th class="num">Result</th><th class="num">Comparison</th></tr></thead><tbody><tr class="win"><td>Forward attention kernel</td><td class="num best">13.7x</td><td class="num">vs FlashAttention2</td></tr><tr><td>Backward attention kernel</td><td class="num">6.8x</td><td class="num">vs FlashAttention2</td></tr><tr><td>Attention latency</td><td class="num">97s -> 11s</td><td class="num">8.8x reduction</td></tr><tr><td>Video generation E2E</td><td class="num">2.2x</td><td class="num">Wan2.1-1.3B</td></tr></tbody></table>
+      <div class="takeaway">The gap between 13.7x kernel speed and 2.2x end-to-end speed is an honest systems signal: attention is not the entire pipeline.</div>
+      <div class="cite">§6.3 p.8–9 · Fig.6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">14 · FUSION ABLATION</div>
+      <h2 class="head">Neither branch alone gives the SLA point</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">VA</th><th class="num">VT</th><th class="num">FLOPs</th><th class="num">Sparsity</th></tr></thead><tbody><tr><td>Linear Only</td><td class="num">0.042</td><td class="num">0.099</td><td class="num">0.10T</td><td class="num">100%</td></tr><tr><td>Sparse Only</td><td class="num">64.00</td><td class="num">70.50</td><td class="num">7.91T</td><td class="num">85%</td></tr><tr><td>L+S</td><td class="num">29.65</td><td class="num">41.15</td><td class="num">5.37T</td><td class="num">90%</td></tr><tr class="win"><td>SLA (softmax)</td><td class="num best">76.96</td><td class="num best">83.92</td><td class="num best">2.73T</td><td class="num best">95%</td></tr></tbody></table>
+      <div class="cite">Tab.2 · §6.4 p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">CROWN INSIGHT · WHY IT WORKS</div>
+      <p class="big">SLA 的增益不是「線性注意力夠準」。<br>而是<strong>先抽出高秩關鍵結構</strong>，再讓線性分支補償其餘可學的低秩部分。</p>
+      <div class="takeaway">The sparse mask is a structure separator, not merely a compute mask.</div>
+      <div class="cite">§3.2 p.4 · §4.2 p.5 · Tab.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">15 · EXACT-PATH BUDGET</div>
+      <h2 class="head">Keep only 5% exact blocks: the reported sweet spot</h2>
+      <table class="bench"><thead><tr><th>Critical top k_h</th><th class="num">VA</th><th class="num">VT</th><th class="num">FLOPs</th><th class="num">Sparsity</th></tr></thead><tbody><tr class="win"><td>5%</td><td class="num best">76.96</td><td class="num best">83.92</td><td class="num best">2.73T</td><td class="num best">95%</td></tr><tr><td>10%</td><td class="num">75.29</td><td class="num">82.20</td><td class="num">5.38T</td><td class="num">90%</td></tr><tr><td>20%</td><td class="num">75.81</td><td class="num">83.82</td><td class="num">10.65T</td><td class="num">80%</td></tr></tbody></table>
+      <div class="takeaway">More exact computation did not improve the reported quality enough to justify its FLOPs cost.</div>
+      <div class="cite">Tab.2 · §6.4 p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">16 · ACTIVATION ABLATION</div>
+      <h2 class="head">The compensation branch still needs a sensible feature map</h2>
+      <table class="bench"><thead><tr><th>SLA activation</th><th class="num">VA</th><th class="num">VT</th><th class="num">FLOPs</th></tr></thead><tbody><tr class="win"><td>softmax</td><td class="num best">76.96</td><td class="num best">83.92</td><td class="num best">2.73T</td></tr><tr><td>elu+1</td><td class="num">75.50</td><td class="num">81.01</td><td class="num">2.74T</td></tr><tr><td>hedgehog</td><td class="num">74.59</td><td class="num">82.62</td><td class="num">3.11T</td></tr></tbody></table>
+      <div class="takeaway">Within this experiment, softmax is the strongest reported choice for both quality and efficiency.</div>
+      <div class="cite">Tab.2 · §6.4 p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">17 · GENERALIZATION CHECK</div>
+      <h2 class="head">Appendix image generation points in the same direction</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">FID down</th><th class="num">FLOPs down</th><th class="num">Sparsity</th></tr></thead><tbody><tr><td>Full Attention</td><td class="num">31.87</td><td class="num">12.88G</td><td class="num">0%</td></tr><tr><td>VSA(2D)</td><td class="num">35.75</td><td class="num">3.62G</td><td class="num">75.00%</td></tr><tr class="win"><td>SLA</td><td class="num best">31.49</td><td class="num best">1.73G</td><td class="num best">87.50%</td></tr></tbody></table>
+      <p class="note">This is LightningDiT ImageNet 512x512 pretraining, reported in the appendix rather than the primary video experiment.</p>
+      <div class="cite">Tab.3 · Appendix A.2 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">18 · WHAT THE PAPER ACTUALLY ESTABLISHES</div>
+      <h2 class="head">Strong evidence, with bounded scope</h2>
+      <div class="two-col"><div><p class="col-hint">Supported by the paper</p><ul class="bullets"><li>A hybrid routed mechanism outperforms listed sparse / linear baselines on Wan2.1-1.3B.</li><li>A fused implementation has large measured kernel gains on RTX5090.</li><li>A small fine-tune can recover quality under this routing.</li></ul></div><div><p class="col-hint">Not established here</p><ul class="bullets"><li>A training-free replacement for video attention.</li><li>Exact reproducibility of the private video fine-tuning data.</li><li>Uniform benefits across every DiT, GPU, sparsity pattern, and production pipeline.</li></ul></div></div>
+      <div class="cite">§5–6 p.5–9 · Appendix A.2–A.3 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">19 · LIMITS</div>
+      <h2 class="head">Four practical boundaries</h2>
+      <ul class="bullets"><li>The main video data are private (Pexels and Common Crawl collection), so exact reproduction is constrained.</li><li>SLA requires a fine-tuning pass; it is not a drop-in inference-only method.</li><li>The kernel needs sparsity-regime-specific optimizations, which complicates implementation.</li><li>Primary video evidence centers on Wan2.1-1.3B; image results are supplementary.</li></ul>
+      <div class="cite">§5 p.5 · §6.1 p.7 · Appendix A.2–A.3 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">20 · ENGINEERING TAKEAWAY</div>
+      <h2 class="head">First discover the structure your accelerator should preserve</h2>
+      <ul class="bullets"><li>Start from error / rank anatomy, not only a target FLOPs percentage.</li><li>Route the irreplaceable component to exact computation; approximate only what has the right structure.</li><li>Treat kernel design, training adaptation, and model approximation as one system.</li><li>Report both kernel and end-to-end speed: their difference says where the next bottleneck is.</li></ul>
+      <div class="takeaway">The useful abstraction is heterogeneous attention computation, not a single universal “efficient attention” trick.</div>
+      <div class="cite">Synthesis grounded in §3–6 and Appendix A.3</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER HIGHLIGHTS</div>
+      <h2 class="head">Three lines that define the claim</h2>
+      <div class="hl"><p class="hl__en">“attention weights can be decoupled into two matrices: a small fraction of large weights with high rank and the remaining weights with very low rank.”</p><p class="hl__zh">注意力權重可拆為少量高秩大權重，以及大量非常低秩的其餘權重。<span class="hl__src">Abstract p.1</span></p></div>
+      <div class="hl"><p class="hl__en">“Linear attention in SLA does not approximate the output corresponding to marginal attention weights, but serves as a learnable compensation...”</p><p class="hl__zh">SLA 的線性分支不是直接近似邊際輸出，而是作為可學習的補償。<span class="hl__src">§4.2 p.5</span></p></div>
+      <div class="cite">Verbatim paper excerpts with Chinese glosses</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · REVIEWER STATUS</div>
+      <h2 class="head">Venue is confirmed; review data are not claimed</h2>
+      <ul class="bullets"><li>OpenReview search identifies this paper as <b>ICLR 2026 Poster</b>.</li><li>The ingest attempt against the OpenReview reviewer endpoint returned <b>HTTP 403</b>.</li><li>Therefore this deck includes no reviewer score, critique, or rebuttal inference.</li></ul>
+      <p class="note">This is deliberately a data-availability statement, not a claim about review quality.</p>
+      <div class="cite">OpenReview forum eD8IPvNoZB · ingest log</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">SLA in one sentence</h2>
+      <p class="end__sub">Preserve the high-rank few exactly; learn to compensate the low-rank many; skip only what is negligible.</p>
+      <div class="end__next">Tomorrow: model compression / efficiency — quantization, distillation, pruning.</div>
+      <div class="cite">Paper: SLA · arXiv:2509.24006 · ICLR 2026 Poster</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
