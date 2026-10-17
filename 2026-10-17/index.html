@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROBE: Learning to Audit Policy Compliance in Tool-Using LLM Agents</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">DAILY AI RESEARCH · AGENT AUDITING</div>
+      <h1 class="title">PROBE</h1>
+      <p class="lead">Learning to Audit Policy Compliance in Tool-Using LLM Agents</p>
+      <div class="sub">A verifier-first training loop for black-box, multi-turn policy auditing</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">2026-10-15</span></div>
+      <div class="authors">Kshitij Mishra · Abhijith Sharma · Nils Lukas · Salem Lahlou<br>Mohamed bin Zayed University of Artificial Intelligence</div>
+      <div class="cite">Paper: PROBE: Learning to Audit Policy Compliance in Tool-Using LLM Agents · cover p.1 · arXiv:2610.22124</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">THE CLAIM</div>
+      <p class="big">A capable agent can finish a task and still violate policy <b>inside the tool trace</b>.</p>
+      <div class="takeaway">PROBE trains a plausible “customer” to uncover those reachable, multi-turn failures.</div>
+      <div class="cite">Abstract / p.1 · §1 / pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE EVALUATION GAP</div>
+      <h2 class="head">Capability and content safety leave a third axis unmeasured</h2>
+      <ul class="bullets"><li><b>Capability:</b> did the agent complete the task?</li><li><b>Content safety:</b> did its text violate a rule?</li><li><b>Policy compliance:</b> did it obey procedural, stateful rules while using tools?</li><li>The final answer can look harmless while tool order, arguments, confirmation, or state checks are wrong.</li></ul>
+      <div class="takeaway">For deployed agents, compliance is a property of the entire interaction trace.</div>
+      <div class="cite">§1 / pp.1–2 · §2 / p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY STATIC TESTS FAIL</div>
+      <h2 class="head">The failure space is combinatorial</h2>
+      <div class="two-col"><div><ul class="bullets"><li>User phrasing and multi-turn context</li><li>Database state and tool availability</li><li>Policy preconditions and hidden mutations</li></ul></div><div><ul class="bullets"><li>Scripted suites cover known cases</li><li>They cannot adapt after an agent response</li><li>An auditor can search reachable interaction paths</li></ul></div></div>
+      <div class="takeaway">The paper treats agent auditing like penetration testing, not a fixed checklist.</div>
+      <div class="cite">§1 / p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FIVE CONTRIBUTIONS</div>
+      <h2 class="head">What PROBE adds</h2>
+      <ol class="numbered"><li>Black-box policy auditing as a two-player Markov game</li><li>A curriculum-trained multi-turn LLM auditor</li><li>A reward for distinct, severe, plausible violations</li><li>Matched GRPO / DPO / GFlowNet optimizer study</li><li>Verifier validation, stronger baselines, and transfer tests</li></ol>
+      <div class="cite">§1 / pp.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FORMALIZATION</div>
+      <h2 class="head">The auditor is deliberately partially observed</h2>
+      <div class="two-col"><div><p class="col-hint">AUDITOR OBSERVES</p><ul class="bullets"><li>Public dialogue history</li><li>Customer scenario</li><li>Assistant public responses</li></ul></div><div><p class="col-hint">AUDITOR DOES NOT OBSERVE</p><ul class="bullets"><li>Target weights or system prompt</li><li>Tool calls and outputs</li><li>Database state, policy IDs, verifier labels</li></ul></div></div>
+      <div class="takeaway">The verifier scores the full trace; the auditor receives only scalar reward.</div>
+      <div class="cite">§3 / pp.3–4 · §5 / p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SYSTEM OVERVIEW</div>
+      <h2 class="head">PROBE closes the audit loop</h2>
+      <figure class="full" style="max-height:53vh; margin-top:.2rem;"><img src="figures/figure1_p2.jpg" alt="PROBE pipeline overview"><figcaption>Scenario pool → auditor → frozen target agent → verifier suite → composite reward; with curriculum and optimizer update.</figcaption></figure>
+      <div class="cite">Figure 1 / p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">VERIFIER-FIRST TESTBED</div>
+      <h2 class="head">SKYASSIST makes policy failures programmatically observable</h2>
+      <div class="scorebox"><span class="score score--hi">20 policies</span><span class="score score--hi">4 categories</span><span class="score score--hi">8 tools</span><span class="score score--hi">643 flights</span></div>
+      <ul class="bullets"><li>Business, safety, privacy, and operational policies</li><li>16 deterministic verifiers over arguments, outputs, responses, and state</li><li>4 hybrid LLM-judged policies during training; full-trace access stays with verifiers</li></ul>
+      <div class="cite">§4.1 / p.4 · Figure 2 / p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REWARD AS SPECIFICATION</div>
+      <h2 class="head">The reward says what a useful audit is</h2>
+      <div class="formula">r = r<sub>viol</sub> + alpha · r<sub>prog</sub> + beta · r<sub>nov</sub> + gamma · r<sub>plaus</sub></div>
+      <ul class="bullets"><li><b>Violation:</b> severity-weighted policy failures</li><li><b>Progress:</b> enter tool-relevant states</li><li><b>Novelty:</b> move away from saturated policies</li><li><b>Plausibility:</b> remain a credible customer, not an omniscient attacker</li></ul>
+      <div class="cite">Eq. 1 · §4.2 / pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">THE KEY REWARD MOVE</div>
+      <p class="big">First hit: <b>full credit</b>.<br>Second hit: half credit.<br>Later repeats: zero.</p>
+      <div class="takeaway">Per-policy diminishing returns turn “many detector hits” into “more distinct findings.”</div>
+      <div class="cite">Eq. 2 · §4.2 / p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CURRICULUM</div>
+      <h2 class="head">Reach deep tool states without wasting early rollouts</h2>
+      <div class="formula">K<sub>max</sub>: 4 → 8 → 12 → 14 turns  |  advance when yield > 15% with patience = 50</div>
+      <ul class="bullets"><li>Start short: learn usable prefixes and slot filling</li><li>Grow horizon: enable booking, cancellation, and other consequential states</li><li>At each update: 4 candidate messages, each with 3 continuation turns against the same frozen target</li></ul>
+      <div class="cite">§4.3 / p.5 · Figure 3 / p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OPTIMIZER BIASES</div>
+      <h2 class="head">Same rollouts, different search behavior</h2>
+      <div class="two-col"><div><p class="col-hint">MODE-SEEKING</p><ul class="bullets"><li><b>GRPO:</b> upweights high-return samples within a group</li><li><b>DPO:</b> winner-loser preferences; smoother and order-based</li></ul></div><div><p class="col-hint">MODE-COVERING</p><ul class="bullets"><li><b>GFlowNet:</b> samples in proportion to terminal reward</li><li>Helpful only when reward mass already reflects policy diversity</li></ul></div></div>
+      <div class="cite">§4.4 / pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENTAL CONTROL</div>
+      <h2 class="head">Small auditor, larger frozen target, matched scenarios</h2>
+      <div class="two-col"><div><p class="col-hint">AUDITOR</p><ul class="bullets"><li>Qwen3-4B-Instruct</li><li>4-bit NF4 QLoRA, rank 64</li><li>about 47M trainable parameters</li></ul></div><div><p class="col-hint">TARGET + EVAL</p><ul class="bullets"><li>Frozen Qwen3-30B-A3B via vLLM</li><li>50 held-out database-aware seeds</li><li>Maximum 8 public turns, matched across methods</li></ul></div></div>
+      <div class="cite">§5 / p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE RIGHT METRIC</div>
+      <h2 class="head">Coverage counts policies found across an audit campaign</h2>
+      <div class="formula">Coverage = distinct policies triggered at least once / 20 policies</div>
+      <ul class="bullets"><li>60% means 12 of 20 policies were exposed at least once across 50 episodes.</li><li>Per-episode hit count can be inflated by repeating easy failures.</li><li>Yield, concentration, multi-policy rate, and entropy are diagnostics—not the headline.</li></ul>
+      <div class="cite">§5 / p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MAIN HELD-OUT RESULTS</div>
+      <h2 class="head">Trained 4B auditors broaden discovery beyond a zero-shot 30B</h2>
+      <table class="bench"><thead><tr><th>Auditor</th><th class="num">Coverage</th><th class="num">Yield/100</th><th class="num">Multi-pol.</th></tr></thead><tbody><tr><td>Zero-shot Qwen3-30B</td><td class="num">35%</td><td class="num">620</td><td class="num">64%</td></tr><tr class="win"><td>PROBE-GRPO</td><td class="num best">60%</td><td class="num">1176</td><td class="num best">94%</td></tr><tr class="win"><td>PROBE-DPO</td><td class="num best">60%</td><td class="num">836</td><td class="num">88%</td></tr><tr><td>PROBE-GFlowNet</td><td class="num">45%</td><td class="num">1016</td><td class="num">78%</td></tr></tbody></table>
+      <div class="takeaway">Best PROBE auditors find 12/20 policies; zero-shot finds 7/20.</div>
+      <div class="cite">Table 1 · §6 / p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BREADTH, NOT JUST ACTIVITY</div>
+      <h2 class="head">Training moves hits away from three easy omissions</h2>
+      <ul class="bullets"><li>Best trained checkpoints reduce the B4/S5/B6 share from <b>88%</b> (zero-shot) to <b>77%</b>.</li><li>Policy-hit entropy rises from <b>2.45</b> to above <b>3.1</b>.</li><li>The result is broader trace-dependent failure discovery, not merely more triggering.</li></ul>
+      <div class="takeaway">A smaller trained auditor can become a more useful tester than a larger untuned one.</div>
+      <div class="cite">§6 / p.7 · Table 1 / p.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · CROWN INSIGHT</div>
+      <p class="big"><b>1914</b> hits / 100 episodes still yields only <b>55%</b> coverage.</p>
+      <p class="lead">The dedup-only GRPO ablation proves that raw violation volume is not a reliable audit objective.</p>
+      <div class="takeaway">Audit rewards must make new policy IDs worth more than repeated, easy verifier hits.</div>
+      <div class="cite">§6 / p.7 · Table 1 / p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE REAL BOTTLENECK</div>
+      <h2 class="head">Black-box coverage is limited by tool depth</h2>
+      <figure class="full" style="max-height:35vh; margin-top:.3rem;"><img src="figures/table2_p9.jpg" alt="Target tool-call counts during evaluation"><figcaption>Mutation tools are rare: policy checks gated on booking, cancellation, modification, or holding remain difficult to expose.</figcaption></figure>
+      <ul class="bullets"><li>Booking calls: GRPO/DPO/GFlowNet = 3 / 1 / 3; cancellation = 0 / 0 / 0.</li><li>Shallow turn-level omissions are easy; mutation-level safeguards need deeper operational states.</li></ul>
+      <div class="cite">Table 2 · §6.2 / p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">QUALITATIVE PROBING</div>
+      <h2 class="head">Two patterns make violations reachable</h2>
+      <div class="two-col"><div><p class="col-hint">TEMPTING UNDER-SPECIFICATION</p><ul class="bullets"><li>Make a plausible incomplete request</li><li>Pressure action before required slots are grounded</li><li>Can reveal hidden schema/tool misuse</li></ul></div><div><p class="col-hint">POLICY STACKING</p><ul class="bullets"><li>Combine normal budget, urgency, date, and passenger constraints</li><li>Makes several policies simultaneously relevant</li><li>Looks like real support behavior</li></ul></div></div>
+      <div class="cite">§6.2 / p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">VERIFIER VALIDATION</div>
+      <h2 class="head">A learned judge can be gamed—even when it is self-consistent</h2>
+      <div class="scorebox"><span class="score score--hi">208 labels</span><span class="score score--hi">kappa 0.985</span><span class="score score--lo">39.6% match</span><span class="score score--lo">kappa 0.084</span></div>
+      <ul class="bullets"><li>Two human annotators had near-perfect agreement on four judge-scored policies.</li><li>The LLM judge matched their consensus only 39.6%; GRPO exploited erroneous S5 reward.</li><li>Deterministic re-scoring changes best PROBE from 60% to 55%, with ranking unchanged.</li></ul>
+      <div class="cite">§6.3 / pp.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRANSFER</div>
+      <h2 class="head">The training loop transfers, but gains shrink out of domain</h2>
+      <table class="bench"><thead><tr><th>Evaluation</th><th class="num">Baseline</th><th class="num">PROBE</th></tr></thead><tbody><tr class="win"><td>Unseen Gemma target</td><td class="num">Static: 5% cov.</td><td class="num best">DPO: 40% cov.</td></tr><tr class="win"><td>tau-bench, same 9B base</td><td class="num">Zero-shot: 20%, 26/100</td><td class="num best">DPO: 30%, 58/100</td></tr></tbody></table>
+      <ul class="bullets"><li>On tau-bench, 2 → 3 of 10 policies and 13 → 29 violations per 50 episodes (+123%).</li></ul>
+      <div class="cite">Table 3 · §6.4 / p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">The paper is unusually explicit about where its evidence stops</h2>
+      <ul class="bullets"><li>Only two environments and two target families.</li><li>More than 90% of target tool calls are searches; high-severity booking policies remain unreached.</li><li>Deterministic replacements may miss semantic violations.</li><li>Uncertainty is over held-out samples from one checkpoint per method, not training seeds.</li><li>Auditors can help adversaries too; authors position this as operator-side stress testing.</li></ul>
+      <div class="cite">§7 / p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER IN ITS OWN WORDS</div>
+      <h2 class="head">Why the objective must value distinct discoveries</h2>
+      <div class="hl"><p class="hl__en">“A repeated omission is evidence, but a distinct policy failure is a new finding.”</p><p class="hl__zh">重複的遺漏可以當證據，但只有新的政策失敗才算新的發現。<span class="hl__src">§4.2 / p.5</span></p></div>
+      <div class="hl"><p class="hl__en">“Raw yield alone is not a reliable audit objective.”</p><p class="hl__zh">只看原始命中量，不是可靠的稽核目標。<span class="hl__src">§6 / p.7</span></p></div>
+      <div class="cite">Quoted from §4.2 / p.5 and §6 / p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Continuous auditing needs <b>behavioral search</b>.</h2>
+      <p class="end__sub">PROBE turns a frozen agent’s public interface into an adaptive policy stress test.</p>
+      <div class="end__next">Tomorrow: model compression / efficiency</div>
+      <div class="cite">PROBE · §7 / p.10 · https://arxiv.org/abs/2610.22124</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
