@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI-Anything: Towards Agent-Native Computer Use</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">SUNDAY / GITHUB TRENDING x TECHNICAL REPORT</div>
+      <h1 class="title">CLI-Anything</h1>
+      <p class="lead">把 GUI 軟體 lift 成 agent-native、可驗證的 command contract</p>
+      <div class="authors">Yuhao Yang, Tianyu Fan, Chao Huang · University of Hong Kong</div>
+      <div class="meta-row"><span class="badge tier">arXiv technical report</span><span class="badge date">2026-06-02</span></div>
+      <p class="note">Selected from GitHub Trending: HKUDS/CLI-Anything. This is a technical report, not a peer-reviewed acceptance claim.</p>
+      <div class="cite">CLI-Anything: Towards Agent-Native Computer Use · Abstract p.1 · arXiv:2606.03854</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不要教 agent 模仿人類點擊；把軟體既有的 <b>state、backend、artifact</b> 變成可呼叫、可檢查、可重播的 contract。</p>
+      <p class="lead">GUI 保留給人類與 fallback；default control plane 改成 stateful CLI harness。</p>
+      <div class="cite">Abstract p.1 · Conclusion p.26</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE PROBLEM</div>
+      <h2 class="head">GUI 是人類的壓縮層，卻常是 agent 的資訊瓶頸</h2>
+      <ul class="bullets"><li><b>Pixels hide state:</b> focus、window、selection 與 project graph 被壓成畫面。</li><li><b>Motor noise:</b> click coordinates、hover、timing、resolution 與 modal transitions 不是任務語意。</li><li><b>Weak feedback:</b> command success 或畫面看似正常，不等於 export artifact 正確。</li><li><b>Missed substrate:</b> 很多應用本來已有 API、native format、renderer 或 headless backend。</li></ul>
+      <div class="cite">Abstract p.1 · §1 p.2 · §2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">INTERFACE BOUNDARY</div>
+      <h2 class="head">控制點從 screen mechanics 移到 artifact semantics</h2>
+      <div class="two-col"><div><h1 class="title">Human GUI</h1><ul class="bullets"><li>menus / click targets</li><li>focus changes / dialog timing</li><li>moving toolbars / platform drift</li><li>pixel observation</li></ul></div><div><h1 class="title">Agent contract</h1><ul class="bullets"><li>domain verbs + typed arguments</li><li>explicit project/session state</li><li>JSON inspection + durable history</li><li>render, export, verify, replay</li></ul></div></div>
+      <div class="takeaway">核心不是「把 GUI 刪掉」；而是把 GUI 從 truth boundary 降成 human display / fallback。</div>
+      <div class="cite">Fig.1 p.3 · §2 pp.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">REPORT CLAIMS</div>
+      <h2 class="head">五個可檢查的貢獻</h2>
+      <ol class="numbered"><li><b>Harness Lift SOP</b>：Locate → Model → Design → Implement → Render → Verify → Publish。</li><li><b>Minimal contract</b>：H = (S, C, I, R, V, D)。</li><li><b>Verification / execution symmetry</b>：builder 與 checker 在同一 artifact boundary 對齊。</li><li><b>Two lift modes</b>：外部 backend adapter，或 in-process runtime bridge。</li><li><b>CLI-Hub distribution</b>：skills、registry、installer 與 preview consumer。</li></ol>
+      <div class="cite">§1 p.2 · §3 pp.4–10 · §4 pp.11–20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM</div>
+      <h2 class="head">Harness Lift：從 interface archaeology 到 portable skill</h2>
+      <figure class="full" style="max-height:55vh; margin-top:.2rem;"><img src="figures/figure2_p5.jpg" alt="Harness Lift Pipeline"><figcaption>Figure 2: the report’s seven-stage lift pipeline.</figcaption></figure>
+      <div class="takeaway">品質門檻不是「command 回傳 0」，而是「使用者實際會打開的 artifact 已被驗證」。</div>
+      <div class="cite">Fig.2 p.5 · §3.1 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">HARNESS LIFT SOP</div>
+      <h2 class="head">七步驟各自把一段 GUI 隱含知識變成 explicit contract</h2>
+      <div class="two-col"><div><ol class="numbered"><li><b>01 Locate</b>：trace files、backend calls、rendered output。</li><li><b>02 Model</b>：命名 domain nouns、operations、constraints。</li><li><b>03 Design</b>：command grammar、JSON replies、recoverable errors。</li><li><b>04 Implement</b>：project state、session replay、undo / redo。</li></ol></div><div><ol class="numbered"><li><b>05 Render</b>：call real backend、export artifacts、build previews。</li><li><b>06 Verify</b>：unit / E2E、file + pixel probes。</li><li><b>07 Publish</b>：SKILL.md、registry metadata、install path。</li></ol></div></div>
+      <div class="cite">Fig.2 p.5 · §3.1 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MINIMAL CONTRACT</div>
+      <h2 class="head">H = (S, C, I, R, V, D) 是一個對 real backend 的完整操作面</h2>
+      <div class="formula">H = (S, C, I, R, V, D)</div>
+      <div class="two-col"><div><ul class="bullets"><li><b>S / State</b>：project、session、undo、preview artifacts。</li><li><b>C / Commands</b>：domain mutations 與 probes。</li><li><b>I / Inspection</b>：JSON status、list、info、history。</li></ul></div><div><ul class="bullets"><li><b>R / Render</b>：delegate to real software。</li><li><b>V / Verify</b>：E2E、format、pixel/media assertions。</li><li><b>D / Discovery</b>：SKILL.md、registry、installer、entry point。</li></ul></div></div>
+      <div class="cite">§3.2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRACT INVARIANTS</div>
+      <h2 class="head">跨軟體不統一 noun，統一的是六個 operational invariant</h2>
+      <ol class="numbered"><li><b>Explicit state</b>：workspace 必須可命名、儲存與 inspect。</li><li><b>Typed actions</b>：commands 映射到 domain operations，並回 actionable errors。</li><li><b>Cheap inspection</b>：下一步之前能問清楚 changed state。</li><li><b>Backend truth</b>：render/export 走真實軟體或 native backend。</li><li><b>Programmatic verification</b>：檢查使用者會開啟的 artifact。</li><li><b>Discoverability</b>：agent 可找到、安裝、讀取並 invoke interface。</li></ol>
+      <div class="cite">§3.2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">CROWN INSIGHT</div>
+      <p class="big">如果 checker 能在某個 file / package boundary 證明 truth，<br>builder 就該在同一 boundary 建構與 export。</p>
+      <p class="lead">Verification is not the last step; it reveals the right execution boundary.</p>
+      <div class="cite">§3.3 p.7 · Fig.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SYMMETRY IN PRACTICE</div>
+      <h2 class="head">同一 artifact boundary 把 build、inspect、diagnose、revise 串成 loop</h2>
+      <div class="two-col"><div><h1 class="title">Execution builder</h1><ul class="bullets"><li>commands choose state</li><li>backend writes native files</li><li>session records lineage</li><li>export target artifact</li></ul></div><div><h1 class="title">Verification checker</h1><ul class="bullets"><li>parse package / structure</li><li>count semantic objects</li><li>test pixels, media, metadata</li><li>write diagnosis, revise, re-export</li></ul></div></div>
+      <div class="takeaway">Exit code 只是 supporting evidence；structured artifact 才是 shared surface。</div>
+      <div class="cite">§3.3 pp.7–8 · Fig.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">STATEFUL CLI</div>
+      <h2 class="head">Agent workspace 不是一串 shell call，而是可恢復的 state graph</h2>
+      <ul class="bullets"><li><b>Persistent JSON project</b> 讓 agent inspect、diff 與 recover。</li><li><b>Session files + history</b> 保存 project path、modified state 與 replay context。</li><li><b>Undo / redo + dry run</b> 讓 exploration 可逆，先測 plan 再 mutation。</li><li><b>Locks + deterministic JSON</b> 降低 concurrent write corruption，讓差異可讀。</li></ul>
+      <div class="takeaway">Human GUI 的 continuity 來自 windows / focus / visual memory；agent 需要檔案、history 與 explicit state。</div>
+      <div class="cite">§3.4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PREVIEW PROTOCOL</div>
+      <h2 class="head">把 visual feedback 變成 backend-grounded 的 display bundle</h2>
+      <div class="two-col"><div><h1 class="title">Producer harness</h1><ul class="bullets"><li>real backend render</li><li>recipe + source fingerprint</li><li>publish preview bundle</li><li>owns truth and mutation</li></ul></div><div><h1 class="title">Consumer / CLI-Hub</h1><ul class="bullets"><li>inspect / html / watch / open</li><li>reads without mutating</li><li>generic across CAD, video, 3D, diagrams</li><li>human + agent share same evidence</li></ul></div></div>
+      <p class="note">Bundle: manifest.json, summary.json, artifacts/; live workflows add session.json and trajectory.json.</p>
+      <div class="cite">§3.5 p.9 · Fig.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DISCOVERY IS RUNTIME</div>
+      <h2 class="head">能被呼叫的 harness，也必須能在 task time 被找到與安裝</h2>
+      <ul class="bullets"><li><b>SKILL.md</b> 提供 command groups、examples、JSON usage、prerequisites 與 constraints。</li><li><b>Registry metadata</b> 讓 agent 依 capability / category 找候選 interface。</li><li><b>Mixed installation</b> 支援 pip、npm、uv、bundled/system、command-based installers。</li><li><b>Future target</b>：structured capability search、install plan、backend diagnostics、direct skill fetch。</li></ul>
+      <div class="cite">§3.6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CASE STUDY A</div>
+      <h2 class="head">Blender：在既有 backend scripting boundary 外側加一層 agent contract</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Native Blender already exposes bpy / RNA / operators / render engines.</li><li>Harness keeps <code>.blend-cli.json</code> as inspectable working state.</li><li>Lowering pass transforms JSON scene contract into executable bpy.</li><li>Headless Blender remains responsible for scene semantics and final rendering.</li></ul></div><div><div class="scorebox"><span class="score score--hi">54 CLI commands</span><span class="score score--hi">12 Click groups</span><span class="score score--hi">228 tests</span></div><p class="note">Reported current Blender harness surface. 53 commands are public; one monitor command is hidden.</p></div></div>
+      <div class="cite">§4.1 pp.11–15 · Fig.6 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CASE STUDY B</div>
+      <h2 class="head">Slay the Spire II：沒有成熟 backend 時，bridge 必須住在 state 所在的 runtime 內</h2>
+      <ul class="bullets"><li><b>In-process C# bridge</b> reads live Godot / game objects and schedules work on the frame-owned main thread.</li><li><b>External Python CLI</b> stays deliberately small: typed HTTP client, JSON normalizer, Click + REPL.</li><li><b>Semantic lift</b> turns screen/overlay detail into stable decision states and verbs such as play-card / choose-map / proceed.</li><li><b>Authority stays native</b>：game still decides legal targets, combat resolution, transitions, rewards, and save state.</li></ul>
+      <div class="scorebox"><span class="score score--hi">28 CLI commands</span><span class="score score--hi">15 decision states</span><span class="score score--hi">24 bridge verbs</span></div>
+      <div class="cite">§4.2 pp.16–20 · Fig.9 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TWO LIFT MODES</div>
+      <h2 class="head">同一 contract，差在 backend boundary 是「已存在」還是「必須建立」</h2>
+      <table class="bench"><thead><tr><th>Mode</th><th>Where state lives</th><th>Harness move</th><th>Native authority</th></tr></thead><tbody><tr><td>Blender</td><td>scene DB + bpy + renderers</td><td>external stateful adapter</td><td>Blender process / native render</td></tr><tr class="win"><td>Slay the Spire II</td><td>live game + screens + frame loop</td><td>in-process bridge + thin CLI</td><td>Godot / MegaCrit runtime</td></tr></tbody></table>
+      <div class="takeaway">不要假設「CLI wrapper」永遠是外部 process；boundary 必須貼近真正擁有語意 state 的元件。</div>
+      <div class="cite">§4.1.1 pp.12–14 · §4.2.1 pp.18–19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h2 class="head">這是一份 interface-system report：要先讀懂它量的是什麼</h2>
+      <div class="two-col"><div><h1 class="title">Evidence included</h1><ul class="bullets"><li>recorded manipulation artifacts</li><li>catalog / category coverage</li><li>CLI-Hub production telemetry</li><li>repository structure, skills, install diversity</li></ul></div><div><h1 class="title">Not established here</h1><ul class="bullets"><li>no controlled GUI-agent baseline</li><li>no standardized task-success benchmark</li><li>no causal attribution of telemetry</li><li>no peer-review score/rebuttal evidence</li></ul></div></div>
+      <div class="cite">§5 pp.21–24 · reviewer status: N/A</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ECOSYSTEM SNAPSHOT</div>
+      <h2 class="head">作者報告的 catalog 與 agent-support coverage</h2>
+      <table class="bench"><thead><tr><th>Signal</th><th class="num">Value</th><th>Source</th></tr></thead><tbody><tr><td>Generated / curated harness CLIs</td><td class="num best">65</td><td>registry.json</td></tr><tr><td>Public third-party CLIs</td><td class="num">18</td><td>public_registry.json</td></tr><tr class="win"><td>Combined CLI entries</td><td class="num best">83</td><td>both registries</td></tr><tr><td>Combined categories</td><td class="num">32</td><td>both registries</td></tr><tr><td>Companion skills / preview integrations</td><td class="num">61 / 5</td><td>report snapshot</td></tr></tbody></table>
+      <p class="note">These are repository / production snapshot numbers reported by the authors, not controlled benchmark scores.</p>
+      <div class="cite">Tab.3 p.10 · Tab.6 p.22 · Tab.8 p.24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">USAGE SIGNAL</div>
+      <h2 class="head">CLI-Hub telemetry suggests an agent-heavy runtime surface—within the report’s observational limits</h2>
+      <div class="scorebox"><span class="score score--hi">129,916 total calls</span><span class="score score--hi">87.8% agent share</span><span class="score score--hi">7.19x agent/human</span><span class="score score--hi">+694.1% growth</span></div>
+      <ul class="bullets"><li>Authors report <b>114,057 agent calls</b> and <b>15,859 human calls</b> in the current production view.</li><li>The report’s interpretation: the same catalog remains human-inspectable while agents use it as operational dependency.</li><li>This is descriptive telemetry; it does not establish performance superiority or causal benefit over GUI control.</li></ul>
+      <div class="cite">§5.3 pp.22–23 · Fig.12 p.23</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">WHY IT MAY WORK</div>
+      <p class="big">Semantic verbs collapse many accidental pixel traces into one stable, compositional action space.</p>
+      <p class="lead">The bridge absorbs cursor paths, timing, frame ownership, and UI specifics; the agent plans over state + legal actions.</p>
+      <div class="cite">§4.2 pp.16, 18–20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FAILURE MODES</div>
+      <h2 class="head">系統化的 failure analysis 比「包一層 CLI」更重要</h2>
+      <ol class="numbered"><li><b>Backend exits but artifact is useless</b> → validate rendered outputs, magic bytes, structure, pixels/media.</li><li><b>Project mutation does not survive export</b> → document project-only features or add real render mappings.</li><li><b>Stateless commands lose context</b> → session state, autosave, status probes, undo/redo.</li><li><b>Decorative screenshot loses truth</b> → bundle protocol tied to real project state and backend artifacts.</li><li><b>Tool is unfindable / un-installable</b> → registry, install strategies, skills, clear backend errors.</li></ol>
+      <div class="cite">§6 p.25</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">不是每個 application 都能被乾淨地 lift</h2>
+      <ul class="bullets"><li>Opaque binaries and hidden state may still require accessibility APIs or GUI automation.</li><li>Creative decisions can require rich visual judgment beyond a typed command surface.</li><li>Preview integrations are early and may not cover meaningful visual state completely.</li><li>Web, mobile, and desktop GUI-agent methods remain relevant when pixels / browser-native interaction are the only available truth boundary.</li></ul>
+      <div class="takeaway">適用條件很清楚：能找到或插入 inspectable state、semantic action、native render/export、以及 executable verification。</div>
+      <div class="cite">§3.2 p.6 · §7 p.25</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">給 agent 工程師的實作優先序</h2>
+      <ol class="numbered"><li>先找 <b>artifact / backend truth boundary</b>，再談 tool schema 或 agent prompting。</li><li>把 <b>inspection</b> 做到便宜且 machine-readable；每一步都能問「現在狀態是什麼」。</li><li>把 <b>verification</b> 接到 user-visible artifact，而不是 process return code。</li><li>把 session、undo、preview、trajectory 當成 interface 一部分，不是 debug 附件。</li><li>把 discovery / install / skill metadata 當 runtime system，而不是 README 裝飾。</li></ol>
+      <div class="cite">§3 pp.4–10 · §6–7 pp.25–26</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / PRIMARY CLAIM</div>
+      <div class="hl"><p class="hl__en">If the artifact can be inspected programmatically, then in many cases it can also be constructed programmatically.</p><p class="hl__zh">如果成品可以被程式檢查，那麼很多情況下也能透過程式建構。</p></div>
+      <p class="note">This is the report’s strongest design thesis: validation exposes the right construction boundary.</p>
+      <div class="cite">§3.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / STATE</div>
+      <div class="hl"><p class="hl__en">The workspace for agents becomes a state graph with executable transitions and inspectable history.</p><p class="hl__zh">對 agent 而言，工作區變成具有可執行轉移與可檢查歷史的狀態圖。</p></div>
+      <div class="cite">§3.4 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / SOURCES</div>
+      <h2 class="head">Primary source and reading frame</h2>
+      <ul class="bullets"><li><b>Paper:</b> CLI-Anything: Towards Agent-Native Computer Use, arXiv:2606.03854v1 (2026-06-02).</li><li><b>Repository:</b> github.com/HKUDS/CLI-Anything (GitHub Trending discovery, 2026-10-18).</li><li><b>Interpretation caution:</b> technical report; catalog and telemetry are author-reported operational signals.</li><li><b>All technical claims / numbers in this deck:</b> cited to paper section and page.</li></ul>
+      <div class="cite">arXiv:2606.03854 · report pp.1–28</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Agent-native computer use is an interface-design problem.</h2>
+      <p class="end__sub">Expose state. Preserve backend truth. Verify the artifact. Make the contract discoverable.</p>
+      <div class="end__next">Tomorrow: LLM architecture, training, or alignment.</div>
+      <div class="cite">CLI-Anything: Towards Agent-Native Computer Use · Conclusion p.26</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
