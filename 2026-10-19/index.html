@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TROLL: Trust Regions Improve Reinforcement Learning for Large Language Models</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · LLM POST-TRAINING</div>
+      <h1 class="title">TROLL: Trust Regions Improve Reinforcement Learning for Large Language Models</h1>
+      <p class="lead">把 PPO-style clipping 換成 token-level KL trust-region projection：更穩的 RLVR 訓練，沒有推論額外負擔。</p>
+      <div class="authors">Philipp Becker · Niklas Freymuth · Serge Thilges · Fabian Otto · Gerhard Neumann<br>Karlsruhe Institute of Technology · Microsoft Research</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv:2510.03817v3</span></div>
+      <figure class="full" style="max-height:18vh; margin-top:.3rem;"><img src="figures/figure1_p2.jpg" alt="TROLL overview and training curves"></figure>
+      <div class="cite">Source: TROLL paper, cover p.1 and Fig.1 p.2 · 2026-10-19</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">TROLL 把「ratio 截斷」改成<br><b>可微的 token-level KL 投影</b>。</p>
+      <p class="lead">它不改 reward、也不換 advantage estimator；只替換 PPO-like objective 裡最粗糙的穩定化步驟。</p>
+      <div class="takeaway">論文主張：在 math / code RLVR、不同模型與 optimizer 變體上，同時改善收斂速度、穩定性與最終 success rate。</div>
+      <div class="cite">Abstract p.1; Introduction pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE FAILURE MODE</div>
+      <h1 class="title">PPO clipping 是 trust region 的便宜近似，但不是 trust region 本身</h1>
+      <ul class="bullets"><li><b>目標：</b>新 policy 不要偏離收集 rollout 的舊 policy 太遠，importance ratio 才不會失控。</li><li><b>PPO 作法：</b>把 ratio 限在固定範圍；超界 token 的梯度會被壓掉。</li><li><b>代價：</b>clip 是啟發式，會造成 poorly calibrated update、對 implementation / hyperparameter 敏感。</li><li><b>缺口：</b>GRPO、Dr.GRPO、GSPO 等改善 advantage estimation，卻大多仍沿用 clipping。</li></ul>
+      <div class="formula">PPO: min(r * A, clip(r, 1 - eps, 1 + eps) * A)</div>
+      <div class="cite">§1 pp.1–2; §2 p.3; Eq.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h1 class="title">這篇不是另一套 RL algorithm，而是可替換的 policy-update layer</h1>
+      <ol class="numbered"><li><b>Exact constraint：</b>對每一個 token distribution 施加 KL trust region。</li><li><b>Differentiable：</b>用 implicit differentiation 穿過投影，不切斷 constrained token 的學習訊號。</li><li><b>Sparse：</b>只保留高概率 logits，讓 vocabulary-scale projection 可實作。</li><li><b>Drop-in：</b>可搭 PPO、GRPO、Dr.GRPO、GSPO、RF++；實驗跨 math / code 與多個模型家族。</li></ol>
+      <div class="cite">§3.1–3.2 pp.4–6; §4 pp.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CORE MECHANISM</div>
+      <h1 class="title">投影的是「新 token distribution」，不是直接 clip 一個 scalar ratio</h1>
+      <div class="two-col"><div><h2 class="head">Inputs</h2><ul class="bullets"><li><b>pi_old</b>：產生 rollout 的 policy。</li><li><b>pi_tilde</b>：目前參數下的 token distribution。</li><li>若兩者 KL 已在範圍內，保持 pi_tilde。</li></ul></div><div><h2 class="head">Output</h2><ul class="bullets"><li><b>pi</b>：在 KL ball 內、又最接近 pi_tilde 的可行 distribution。</li><li>後續 policy ratio 用 pi；另以 regression 讓 pi_tilde 向 pi 對齊。</li><li>因此限制真正施加在 discrete policy space。</li></ul></div></div>
+      <div class="cite">Fig.2 p.4; §3.1 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PIPELINE</div>
+      <h1 class="title">TROLL training loop：rollout buffer → sparse logits → KL projection → RL update</h1>
+      <figure class="full" style="max-height:47vh; margin-top:.4rem;"><img src="figures/figure2_p4.jpg" alt="TROLL projection pipeline"></figure>
+      <p class="note">對每個 response token：僅當 KL constraint 被違反時才解 projection；否則原 distribution 直接通過。</p>
+      <div class="cite">Figure 2 p.4; Algorithm 1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE PROJECTION</div>
+      <h1 class="title">一個 convex problem，解成新舊 policy logits 的幾何插值</h1>
+      <div class="formula">pi = argmin KL(pi || pi_tilde)  subject to  KL(pi || pi_old) <= eps</div>
+      <div class="formula">pi = normalize(exp((eta * log(pi_old) + log(pi_tilde)) / (eta + 1)))</div>
+      <ul class="bullets"><li>eta 是由一維 convex dual 求出的步長：它決定把目前 policy 拉回 old policy 多遠。</li><li>投影只對少數違反 bound、但重要的 tokens 啟動。</li><li>此式提供 exact token-wise feasibility，不是對 surrogate ratio 做硬截斷。</li></ul>
+      <div class="cite">Eq.3 p.4; Eq.4 and §3.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">KEEP IT DIFFERENTIABLE</div>
+      <h1 class="title">兩條訊號各司其職：可行 projected policy 做 RL，未投影 policy 被拉回可行集</h1>
+      <div class="two-col"><div><h2 class="head">Policy-gradient branch</h2><ul class="bullets"><li>用 projected pi / pi_old 計算 policy-ratio term。</li><li>新 policy 更新仍由 advantage signal 驅動。</li></ul></div><div><h2 class="head">Regression branch</h2><ul class="bullets"><li>KL(pi_tilde || stopgrad(pi)) 讓模型本身接近 projection。</li><li>梯度不回推到 pi，避免「把 projection 拉向模型」而失去 constraint。</li><li>作者所有實驗設 alpha = 1。</li></ul></div></div>
+      <div class="takeaway">關鍵不是每次都投影，而是把「受限的解」變成可學習的 target。</div>
+      <div class="cite">Eq.5 and §3.1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SYSTEMS ENABLER</div>
+      <h1 class="title">真正的障礙是 vocabulary：完整 token distribution 太大</h1>
+      <ul class="bullets"><li>Qwen3 tokenizer 的例子有 <b>151,936 logits / token</b>；逐 token 儲存與投影不可接受。</li><li>TROLL 選 cumulative mass 至少 1 - delta 的高概率 tokens，並一定保留 sampled token。</li><li>對 discarded tokens 保留小 default mass，再重新 normalize；top-K 同時是 high-entropy case 的記憶體上限。</li></ul>
+      <div class="formula">keep top-K tokens until cumulative probability >= 1 - delta</div>
+      <div class="cite">§3.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SPARSITY RESULT</div>
+      <h1 class="title">K=64、delta=10^-5：通常只留 5–10 個 token，就保住 99.999% mass</h1>
+      <div class="scorebox"><span class="score score--hi">K = 64</span><span class="score score--hi">5–10 tokens</span><span class="score score--hi">99.999% mass</span></div>
+      <ul class="bullets"><li>這使 projection 的 memory / compute 以稀疏 token subset 運作，而非完整 vocabulary。</li><li>論文也給 sparse KL approximation 的 error bound；在其 Qwen3 hyperparameters 下，作者稱誤差約比 bound 小兩個數量級。</li><li>成本相對於模型越大越不顯著，因 vocabulary 尺寸在同一模型家族中固定。</li></ul>
+      <div class="cite">§3.2 p.6; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENT DESIGN</div>
+      <h1 class="title">不是只在單一 Qwen setting 贏：測的是 objective 可移植性</h1>
+      <div class="two-col"><div><h2 class="head">Tasks & data</h2><ul class="bullets"><li><b>DAPO-Math</b>：17k 題，保留 1,024 題 DAPO-Eval。</li><li><b>Math</b>：MATH500、AMC、AIME、OMNI-MATH、OlympiadBench、Minerva。</li><li><b>Code</b>：Eurus-Code；另有 GSM8K 與 Eurus-Math。</li></ul></div><div><h2 class="head">Models & optimizers</h2><ul class="bullets"><li>Qwen3 0.6B–14B、Qwen2.5-Instruct、Llama 3.1/3.2、SmolLM3、Apertus。</li><li>對照 Clip vs TROLL，並換 GRPO、PPO、Dr.GRPO、GSPO、RF++。</li><li>也檢查 BAPO 與 clipping-free GPG。</li></ul></div></div>
+      <div class="cite">§4 pp.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MAIN NUMBERS</div>
+      <h1 class="title">跨模型的 final success rate：TROLL 多數設定勝過 Clip</h1>
+      <table class="bench"><thead><tr><th>Model / dataset</th><th class="num">Clip</th><th class="num">TROLL</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>Llama3.1-8B / GSM8K</td><td class="num">0.000</td><td class="num best">0.759</td><td class="num best">+0.759</td></tr><tr class="win"><td>Apertus-8B / GSM8K</td><td class="num">0.156</td><td class="num best">0.697</td><td class="num best">+0.541</td></tr><tr class="win"><td>Llama3.2-3B / GSM8K</td><td class="num">0.589</td><td class="num best">0.668</td><td class="num best">+0.079</td></tr><tr class="win"><td>SmolLM3-3B / DAPO</td><td class="num">0.580</td><td class="num best">0.606</td><td class="num best">+0.026</td></tr><tr class="win"><td>Qwen3-8B / Eurus-Math</td><td class="num">0.561</td><td class="num best">0.579</td><td class="num best">+0.018</td></tr></tbody></table>
+      <div class="takeaway">最顯眼的差距是原本 training 失敗的 Llama3.1-8B 與 Apertus-8B；這是穩定性，而不只是很小的 end-score uplift。</div>
+      <div class="cite">Figure 4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LEARNING CURVES</div>
+      <h1 class="title">Qwen3 600M–14B：math 與 code 的曲線同時往上、也更早起跑</h1>
+      <figure class="full" style="max-height:50vh; margin-top:.2rem;"><img src="figures/figure3_p7.jpg" alt="TROLL vs Clip Qwen3 training curves"></figure>
+      <p class="note">實線為 TROLL、虛線為 Clip；涵蓋 DAPO 與 Eurus-Code，不只是單一 final checkpoint。</p>
+      <div class="cite">Figure 3 p.7; §5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OBJECTIVE PORTABILITY</div>
+      <h1 class="title">同一個 projection 能跨 advantage estimators；GSPO 的例子最有說服力</h1>
+      <table class="bench"><thead><tr><th>Qwen3-8B / DAPO-Eval</th><th class="num">Clip</th><th class="num">TROLL</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>GRPO</td><td class="num">0.640</td><td class="num best">0.691</td><td class="num best">+0.051</td></tr><tr class="win"><td>Dr.GRPO</td><td class="num">0.653</td><td class="num best">0.674</td><td class="num best">+0.021</td></tr><tr class="win"><td>PPO</td><td class="num">0.602</td><td class="num best">0.715</td><td class="num best">+0.113</td></tr><tr class="win"><td>GSPO</td><td class="num">0.000</td><td class="num best">0.706</td><td class="num best">+0.706</td></tr><tr class="win"><td>RF++</td><td class="num">0.626</td><td class="num best">0.728</td><td class="num best">+0.102</td></tr></tbody></table>
+      <p class="note">Table 1 的 GSPO Clip 為 0.000；文中將此描述為 Clip divergence，而 GSPO + TROLL 仍穩定。</p>
+      <div class="cite">Table 1 p.8; §5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CODE GENERALIZATION</div>
+      <h1 class="title">不只 math：Eurus-Code 報告 7–18pp、18–30% relative gains</h1>
+      <ul class="bullets"><li>Qwen3 各模型尺寸在 code generation 也持續優於 Clip。</li><li>作者舉例：Qwen3-1.7B (TROLL) 的表現超過 Qwen3-4B (Clip)。</li><li>這支持它是在修 policy-update stability，而不是只配合某一個 math reward / dataset。</li></ul>
+      <div class="scorebox"><span class="score score--hi">+7–18 pp</span><span class="score score--hi">+18–30% relative</span></div>
+      <div class="cite">§5 p.8; Figure 3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM CROWN PAGE</div>
+      <h1 class="title">為什麼會更穩？不是「約束更多」，而是給每個 token 一個可微的可行更新</h1>
+      <p class="big">Clip 把超界訊號截掉；<br>TROLL 把 distribution 拉回 <b>KL-feasible region</b>，再繼續學。</p>
+      <ul class="bullets"><li>Projection fraction 與 Clip 影響的 token 比例大致相近，所以穩定性不是單純因為 restrain 了更多 token。</li><li>投影後的 regression 讓 base model distribution 逐步接近可行解，避免 successive update 再次跑遠。</li><li>作者觀察到 TROLL 較能保留 entropy；在 Eurus-Code 上，entropy preservation 與較佳表現相關。</li></ul>
+      <div class="cite">§3.1 p.5; §6 pp.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION</div>
+      <h1 class="title">KL bound 與 top-K 不是無腦越大越好：projection 要夠準、但不必很密</h1>
+      <figure class="full" style="max-height:43vh; margin-top:.2rem;"><img src="figures/figure5_p10.jpg" alt="TROLL ablations, cost, entropy"></figure>
+      <ul class="bullets"><li><b>epsilon 太小</b>：學得慢，但 convergence 不一定變差。</li><li><b>epsilon 太大</b>：更新過大，final success rate 變差。</li><li><b>K=16</b>：稀疏近似太粗；<b>K=256</b>：成本變高但不優於 default K=64。</li></ul>
+      <div class="cite">Figure 5 p.10; §6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">COST</div>
+      <h1 class="title">成本不是零，但在作者控制實驗中是 modest overhead</h1>
+      <table class="bench"><thead><tr><th>Qwen3-4B controlled run</th><th class="num">Clip</th><th class="num">TROLL</th><th class="num">Change</th></tr></thead><tbody><tr><td>VRAM</td><td class="num">34.574 GiB</td><td class="num best">36.157 GiB</td><td class="num">+1.583 GiB</td></tr><tr><td>Runtime</td><td class="num">85.133 s</td><td class="num best">92.906 s</td><td class="num">+7.773 s</td></tr></tbody></table>
+      <ul class="bullets"><li>作者認為 sparse distributions 的 memory overhead 相對於 LLM activation/backprop 是可忽略的。</li><li>投影開銷隨 vocabulary 而非 model size 成長；同 family 中 model 越大，相對成本越小。</li><li>工程上仍要在 target model、batch size 與 tokenizer 下重新量測，這張數字不是普適 SLA。</li></ul>
+      <div class="cite">Figure 5 p.10; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h1 class="title">目前證據強在 RLVR，但外推範圍要講清楚</h1>
+      <ul class="bullets"><li>作者只評估 dense models，最大到 <b>14B</b>；MoE 與更大規模仍未驗。</li><li>實驗主體是 math reasoning 與 code generation 的 RLVR，並沒有完整覆蓋一般 RLHF / preference learning。</li><li>vision-language 等其他 modalities 的 logits / projection behavior 被作者列為 future work。</li><li>OpenReview reviewer JSON 在本次 ingest 時 HTTP 403，沒有把不存在的 reviewer score 補進來。</li></ul>
+      <div class="cite">§7 p.10; ingest record</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKE</div>
+      <h1 class="title">給 RL post-training 工程師的三個可操作判斷</h1>
+      <ol class="numbered"><li><b>若 Clip 是瓶頸：</b>優先把 policy constraint 與 advantage estimator 解耦；TROLL 的價值在這個介面。</li><li><b>若 full-vocab KL 太貴：</b>先量 token-mass concentration。方法的可行性依賴 sparse token distribution，而非魔法。</li><li><b>若把它上 production：</b>把 epsilon、K、entropy、projection fraction、wall-clock 一起當成 monitored training signals。</li></ol>
+      <div class="takeaway">這篇最有價值的不是「又一個 RL loss」，而是把 LLM token distribution 當成可被正確約束的 policy object。</div>
+      <div class="cite">§3.1–3.2 pp.4–6; §6 pp.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · AUTHOR WORDS</div>
+      <h1 class="title">原文螢光筆：把核心 claim 與檢驗點放回原句</h1>
+      <div class="hl"><p class="hl__en">We replace the clip objective with a novel discrete differentiable trust region projection, which provides principled token-level KL constraints.</p><p class="hl__zh">以可微分的離散 trust-region projection 取代 clip objective，直接施加有原理的 token-level KL 約束。</p></div>
+      <div class="hl"><p class="hl__en">using K=64 and delta=10−5 usually allows us to keep 99.999% of probability mass with only 5−10 average tokens.</p><p class="hl__zh">K=64、delta=10^-5 時，通常只需平均 5–10 個 token 即可留下 99.999% 機率質量。</p></div>
+      <div class="hl"><p class="hl__en">The observed stability improvements are thus not merely caused by more restrained tokens.</p><p class="hl__zh">觀察到的穩定性改善，不只是因為約束了更多 token。</p></div>
+      <div class="cite">Abstract p.1; §3.2 p.6; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · SOURCE & REPRODUCIBILITY</div>
+      <h1 class="title">來源、版本與閱讀邊界</h1>
+      <ul class="bullets"><li><b>Paper:</b> arXiv:2510.03817v3 (23 Feb 2026); published as an ICLR 2026 conference paper.</li><li><b>Artifacts:</b> 40-page PDF, extracted text, and deterministic PDF figure crops were used for this deck.</li><li><b>Primary sources:</b> arXiv abstract/PDF and paper text; venue label from paper cover and arXiv comment.</li><li><b>Review data:</b> forum identified at OpenReview `X9D5MVpPJ9`; API retrieval was HTTP 403, so no reviewer-score interpretation is included.</li></ul>
+      <div class="cite">arXiv:2510.03817v3; paper cover p.1; ingest metadata</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">TROLL 的問題很單純：<br>不要只 clip ratio，要投影 policy。</h2>
+      <p class="end__sub">ICLR 2026 · Trust-region optimization for LLM RL post-training</p>
+      <div class="end__next">Next: Tuesday — image generation / understanding</div>
+      <div class="cite">Source: TROLL: Trust Regions Improve Reinforcement Learning for Large Language Models</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
