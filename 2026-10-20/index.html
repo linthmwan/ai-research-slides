@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Research Daily — NEO / Native Vision-Language Primitives</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · TUESDAY / VISUAL UNDERSTANDING</div>
+      <h1 class="title">From Pixels to Words — Towards Native Vision-Language Primitives at Scale</h1>
+      <p class="lead">NEO 的賭注很乾脆：不要把 vision encoder 接在 LLM 外面；把對齊、編碼與推理都做成同一個 native primitive。</p>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 · Accepted</span><span class="badge date">arXiv v2 · 2026-02-21</span></div>
+      <div class="authors">Haiwen Diao et al. · S-Lab / NTU · SenseTime Research · Xi’an Jiaotong University</div>
+      <div class="cite">Paper: arXiv:2510.14979 · 21 pages · 8 figures · deck source: Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">NEO 的關鍵不是「把 image token 塞進 LLM」。<br>而是讓 <b>位置、注意力、初始化</b> 都承認 image 與 text 的差異。</p>
+      <div class="takeaway">結果：用 dense、encoder-free backbone，仍把原生 VLM 推近同尺度 modular baseline。</div>
+      <div class="cite">Abstract p.1 · §3.1 pp.4–5 · Tab.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE PROBLEM</div>
+      <h2 class="head">主流 modular VLM 很強，但介面本身也在製造成本</h2>
+      <ul class="bullets"><li><b>模組分工</b>：vision encoder 的雙向視覺表徵，接上 projector 與 causal LLM。</li><li><b>代價</b>：異質架構、多階段訓練、後期 alignment，以及固定視覺 encoder 的 inductive bias。</li><li><b>原生 VLM 的難處</b>：直接把像素 mapping 進既有 LLM，可能傷害語言能力、也難穩定收斂。</li><li><b>NEO 的問題定義</b>：能否從第一原理做出同時負責 pixel-word encoding、alignment、reasoning 的單一 primitive？</li></ul>
+      <div class="cite">§1 pp.1–2 · §2 pp.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DESIGN SPACE</div>
+      <h2 class="head">不是砍掉 vision encoder；是把它的好處內化進同一個 block</h2>
+      <div class="two-col"><div><p class="col-hint">MODULAR VLM</p><ul class="bullets"><li>Vision encoder：雙向 attention、空間位置設計。</li><li>LLM：causal attention、語言先驗。</li><li>靠外接 projector / alignment 接起兩個系統。</li></ul></div><div><p class="col-hint">NEO / NATIVE VLM</p><ul class="bullets"><li>Patch + word embedding 後直接進 decoder-only backbone。</li><li>同一 primitive 同時保留 image 的雙向交互與 text 的 causal generation。</li><li>pre-Buffer 先學對齊；post-LLM 保住語言推理。</li></ul></div></div>
+      <figure class="full" style="max-height:34vh;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1: modular vs. native design space</figcaption></figure>
+      <div class="cite">Fig.1 p.2 · §1 pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h2 class="head">四個可分開驗證的設計承諾</h2>
+      <ol class="numbered"><li><b>Native primitive</b>：MHNA + Native-RoPE + mixed masking，不把 image 當成普通一維 text。</li><li><b>pre-Buffer / post-LLM</b>：前半段從零學 pixel-word alignment；後半段部分繼承 LLM。</li><li><b>三階段 end-to-end training</b>：345M pretrain → 40M mid-train → 約 4M SFT。</li><li><b>可擴展 dense native VLM</b>：2.2B / 9B 版本在視覺理解 benchmark 逼近或超過既有 native baseline。</li></ol>
+      <div class="cite">§1 pp.2 · §3 pp.4–6 · §4.2 pp.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · 01</div>
+      <p class="big"><b>一個 native primitive</b> 必須同時解三件事：<br>image 的空間關係、text 的順序關係、以及 pixel-word 的交互。</p>
+      <div class="takeaway">所以 NEO 不只改 tokenization；它改了 attention、RoPE 與 initialization 的整套契約。</div>
+      <div class="cite">Abstract p.1 · §3.1 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ARCHITECTURE</div>
+      <h2 class="head">NEO：輕量 patch / word embedding + monolithic decoder-only backbone</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure2_p3.jpg" alt=""><figcaption>Figure 2: patch/word tokens enter pre-Buffer then post-LLM</figcaption></figure>
+      <div class="takeaway">圖上的切分是訓練期的功能分工；完成 pre-training 後會合回單一 backbone。</div>
+      <div class="cite">Fig.2 p.3 · §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · 02</div>
+      <h2 class="head">Native VLM Primitive：新增 H/W 空間 QK，保留 LLM 的語言結構</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure3_p4.jpg" alt=""><figcaption>Figure 3: MHNA, Native-RoPE, mixed attention, and pre-Buffer/post-LLM</figcaption></figure>
+      <ul class="bullets"><li>RMSNorm 與 SwiGLU 延續 LLM layer；Q/K head 加入新的 H、W 維度。</li><li>額外參數約為原 Transformer block 的 <b>10%</b>。</li></ul>
+      <div class="cite">Fig.3 p.4 · §3.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · 03</div>
+      <h2 class="head">Native-RoPE：把 temporal 與 spatial 的座標尺度拆開</h2>
+      <div class="two-col"><div><div class="formula">Native-RoPE = separate T / H / W indices + channels + base frequencies</div><ul class="bullets"><li>Text：保留 T index，H/W 為 0。</li><li>Image：單一 image 固定 T、每個 patch 有自己的 H/W。</li><li>跨 image pair：相同空間位置共享 H/W dependency。</li></ul></div><div><ul class="bullets"><li>T 服務語言與長程關係；H/W 服務局部空間關係。</li><li>不同尺度不再強迫共用同一組 RoPE frequency。</li><li>這也避免長 text index 壓壞 image 的 spatial dependency。</li></ul><div class="takeaway">把 H/W frequency 設成 1M 反而顯著傷害 local semantics。</div></div></div>
+      <div class="cite">Eq.2 & §3.1 p.5 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · 04</div>
+      <h2 class="head">Mixed attention：對 image 雙向，對 text 因果</h2>
+      <div class="two-col"><div><p class="col-hint">IMAGE TOKENS</p><ul class="bullets"><li>同一 image 視為 unified meta-unit。</li><li>全雙向 attention，像 vision encoder 一樣允許所有 patch 交互。</li><li>完整 spatial / contextual dependency。</li></ul></div><div><p class="col-hint">TEXT TOKENS</p><ul class="bullets"><li>維持 standard causal attention。</li><li>保留 autoregressive generation。</li><li>以 block-wise mixed mask 與 image 互動。</li></ul></div></div>
+      <div class="takeaway">受控 ablation：mixed + Native-RoPE 的 Avg. 44.0，高於 causal + Native-RoPE 的 40.3。</div>
+      <div class="cite">§3.1 p.5 · Tab.3 / §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · 05</div>
+      <h2 class="head">pre-Buffer 先把像素接進語義空間；post-LLM 把既有語言能力保留下來</h2>
+      <div class="two-col"><div><p class="col-hint">PRE-BUFFER</p><ul class="bullets"><li>隨機初始化。</li><li>輸入：pixel / word token。</li><li>角色：pre-align、可重用。</li><li>pre-training 後是可復用資產。</li></ul></div><div><p class="col-hint">POST-LLM</p><ul class="bullets"><li>部分由 pretrained LLM 初始化。</li><li>繼承 temporal RMSNorm / FFN / QK / QK-Norm。</li><li>角色：full-align + reasoning。</li><li>H/W K 零初始化；H/W QK-Norm: beta=0, gamma=1。</li></ul></div></div>
+      <div class="cite">§3.1 p.5 · Fig.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TRAINING</div>
+      <h2 class="head">三階段不是裝飾：每一段都在解除不同的 optimization constraint</h2>
+      <figure class="full" style="max-height:38vh;"><img src="figures/figure4_p6.jpg" alt=""><figcaption>Figure 4: 345M pre-training → 40M mid-training → 4M SFT</figcaption></figure>
+      <ol class="numbered"><li><b>Pre-training</b>：345M web/synthetic image-caption pairs；freeze 大部分 LLM 來保住語言知識。</li><li><b>Mid-training</b>：40M caption / conversation / OCR / detection，整網路更新。</li><li><b>SFT</b>：約 4M bilingual instruction，補 instruction following 與真實部署情境。</li></ol>
+      <div class="cite">Fig.4 & §3.2 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENT SETUP</div>
+      <h2 class="head">不是單一 leaderboard：paper 用多種視覺理解壓力測試</h2>
+      <div class="scorebox"><span class="score score--hi">2.2B</span><span class="score score--hi">9B</span><span class="score score--hi">345M</span><span class="score score--hi">40M</span><span class="score score--hi">4M</span></div>
+      <ul class="bullets"><li>Qwen3-1.7B → NEO-2.2B；Qwen3-8B → NEO-9B。</li><li>NEO-2.2B / 9B 的 pre-Buffer 分別為 12 / 6 layers。</li><li>VLMEvalKit 覆蓋 diagram/document/chart/OCR、reasoning，以及 hallucination benchmarks。</li><li>訓練硬體：16 個 8-GPU（80G）nodes。</li></ul>
+      <div class="cite">§4.1–4.2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · GENERAL VLM</div>
+      <h2 class="head">2B：原生 backbone 已接近 paper 的 encoder-based 對照</h2>
+      <table class="bench"><thead><tr><th>2B model</th><th class="num">MMMU</th><th class="num">MMB</th><th class="num">SEED-I</th><th class="num">POPE</th><th class="num">HallB</th></tr></thead><tbody><tr class="win"><td>NEO (Qwen3-1.7B)</td><td class="num best">48.6</td><td class="num best">76.0</td><td class="num best">74.2</td><td class="num best">87.5</td><td class="num best">43.1</td></tr><tr><td>Encoder-Based (Qwen3-1.7B)</td><td class="num">47.1</td><td class="num">75.8</td><td class="num">73.6</td><td class="num">87.0</td><td class="num">44.4</td></tr><tr><td>InternVL2.5</td><td class="num">43.6</td><td class="num">74.7</td><td class="num">—</td><td class="num">90.6</td><td class="num">42.6</td></tr><tr><td>Mono-InternVL-1.5</td><td class="num">39.1</td><td class="num">64.0</td><td class="num">66.9</td><td class="num">—</td><td class="num">32.5</td></tr></tbody></table>
+      <div class="takeaway">這不是「全面 SOTA」宣稱：NEO 的 HallB 仍低於 encoder-based 對照，且更強 modular VLM 仍存在。</div>
+      <div class="cite">Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · DOCUMENT / VQA</div>
+      <h2 class="head">8B：NEO 對原生 VLM 的優勢，最清楚落在圖表、文件與視覺問答</h2>
+      <table class="bench"><thead><tr><th>8B native model</th><th class="num">AI2D</th><th class="num">DocVQA</th><th class="num">ChartQA</th><th class="num">TextVQA</th><th class="num">OCRBench</th></tr></thead><tbody><tr class="win"><td>NEO</td><td class="num best">83.1</td><td class="num best">88.6</td><td class="num best">82.1</td><td class="num best">75.0</td><td class="num best">77.7</td></tr><tr><td>SAIL</td><td class="num">76.7</td><td class="num">—</td><td class="num">—</td><td class="num">77.1</td><td class="num">78.3</td></tr><tr><td>EVEv2</td><td class="num">74.8</td><td class="num">—</td><td class="num">73.9</td><td class="num">71.1</td><td class="num">70.2</td></tr><tr><td>Emu3</td><td class="num">70.0</td><td class="num">76.3</td><td class="num">68.6</td><td class="num">64.7</td><td class="num">68.7</td></tr></tbody></table>
+      <div class="takeaway">原生比較的每欄最佳對手不同；NEO 並非所有欄位第一，OCRBench 仍落後 SAIL。</div>
+      <div class="cite">Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">CROWN PAGE · WHY IT WORKS</div>
+      <p class="big">NEO 的 gain 不是只靠「更多資料」：<br>在相同 backbone / 控制資料的比較裡，<b>mixed attention + Native-RoPE + pre-Buffer</b> 仍留下可辨識的增益。</p>
+      <div class="takeaway">這讓「原生 VLM 能不能學到視覺表徵」從 scaling 口號，變成可做 ablation 的機制問題。</div>
+      <div class="cite">§4.3 p.9 · Table 3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION</div>
+      <h2 class="head">Native-RoPE 與 mixed attention 都是必要條件</h2>
+      <table class="bench"><thead><tr><th>Configuration</th><th class="num">Attention</th><th class="num">RoPE</th><th class="num">Avg.</th></tr></thead><tbody><tr><td>A</td><td class="num">Causal</td><td class="num">1D-RoPE</td><td class="num">39.1</td></tr><tr><td>F</td><td class="num">Mixed</td><td class="num">Video-RoPE</td><td class="num">43.2</td></tr><tr><td>G</td><td class="num">Causal</td><td class="num">Native-RoPE</td><td class="num">40.3</td></tr><tr class="win"><td>H</td><td class="num">Mixed</td><td class="num">Native-RoPE</td><td class="num best">44.0</td></tr><tr><td>I</td><td class="num">Mixed</td><td class="num">Native-RoPE (H/W=1M)</td><td class="num">42.0</td></tr></tbody></table>
+      <ul class="bullets"><li>Mixed attention 對 causal attention 有一致增益。</li><li>Native-RoPE 對各種先前 RoPE 至少提升 0.8 average point。</li><li>H/W base frequency 改成 1M 會傷害 local semantics。</li></ul>
+      <div class="cite">Table 3 & §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · PRE-BUFFER</div>
+      <h2 class="head">pre-Buffer 的深度不是越多越好：八層後報酬開始飽和</h2>
+      <figure class="full" style="max-height:43vh;"><img src="figures/figure5_p8.jpg" alt=""><figcaption>Figure 5: average accuracy rises with pre-Buffer depth, then saturates</figcaption></figure>
+      <ul class="bullets"><li>作者為 NEO-2.2B 選 12 layers、NEO-9B 選 6 layers，平衡 performance 與 efficiency。</li><li>這是把「visual encoder 的容量」改成 pre-Buffer 深度這個可調旋鈕。</li></ul>
+      <div class="cite">Fig.5 & §4.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · REUSABLE ASSET</div>
+      <h2 class="head">可重用的 pre-Buffer 是成本論點，不只是架構論點</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:28vh;"><img src="figures/figure6_p9.jpg" alt=""><figcaption>Figure 6: pre-Buffer vs. vision encoders</figcaption></figure><ul class="bullets"><li>PB3 在作者的平均測試上僅落後 CLIP / InternViT / SigLIP <b>1.7 / 2.4 / 3.7%</b>。</li><li>僅用 22M training samples 的 PB3，距離 full NEO 為 <b>2.5%</b>。</li></ul></div><div><figure class="full" style="max-height:28vh;"><img src="figures/figure7_p9.jpg" alt=""><figcaption>Figure 7: NEO vs. EVE family</figcaption></figure><ul class="bullets"><li>控制為 Qwen3-1.7B：EVEv1 / v1.5 / v2 為 33.4 / 40.2 / 41.5。</li><li>NEO 為 <b>44.0</b>，作者據此將增益歸因於 primitive 與 training design，而非換更大的 base LLM。</li></ul></div></div>
+      <div class="cite">Fig.6–7 & §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHAT DOES NOT WORK YET</div>
+      <h2 class="head">論文自己留下的邊界，比漂亮平均分數重要</h2>
+      <ul class="bullets"><li><b>Knowledge / OCR-heavy tasks</b>：MMMU、InfoVQA、TextVQA 仍是明確短板。</li><li><b>Scaling 不保證單調改善</b>：NEO-9B 沒有超過 2.2B 的 DocVQA 與 InfoVQA。</li><li><b>資料仍是瓶頸</b>：作者將與頂尖 modular VLM 的差距歸因於 data scale / quality。</li><li><b>系統成本</b>：雖是 encoder-free，實驗仍依賴三階段訓練和 16 x 8-GPU 80G nodes。</li></ul>
+      <div class="takeaway">「native」降低模組割裂，不等於把資料、訓練或 OCR 難題一起消掉。</div>
+      <div class="cite">§4.1 p.6 · §4.2 pp.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING READOUT</div>
+      <h2 class="head">給做 VLM 的工程判讀：三個能帶走的結論</h2>
+      <ol class="numbered"><li><b>不要把 3D position encoding 當小修補</b>：T/H/W 的尺度與語義不同，position design 會直接改 local reasoning。</li><li><b>不要用同一種 mask 處理兩種 modality</b>：image 的 bidirectional context 與 text 的 causal generation 需要共存。</li><li><b>把可重用 capacity 拆出來</b>：pre-Buffer 讓 visual learning 資產化，而 post-LLM 把語言先驗留在穩定端。</li></ol>
+      <div class="cite">§3.1 pp.4–5 · §4.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · ORIGINAL CLAIM</div>
+      <div class="hl"><p class="hl__en">one native VLM primitive should: (i) effectively align pixel and word representations within a shared semantic space; (ii) seamlessly integrate the strengths of formerly separate vision and language modules; (iii) inherently embody various cross-modal properties.</p><p class="hl__zh">一個原生 VLM 元件需要在共同語義空間對齊 pixel 與 word、吸收視覺與語言模組原本各自的長處，並天然承載跨模態編碼、對齊、推理所需的性質。<span class="hl__src">Abstract, p.1</span></p></div>
+      <div class="cite">Verbatim excerpt from Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · REPRODUCIBILITY</div>
+      <h2 class="head">Deck evidence ledger</h2>
+      <ul class="bullets"><li>Paper version read: arXiv:2510.14979v2, dated 2026-02-21.</li><li>PDF, arXiv HTML dump, raw section extraction, figure manifest, and knowledge spec are archived beside this deck.</li><li>OpenReview forum DF6udvxuvY was identified; reviewer JSON request returned HTTP 403, so no review-score claim appears in this deck.</li><li>All quoted benchmark numbers carry paper table/page citations.</li></ul>
+      <div class="cite">Artifacts: 251014979.pdf · 251014979_raw_sections.txt · 251014979_spec.md</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Native VLMs need native contracts.</h2>
+      <p class="end__sub">NEO’s useful claim is architectural: preserve visual and language inductive biases inside one trainable primitive.</p>
+      <div class="end__next">Tomorrow: video generation / temporal models.</div>
+      <div class="cite">From Pixels to Words — Towards Native Vision-Language Primitives at Scale · ICLR 2026</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
