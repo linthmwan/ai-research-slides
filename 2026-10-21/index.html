@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pyramidal Flow Matching for Efficient Video Generative Modeling</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · VIDEO / TEMPORAL MODELS</div>
+      <h1 class="title">Pyramidal Flow Matching for Efficient Video Generative Modeling</h1>
+      <p class="lead">把高解析影片生成的 token 預算，從「全程全開」改成只在資訊密度最高的末段花。</p>
+      <div class="authors">Yang Jin et al. · Peking University / Kuaishou Technology</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2025</span><span class="badge date">Retrospective · 2026-10-21</span></div>
+      <figure class="full" style="max-height:20vh; margin-top:.2rem;"><img src="figures/figure1_p2.jpg" alt="Fig.1 · Full-resolution diffusion vs. pyramidal flow"><figcaption>Fig.1 · Full-resolution diffusion vs. pyramidal flow</figcaption></figure>
+      <div class="cite">Paper cover p.1 · Fig.1 / §1 p.2 · arXiv:2410.05954</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">EDITORIAL NOTE</div>
+      <p class="big">今日 arXiv discovery API 回 429。</p>
+      <p class="lead">不把過期候選偽裝成今日新作；本份明確標示為 retrospective，選用 ICLR 2025、且與本週影片 / 時序主題乾淨對齊的完整論文。</p>
+      <div class="takeaway">原始 PDF、全文 extraction、figure manifest 均已落地；以下數字都回到論文 section + page。</div>
+      <div class="cite">Discovery log 2026-10-21 · paper venue verified from cover p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Pyramid Flow 把跨解析度「生成 + 解壓」寫成同一條 flow。</p>
+      <p class="lead">空間上：早期 noisy step 留在低解析度。時間上：遠端 history 留在低解析度。單一 DiT 用 unified objective 共同學習。</p>
+      <div class="takeaway">關鍵不是多階段 pipeline；是機率路徑在跨尺度跳點仍保持連續。</div>
+      <div class="cite">Abstract p.1 · §1 pp.1–2 · §3.2–3.3 pp.4–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM · SPATIOTEMPORAL COST</div>
+      <h2 class="head">為什麼影片模型特別吃算力？</h2>
+      <ul class="bullets"><li>VAE 已壓縮像素，但高解析長影片仍有巨大 token 數。</li><li>full-sequence diffusion 在每個 denoising timestep 都處理 full-resolution latent。</li><li>autoregressive 規模化雖可生成更長影片，full-resolution history condition 仍把 memory / compute 拉高。</li></ul>
+      <div class="scorebox"><span class="score score--lo">119,040 tokens</span><span class="score score--hi"><=15,360 tokens</span></div>
+      <p class="note">例：10s、241-frame 影片；後者是論文的 pyramid token 上限。</p>
+      <div class="cite">§1 p.2 · §3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRIOR APPROACH</div>
+      <h2 class="head">Cascade 省算力，但把知識切成孤島。</h2>
+      <ul class="bullets"><li>主流作法：先低解析度生成，再交給獨立 super-resolution model。</li><li>每個 sub-stage 分別最佳化：generation 與 upsampling 的表徵 / 知識不容易共用。</li><li>Pyramid Flow 的目標是保留 multi-scale 的成本優勢，卻把所有 stage 放入單一可端到端訓練的 DiT。</li></ul>
+      <div class="takeaway">問題不是「要不要金字塔」；而是「金字塔 stage 是否仍在同一條生成路徑上」。</div>
+      <div class="cite">Abstract p.1 · §1 pp.1–2 · §3.2.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">INTUITION</div>
+      <h2 class="head">早期噪聲沒有必要用 full resolution 處理。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure1_p2.jpg" alt="Fig.1 · 只有最後 stage 在 full resolution；藍色箭頭是 temporal conditions."><figcaption>Fig.1 · 只有最後 stage 在 full resolution；藍色箭頭是 temporal conditions.</figcaption></figure>
+      <p class="note">作者的觀察：初期 latent 極 noisy、資訊低。先在壓縮 latent 演進，末段才補 full-resolution detail。</p>
+      <div class="cite">Fig.1 / §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PRELIMINARY · FLOW MATCHING</div>
+      <h2 class="head">Flow matching 學的是把 noise 推向 data 的 velocity field。</h2>
+      <div class="formula">d x<sub>t</sub> / d t = v<sub>t</sub>(x<sub>t</sub>)</div>
+      <ul class="bullets"><li>用 conditional probability path 定義 supervision，而不是逐步模擬 diffusion。</li><li>標準線性 path 是 x<sub>t</sub> = t x<sub>1</sub> + (1 - t) x<sub>0</sub>。</li><li>這個彈性讓作者能把 path 的兩端改成不同解析度的 latent。</li></ul>
+      <div class="cite">§3.1 p.3 · Eq.1–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD · SPATIAL PYRAMID</div>
+      <h2 class="head">一條 path，分 K 個跨解析度 windows。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure2_p4.jpg" alt="Fig.2 · 每段從 pixelated/noisy latent 走向 cleaner/finer latent；跳點需要 renoising."><figcaption>Fig.2 · 每段從 pixelated/noisy latent 走向 cleaner/finer latent；跳點需要 renoising.</figcaption></figure>
+      <div class="takeaway">只在最末 stage 做 full resolution；均勻 stage partition 下，spatial cost 近似縮為 1 / K。</div>
+      <div class="cite">Fig.2 · §3.2 p.4 · Eq.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD · UNIFIED TRAINING</div>
+      <h2 class="head">同一個 target 同時教會「生成」和「解壓」。</h2>
+      <ul class="bullets"><li>每個 stage 的 start / end 同時調整 resolution 與 noise level。</li><li>兩端共享同一個 noise direction：避免 random coupling 造成多條 flow trajectory 互相交叉。</li><li>模型回歸 endpoint difference；全部 stage 由單一 DiT 端到端共同最佳化。</li></ul>
+      <div class="formula">target = x_hat<sub>e,k</sub> - x_hat<sub>s,k</sub></div>
+      <div class="cite">§3.2.1 p.4 · Eq.7–11 · Appendix C.4 pp.22–23</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD · JUMP CORRECTION</div>
+      <h2 class="head">為什麼跳到更高解析度時必須 renoise？</h2>
+      <ul class="bullets"><li>直接 upsample 會改變 latent covariance：鄰近位置變得過度相關。</li><li>rescaling 先對齊 mean，corrective Gaussian noise 再對齊 covariance。</li><li>nearest-neighbor case 取 gamma = -1/3 以降低 block 內相關性，且保持 covariance 半正定。</li></ul>
+      <div class="takeaway">Renoising 不是為了「再加一點噪聲」；它是跨解析度 transition 的 distribution matching。</div>
+      <div class="cite">§3.2.2 p.5 · Eq.12–15 · Appendix A pp.16–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD · TEMPORAL PYRAMID</div>
+      <h2 class="head">遠端 history 可低解析度；近端 history 保留細節。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure3_p6.jpg" alt="Fig.3 · temporal pyramid：較早 history 使用更壓縮的 condition。"><figcaption>Fig.3 · temporal pyramid：較早 history 使用更壓縮的 condition。</figcaption></figure>
+      <p class="note">訓練時對 history 加小噪聲緩解 autoregressive error accumulation；推論使用 clean generated history。</p>
+      <div class="cite">Fig.3 · §3.3 p.6 · Eq.16–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD · TOKEN ECONOMICS</div>
+      <h2 class="head">壓縮的是舊 history 的解析度，不是影片長度。</h2>
+      <ul class="bullets"><li>若 T 個 history latents、K 個低解析度，作者表示多數 frames 在 1 / 2<sup>K</sup> resolution。</li><li>token 數最多可降為 1 / 4<sup>K</sup>；訓練效率的推導上限為 16K / T。</li><li>實作仍可用 full-sequence attention，因為輸入 token 已被 representation 壓低。</li></ul>
+      <div class="takeaway">這把「長 context」的問題，轉成「哪些時間位置值得高解析度」的配置問題。</div>
+      <div class="cite">§3.3–3.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">IMPLEMENTATION</div>
+      <h2 class="head">保持標準 Transformer pipeline，而非另造專用架構。</h2>
+      <ul class="bullets"><li>Base model：2B MM-DiT，3D VAE 壓縮比 8 x 8 x 8，實驗固定 3 個 pyramid stages。</li><li>blockwise causal attention 阻止 token 看未來 frame；spatial position encoding 外插、temporal input 內插。</li><li>不同 token count 的 samples 以 length-balanced packing 組 batch；同一 autoregressive formulation 可同時學 image / video。</li></ul>
+      <div class="cite">§3.4 p.6 · §4.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENTAL SETUP</div>
+      <h2 class="head">公開資料、2B model、10M 級影片語料。</h2>
+      <ul class="bullets"><li>影片資料含 WebVid-10M、OpenVid-1M、Open-Sora Plan 的高解析無水印影片；postprocess 後約 10M single-shot videos。</li><li>VBench：16 個細粒度維度；EvalCrafter：約 17 個 objective metrics。</li><li>最終模型支援 5–10s、768p、24 fps；三段訓練的高解析 stage 為 50k steps。</li></ul>
+      <div class="cite">Abstract p.1 · §4.1 p.7 · Appendix B p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EFFICIENCY</div>
+      <h2 class="head">20.7k A100 GPU hours：訓練 10s / 241-frame 模型。</h2>
+      <ul class="bullets"><li>論文報告：full-sequence diffusion 的 input token 為 T N；Pyramid Flow 約為 T N / 4<sup>K</sup>。</li><li>相應的 attention-style compute 項由 T<sup>2</sup>N<sup>2</sup> 變為 T<sup>2</sup>N<sup>2</sup> / 16<sup>K</sup>。</li><li>5s / 384p clip 的推論約 56 秒；作者明說仍只是與 full-sequence counterparts 相當，非 real-time。</li></ul>
+      <div class="scorebox"><span class="score score--hi">20.7k A100 h</span><span class="score score--lo">56 s / 5s clip</span></div>
+      <div class="cite">§4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · VBENCH</div>
+      <h2 class="head">在公開資料組中，quality / motion 是最強訊號。</h2>
+      <table class="bench"><thead><tr><th>Model</th><th>Public</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Motion</th><th class="num">Dynamic</th></tr></thead><tbody><tr><td>Open-Sora 1.2</td><td>yes</td><td class="num">79.76</td><td class="num">81.35</td><td class="num">98.50</td><td class="num">42.39</td></tr><tr><td>T2V-Turbo</td><td>yes</td><td class="num">81.01</td><td class="num">82.57</td><td class="num">97.34</td><td class="num">49.17</td></tr><tr class="win"><td>Pyramidal Flow</td><td>yes</td><td class="num best">81.72</td><td class="num best">84.74</td><td class="num best">99.12</td><td class="num best">64.63</td></tr><tr><td>Gen-3 Alpha</td><td>no</td><td class="num">82.32</td><td class="num">84.11</td><td class="num">99.23</td><td class="num">60.14</td></tr></tbody></table>
+      <div class="takeaway">Pyramidal Flow 的 VBench quality 84.74 高於表中 Gen-3 Alpha 的 84.11；語義項並非它的強項。</div>
+      <div class="cite">Table 1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · EVALCRAFTER</div>
+      <h2 class="head">Motion / visual 有競爭力，semantic alignment 是明確弱點。</h2>
+      <table class="bench"><thead><tr><th>Model</th><th>Public</th><th class="num">Final</th><th class="num">Visual</th><th class="num">T-V Align</th><th class="num">Motion</th></tr></thead><tbody><tr><td>VideoCrafter2</td><td>yes</td><td class="num">243</td><td class="num">63.98</td><td class="num">63.16</td><td class="num">54.82</td></tr><tr class="win"><td>Pyramidal Flow</td><td>yes</td><td class="num best">244</td><td class="num best">67.94</td><td class="num best">57.01</td><td class="num best">55.31</td></tr><tr><td>Gen-2</td><td>no</td><td class="num">254</td><td class="num">69.09</td><td class="num">63.92</td><td class="num">55.59</td></tr></tbody></table>
+      <p class="note">作者將較低 semantic score 歸因於 coarse-grained synthetic captions，而非把它說成全面 SOTA。</p>
+      <div class="cite">Table 2 p.8 · §4.3 pp.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS · HUMAN PREFERENCE</div>
+      <h2 class="head">自動指標之外，motion preference 的差距最明顯。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure4_p8.jpg" alt="Fig.4 · User preference on sampled VBench prompts."><figcaption>Fig.4 · User preference on sampled VBench prompts.</figcaption></figure>
+      <p class="note">50 prompts、20+ participants；相對 Open-Sora 1.2：semantic 59.2%、motion 83.1%、aesthetic 76.7%。</p>
+      <div class="cite">Fig.4 / §4.3 p.8 · Appendix B p.18</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM · THE CROWN PAGE</div>
+      <p class="big">把 expensive compute 留給「已經有內容」的末段。</p>
+      <p class="lead">Spatial pyramid 把 early noisy denoising 壓縮；temporal pyramid 把遠端 history 壓縮。Unified flow 與 renoise 再保證這不是斷開的 cascade。</p>
+      <div class="takeaway">收益的因果鏈：token budget 降低 → 同資源可容納更多 samples / 更快收斂 → motion-quality 的可見改善。</div>
+      <div class="cite">§1 p.2 · §3.2–3.3 pp.4–6 · §4.4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · SPATIAL PYRAMID</div>
+      <h2 class="head">同等資源下，pyramid flow 幾乎 3x 更快收斂。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure7_p10.jpg" alt="Fig.7 · Spatial pyramid vs. full-resolution flow matching FID convergence."><figcaption>Fig.7 · Spatial pyramid vs. full-resolution flow matching FID convergence.</figcaption></figure>
+      <p class="note">比較控制 data、batch token、hyperparameters、architecture；圖表未給可安全轉錄的逐點 FID，因此只陳述作者的「almost three times」結論。</p>
+      <div class="cite">Fig.7 / §4.4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · TEMPORAL PYRAMID</div>
+      <h2 class="head">同訓練 steps，full-sequence baseline 還沒有收斂。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure8_p10.jpg" alt="Fig.8 · Temporal pyramid vs. full-sequence diffusion at 100k low-resolution video steps."><figcaption>Fig.8 · Temporal pyramid vs. full-sequence diffusion at 100k low-resolution video steps.</figcaption></figure>
+      <p class="note">作者報告 full-sequence variant 出現 fragmented visual details 與 incoherent motion；pyramid variant 有較佳 temporal consistency。</p>
+      <div class="cite">Fig.8 / §4.4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · RENOISING</div>
+      <h2 class="head">拿掉 corrective noise：全局形狀還在，細節卻被 block artifacts 吃掉。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure10_p20.jpg" alt="Fig.10 · Corrective renoising ablation."><figcaption>Fig.10 · Corrective renoising ablation.</figcaption></figure>
+      <div class="takeaway">這支持 renoising 的定位：它修正 upsample jump 的 correlation mismatch，而不是可有可無的 sampling trick。</div>
+      <div class="cite">Fig.10 · Appendix C.2 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION · CAUSAL ATTENTION</div>
+      <h2 class="head">雙向 attention 的「資訊更多」直覺，在 autoregressive video 反而不穩。</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.35rem;"><img src="figures/figure11_p21.jpg" alt="Fig.11 · Blockwise causal vs. bidirectional attention."><figcaption>Fig.11 · Blockwise causal vs. bidirectional attention.</figcaption></figure>
+      <ul class="bullets"><li>bidirectional variant 的 subject shape / color 隨 generation 持續改變。</li><li>作者推論：ongoing generation 回頭影響 history condition，使條件本身偏移。</li><li>causal attention 固定 history 作為 predetermined condition，穩住長程生成。</li></ul>
+      <div class="cite">Fig.11 · Appendix C.2 p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ANALYSIS · COUPLED NOISE</div>
+      <h2 class="head">共享 noise direction，讓 flow trajectory 少交叉、較直。</h2>
+      <figure class="full" style="max-height:42vh; margin-top:.25rem;"><img src="figures/figure13_p22.jpg" alt="Fig.13 · Toy experiment: coupled vs. random endpoint sampling."><figcaption>Fig.13 · Toy experiment: coupled vs. random endpoint sampling.</figcaption></figure>
+      <p class="note">獨立端點取樣使方向隨機而容易交叉；coupled endpoints 形成較組織化、可能平行的 path。</p>
+      <div class="cite">Fig.13 · Appendix C.4 pp.22–23</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITATIONS</div>
+      <h2 class="head">效率不是免費的：temporal compression 會留下可追的代價。</h2>
+      <ul class="bullets"><li>只支援 autoregressive generation，不能直接處理 keyframe / video interpolation。</li><li>長時間可能出現 subtle subject inconsistency；face consistency 也被作者點名為 temporal history compression 的弱點。</li><li>尚非 real-time inference；沒有 prompt rewriting，且資料過濾使 scene transitions 未被充分學習。</li></ul>
+      <div class="cite">Limitations p.23 · Appendix C.1 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAY</div>
+      <h2 class="head">對實作團隊的三個可移植問題。</h2>
+      <ol class="numbered"><li>能否把不同解析度的任務寫成同一個 continuous target，而非各自訓練的 cascade？</li><li>長 context 裡，哪些 token 只需要 semantic / layout information，哪些才需要 full-detail condition？</li><li>跨表示跳轉時，是否有明確的 distribution mismatch 要修正，而不是把 artifact 歸咎於 sampler？</li></ol>
+      <div class="takeaway">Pyramid Flow 的價值是給出一個可檢驗答案：representation allocation + path continuity 必須一起設計。</div>
+      <div class="cite">§3.2–3.4 pp.4–6 · Appendix C.2 pp.20–21</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · AUTHOR WORDING</div>
+      <h2 class="head">原文螢光筆</h2>
+      <div class="hl"><p class="hl__en">“only the final stage operates at full resolution, drastically reducing redundant computations in earlier timesteps.”</p><p class="hl__zh">「只有最後一個 stage 使用 full resolution，因此早期 timestep 的冗餘計算被大幅移除。」<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">“the temporal pyramid designs to improve training efficiency can sometimes lead to subtle subject inconsistency, especially over the long term.”</p><p class="hl__zh">「為了效率的 temporal pyramid，長時間下有時會帶來細微主體不一致。」<span class="hl__src">Limitations p.23</span></p></div>
+      <div class="cite">§1 p.2 · Limitations p.23</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Pyramidal Flow Matching</h2>
+      <p class="end__sub">在 token 成本真正爆炸前，先決定哪一段訊息值得 full resolution。</p>
+      <div class="end__next">Tomorrow: Compute Acceleration — attention, kernels, hardware.</div>
+      <div class="cite">ICLR 2025 · https://arxiv.org/abs/2410.05954</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
