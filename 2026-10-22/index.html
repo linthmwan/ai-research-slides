@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RACE Attention — AI Research Daily</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">THURSDAY / COMPUTE ACCELERATION</div>
+      <h1 class="title">RACE Attention</h1>
+      <p class="lead">A strictly linear-time attention layer for <b>outrageously large contexts</b></p>
+      <div class="authors">Sahil Joshi · Agniva Chowdhury · Amar Kanakamedala · Ekam Singh · Evan Tu · Anshumali Shrivastava<br>Rice University</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv:2510.04008v5 · 2026-04-18</span></div>
+      <p class="note">Full paper title: RACE Attention: A Strictly Linear-Time Attention Layer for Training on Outrageously Large Contexts</p>
+      <div class="cite">Paper cover p.1 · Official OpenReview forum: RR8Lh8RHgA</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不要再算 N x N。<br>把注意力變成 <b>LSH bucket 統計量</b>。</p>
+      <div class="sub">RACE replaces all-pairs Softmax interaction with differentiable random sketches: O(LNRd), not O(N<sup>2</sup>d).</div>
+      <div class="cite">§3.2 p.7 · Algorithm 1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 / THE WALL</div>
+      <h2 class="head">FlashAttention 改善 IO，沒有移除二次互動</h2>
+      <ul class="bullets"><li>長上下文的主瓶頸仍是 query-key 的全配對，時間隨 N<sup>2</sup> 成長。</li><li>作者的單層 forward/backward 實驗裡，96GB GH200 在約 <b>4M tokens</b> 後已無法完成 FlashAttention-2/3。</li><li>要把 context 推到千萬、上億級，核心問題是演算法複雜度，不只是 kernel tuning。</li></ul>
+      <div class="cite">Abstract p.1 · §1 pp.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">02 / WHY EXISTING LINEAR ATTENTION IS NOT ENOUGH</div>
+      <h2 class="head">既有近似各自留下了缺口</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>Linear Attention</b>: 以正特徵映射重排計算，但實驗常有 accuracy loss。</li><li><b>Performer</b>: Random Fourier features；文中指出 runtime 對 embedding dimension d 有二次項。</li></ul></div><div><ul class="bullets"><li><b>Linformer</b>: 以低秩 surrogate 取代 score matrix，需要選 rank，且不支援 autoregressive task。</li><li><b>YOSO</b>: hard LSH 不可微、靠 surrogate gradients，並以 post-hoc l2 normalization 取代標準 attention normalization。</li></ul></div></div>
+      <div class="cite">§1 pp.2-3 · §3.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 / CLAIMS</div>
+      <h2 class="head">這篇實際上交付了四件事</h2>
+      <ol class="numbered"><li><b>Kernel:</b> 選擇可 sharpen、又可由 LSH sketch 估計的 angular similarity。</li><li><b>Training:</b> 用 soft bucket assignment 取代 hard hash，保持 end-to-end differentiability。</li><li><b>Theory:</b> 用 beta 和 L 分拆 bias / variance，不只報一個 heuristic。</li><li><b>Scale:</b> 在同一套參數下，測到 GPU 12M、CPU 75M tokens 的單層 training stress test。</li></ol>
+      <div class="cite">§1 p.4 · Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">CORE MECHANISM</div>
+      <p class="big">Attention 的充分統計量<br>不需要 N x N score matrix。</p>
+      <div class="takeaway">RACE 的關鍵不是把矩陣算得更省，而是根本不建立它。</div>
+      <div class="cite">§3.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 / TARGET KERNEL</div>
+      <h2 class="head">先用 sharpened angular kernel 逼近 Softmax 的選擇性</h2>
+      <div class="formula">sim(Q<sub>i</sub>, K<sub>j</sub>) = (1 - acos(Q<sub>i</sub><sup>T</sup>K<sub>j</sub> / (||Q<sub>i</sub>|| ||K<sub>j</sub>||)) / pi)<sup>P</sup></div>
+      <div class="two-col"><div><ul class="bullets"><li>角度 kernel 對向量 norm 不變；P 越大，近似越尖銳。</li><li>作者把它當成 Softmax-like target，而不是宣稱等於 Softmax。</li></ul></div><div><figure class="full" style="max-height:34vh;"><img src="figures/figure3_p6.jpg" alt="Angular kernel sharpening"><figcaption>Fig.3: increasing gamma sharpens the angular kernel.</figcaption></figure></div></div>
+      <div class="cite">§3.1 pp.5-6 · Fig.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 / FROM MATRIX TO SKETCH</div>
+      <h2 class="head">同一個輸出位置：full column vs. bucket summaries</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure1_p2.jpg" alt="Softmax and RACE comparison"><figcaption>Fig.1: Softmax needs attention scores; RACE aggregates LSH-indexed bucket statistics.</figcaption></figure>
+      <div class="takeaway">Query 只需讀固定數量的 bucket summary，不需掃過所有 keys。</div>
+      <div class="cite">Fig.1 p.2 · §3.2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 / SOFT BUCKETIZATION</div>
+      <h2 class="head">把不可微的 hash collision 換成可微的 soft assignment</h2>
+      <div class="two-col"><div><ul class="bullets"><li>每個 table 畫 P 個 Gaussian hyperplanes。</li><li>R = 2<sup>P</sup> 個 hypercube corners 對應 sign pattern。</li><li>tanh(Wx) 產生 soft sign；softmax(beta x alignment) 形成 phi<sup>(l)</sup>(x)。</li></ul></div><div><ul class="bullets"><li>同角度接近的 Q/K 把較多機率放到相同 corners。</li><li>phi(Q)<sup>T</sup>phi(K) 成為 P-powered angular similarity 的平滑近似。</li><li>沒有 hard assignment，梯度可直接穿過 bucketization。</li></ul></div></div>
+      <div class="cite">Algorithm 1 p.5 · §3.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">07 / ALGORITHM</div>
+      <h2 class="head">每張 hash table 只留兩個 bucket-level sufficient statistics</h2>
+      <div class="formula">A<sup>(l)</sup> = Phi<sub>K</sub><sup>(l)T</sup> 1; &nbsp; B<sup>(l)</sup> = Phi<sub>K</sub><sup>(l)T</sup> V</div>
+      <div class="formula">Num = (1/L) Sum Phi<sub>Q</sub><sup>(l)</sup>B<sup>(l)</sup>; &nbsp; Den = (1/L) Sum Phi<sub>Q</sub><sup>(l)</sup>A<sup>(l)</sup>; &nbsp; O_hat = diag(Den)<sup>-1</sup>Num</div>
+      <ul class="bullets"><li>A 是每個 corner 的 key mass；B 是該 corner 的 value-weighted sum。</li><li>query 以自己的 phi 向量讀出各 bucket summary，再做 attention-like normalization。</li><li>L 個獨立 tables 平均，用 ensemble 壓低 sketch variance。</li></ul>
+      <div class="cite">Algorithm 1 p.5 · §3.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">08 / COMPLEXITY</div>
+      <h2 class="head">固定 R、L 時，序列長度只線性進入成本</h2>
+      <div class="two-col"><div><div class="scorebox"><span class="score score--hi">R = 2^P</span><span class="score score--hi">O(LNRd)</span></div><ul class="bullets"><li>每 table: random projection、corner logits、bucket aggregation。</li><li>空間：O(L(NR + Rd))。</li></ul></div><div><div class="scorebox"><span class="score score--lo">O(N²d)</span><span class="score score--lo">all-pairs</span></div><ul class="bullets"><li>文中對照 FlashAttention-2/3 的 time complexity。</li><li>實務優勢前提：R、L 都遠小於 N，且維持可接受 accuracy。</li></ul></div></div>
+      <div class="cite">§3.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">09 / CAUSAL MODE</div>
+      <h2 class="head">Causal prefix scan 有實作；理論保證尚未跟上</h2>
+      <ul class="bullets"><li>作者以 OpenMP/CUDA custom kernels 在 single streaming pass 內計算 causal prefix operations。</li><li>語言模型結果採 causal RACE；但 Theorem 2 只涵蓋 non-causal attention。</li><li>這不是小註腳：prefix constraint 與 random-feature construction 的交互仍是 open problem。</li></ul>
+      <div class="takeaway">工程可用性與理論覆蓋範圍必須分開看。</div>
+      <div class="cite">§1 p.4 · §3.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">10 / THEORY</div>
+      <h2 class="head">作者把 approximation error 拆成可調的兩部分</h2>
+      <div class="formula">||O_hat - O||<sub>rms</sub> = O(P/beta + sqrt(log(N/delta)/L)) ||V||<sub>F</sub></div>
+      <div class="two-col"><div><ul class="bullets"><li><b>Bias:</b> P/beta。beta 更高，soft bucketization 更接近 hard collision。</li><li><b>Variance:</b> sqrt(log(N/delta)/L)。更多 independent tables 降低 randomness。</li></ul></div><div><ul class="bullets"><li>假設 target kernel row sums 不會接近零，才能穩定 normalize。</li><li>結論針對 P-powered Angular Attention，不是對 exact Softmax 的誤差界。</li></ul></div></div>
+      <div class="cite">Theorem 2 · §3.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big">P 決定「想要多尖」。<br>beta 決定「soft hash 有多偏」。<br>L 決定「隨機估計有多穩」。</p>
+      <div class="takeaway">這三個 knob 對應不同失真來源；不是單純把 hash 數調大。</div>
+      <div class="cite">§3.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">11 / EXPERIMENT DESIGN</div>
+      <h2 class="head">不是只跑一個 long-context benchmark</h2>
+      <div class="two-col"><div><ul class="bullets"><li>Text: QNLI, SST-2, IMDB, Yahoo, Arxiv, WikiText-103, PTB, Tiny Stories。</li><li>Vision: CIFAR-10、FashionMNIST、Food-101 ViT。</li><li>Long Range Arena: ListOps、Text Retrieval。</li></ul></div><div><ul class="bullets"><li>Baselines: FlashAttention2, Linear, Performer, Linformer, Sigmoid, YOSO。</li><li>一般 accuracy experiment 使用相同 Transformer backbone、training budget。</li><li>極端長度測試：單 layer, batch=1, 4 heads, d=128。</li></ul></div></div>
+      <div class="cite">§4 pp.8-10 · Fig.4 caption p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">12 / LONG-DOCUMENT RESULT</div>
+      <h2 class="head">64K Arxiv classification：RACE P=3,L=3 同時最快且最高準確</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Train / epoch</th><th class="num">Test / epoch</th><th class="num">Accuracy</th></tr></thead><tbody><tr class="win"><td>RACE P=3,L=3</td><td class="num">584s</td><td class="num">22.5s</td><td class="num best">97.92%</td></tr><tr><td>FlashAttention2</td><td class="num">1645s</td><td class="num">47s</td><td class="num">97.0%</td></tr><tr><td>Performer-256</td><td class="num">952s</td><td class="num">35s</td><td class="num">96.61%</td></tr><tr><td>Linear</td><td class="num">591s</td><td class="num">22.8s</td><td class="num">96.35%</td></tr></tbody></table>
+      <p class="note">A100 GPU; Table reports per-epoch seconds and accuracy.</p>
+      <div class="cite">Table 1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">13 / SCALING CURVES</div>
+      <h2 class="head">Stress test 的形狀，比單點 speedup 更重要</h2>
+      <figure class="full" style="max-height:51vh;"><img src="figures/figure4_p10.jpg" alt="CPU and GPU scaling stress tests"><figcaption>Fig.4: log-scale forward/backward time over context lengths, single attention layer.</figcaption></figure>
+      <div class="cite">Fig.4 p.10 · §4 pp.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">14 / CPU EXTREME LENGTH</div>
+      <h2 class="head">CPU 上 75M tokens；在約 33M 的交叉點，漸近項開始主導</h2>
+      <div class="two-col"><div><div class="scorebox"><span class="score score--hi">75M</span><span class="score score--hi">>10,000x</span></div><ul class="bullets"><li>單層 forward/backward 最高處理 75M tokens。</li><li>約 33M tokens：作者報告 RACE <10s、FlashAttention 約 10<sup>5</sup>s。</li></ul></div><div><ul class="bullets"><li>這不是說 CPU 絕對快：短至中等 N，GPU FlashAttention 仍佔優。</li><li>這說明 N 夠大後，O(N) 對 O(N<sup>2</sup>) 的差距壓過硬體差距。</li></ul></div></div>
+      <div class="cite">§4 p.11 · Fig.4f / Fig.5b</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">15 / GPU EXTREME LENGTH</div>
+      <h2 class="head">GH200 上的四百萬 token：不是小幅 kernel win</h2>
+      <figure class="full" style="max-height:37vh;"><img src="figures/figure5_p11.jpg" alt="RACE speedup plots"><figcaption>Fig.5: relative speedup and YOSO comparison.</figcaption></figure>
+      <div class="scorebox"><span class="score score--hi">0.1s RACE</span><span class="score score--lo">~550s FA2</span><span class="score score--hi">~5500x</span></div>
+      <p class="note">At approximately 4M tokens in the paper's single-layer GH200 setup; RACE reaches 12M tokens.</p>
+      <div class="cite">§4 p.11 · Fig.5 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">16 / ACCURACY SANITY CHECK</div>
+      <h2 class="head">不是靠只做 speed benchmark 換來的結果</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">CIFAR-10</th><th class="num">QNLI</th><th class="num">Tiny Stories PPL</th></tr></thead><tbody><tr class="win"><td>RACE P=4,L=4</td><td class="num">65.9</td><td class="num best">61.1</td><td class="num">2.6</td></tr><tr><td>FlashAttention2</td><td class="num">61.44</td><td class="num best">61.1</td><td class="num">2.7</td></tr><tr><td>Angular gamma=8</td><td class="num">61.69</td><td class="num best">61.7</td><td class="num best">2.5</td></tr><tr><td>Performer-256</td><td class="num">64.9</td><td class="num">61.0</td><td class="num">10.0</td></tr></tbody></table>
+      <p class="note">CIFAR-10 @1024, QNLI @2048, Tiny Stories @1024; metrics are not a single unified task.</p>
+      <div class="cite">Table 2 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">17 / DIMENSION IS ALSO A BOTTLENECK</div>
+      <h2 class="head">長度以外，RACE 也避開部分 linear-attention 的 d bottleneck</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure6_p17.jpg" alt="Dimension scaling"><figcaption>Fig.6d: reported d-scaling at fixed N=65536.</figcaption></figure>
+      <ul class="bullets"><li>作者在 Appendix 報告：Linear Attention 對 d 呈二次 scaling，RACE 為線性。</li><li>這與 RACE 的 O(NRd) 重點一致；但 R=2<sup>P</sup> 也提醒 P 不能無限制提高。</li></ul>
+      <div class="cite">Fig.6 p.17 · §3.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">INTERPRETATION</div>
+      <p class="big">Right algorithm beats<br>hardware acceleration.</p>
+      <div class="sub">Paper wording, with one qualification: its largest numbers are single-layer stress tests, not end-to-end LLM throughput.</div>
+      <div class="cite">§4 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">18 / WHAT TO BELIEVE</div>
+      <h2 class="head">最扎實的結論，和不該延伸的結論</h2>
+      <div class="two-col"><div><p class="col-hint">SUPPORTED</p><ul class="bullets"><li>LSH sketch + soft bucketization 能把 target-kernel attention 寫成 bucket summary lookup。</li><li>本文對 non-causal Angular Attention 提供 bias/variance accounting。</li><li>長 context 下的 stress-test curve 確實揭示 O(N) 與 O(N<sup>2</sup>) 的分野。</li></ul></div><div><p class="col-hint">NOT YET SHOWN</p><ul class="bullets"><li>沒有 causal version 的完整理論。</li><li>沒有 end-to-end multi-layer LLM serving 的 production study。</li><li>不等於 exact Softmax，也不代表 P/L/beta 不需 tuning。</li></ul></div></div>
+      <div class="cite">§3.3 p.8 · §4 pp.10-11 · §5 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">19 / ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">若把它當成一條系統設計線索</h2>
+      <ol class="numbered"><li>先定位 workload：N 要真的跨過 all-pairs regime，asymptotic 才能抵消 sketch constant。</li><li>把 P、beta、L 拆開做 tuning：sharpness、bias、variance 不要混成單一 magic number。</li><li>Causal path 要另測：本文實作可用，不代表 non-causal theorem 自動遷移。</li><li>把 sketch 與 sparsity 視為可組合；作者也把這件事留作 future direction。</li></ol>
+      <div class="cite">§1 pp.3-4 · §3.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / ORIGINAL HIGHLIGHT</div>
+      <h2 class="head">作者如何定義核心轉換</h2>
+      <div class="hl"><p class="hl__en">RACE avoids explicitly approximating the <b>N x N attention matrix</b> ... [and] sketches the sufficient statistics needed to compute attention outputs directly in linear time.</p><p class="hl__zh">RACE 不直接近似 <b>N x N 注意力矩陣</b>；它 sketch 出直接計算注意力輸出所需的充分統計量，因此可以線性時間運作。<span class="hl__src">§3.2 p.7</span></p></div>
+      <div class="hl"><p class="hl__en">The bound decomposes into a <b>bias</b> term O(P/beta) and a <b>variance</b> term O(sqrt(log(N/delta)/L)).</p><p class="hl__zh">誤差界拆成由 P/beta 主導的<b>偏差</b>項，以及由 L 主導的<b>方差</b>項。<span class="hl__src">§3.3 p.8</span></p></div>
+      <div class="cite">Original text from §3.2 p.7 and §3.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / PIPELINE</div>
+      <h2 class="head">從 Q,K,V 到 output 的整體資料流</h2>
+      <figure class="full" style="max-height:51vh;"><img src="figures/figure7_p28.jpg" alt="RACE Attention pipeline"><figcaption>Fig.7: Appendix visualization of the RACE pipeline.</figcaption></figure>
+      <div class="cite">Fig.7 p.28</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / CAVEAT</div>
+      <h2 class="head">算得更長，不代表所有實務代價都消失</h2>
+      <ul class="bullets"><li>RACE 仍儲存 token-level soft features；其 memory expression仍含 N R 項。</li><li>P 增大時 R=2<sup>P</sup>，因此 sharpness 有成本，不能把 P 無限推高。</li><li>極端數字依賴特定 layer/hardware/config；需要用自己的 model shape 與 batch size 重測。</li></ul>
+      <div class="cite">§3.2 p.7 · §4 pp.10-11</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">RACE Attention</h2>
+      <p class="end__sub">A differentiable LSH sketch turns long-context attention into a controlled approximation problem.</p>
+      <div class="end__next">Tomorrow: model compression / efficiency</div>
+      <div class="cite">Paper: arXiv:2510.04008 · ICLR 2026 Poster</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
