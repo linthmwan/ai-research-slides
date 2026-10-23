@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RPFQ-ViT — AI Research Daily</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">FRIDAY / MODEL COMPRESSION & EFFICIENCY</div>
+      <h1 class="title">RPFQ-ViT</h1>
+      <p class="lead">把 2-bit ViT 權重量化，從「逐 scalar 擬合」換成<b>保留投影方向</b>。</p>
+      <div class="authors">Mengyuan Fan · Bokai Huang · JiaMing Pan · Xiaokun Yuan · Peizhuang Cong · Zhewen Tan · Tong Yang<br>Peking University</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026 · accepted</span><span class="badge date">arXiv:2610.04457v1 · 2026-10-03</span></div>
+      <p class="note">Full paper title: RPFQ-ViT: Rotated Phase-Frame Quantization for Extremely Low-Bit Weights in Vision Transformers</p>
+      <div class="cite">Paper cover p.1 · arXiv:2610.04457</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">2-bit 的問題不只在幅度誤差。<br>ViT 更怕<b>方向被量化到歪掉</b>。</p>
+      <div class="sub">RPFQ pairs channels into 2D planes, learns a local phase frame, then recovers magnitude with least-squares and a residual phase stage.</div>
+      <div class="cite">Abstract p.1 · §3 pp.3-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 / THE LOW-BIT WALL</div>
+      <h2 class="head">ViT 的投影方向一歪，attention 的誤差會放大</h2>
+      <ul class="bullets"><li>Q-K inner products、token mixing 與深層 residual blocks 都對低位元擾動敏感。</li><li>既有 QAT 多從 attention distortion 或訓練 oscillation 補救，但維持實數 scalar codebook。</li><li>這篇把問題改寫為：在極低 bit 下，能不能先守住局部方向結構？</li></ul>
+      <div class="cite">§1 p.1 · §2.1 pp.2-3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">02 / CLAIMS</div>
+      <h2 class="head">這不是 complex ViT；它是一個 layout-preserving quantizer</h2>
+      <ol class="numbered"><li><b>Pair:</b> 把偶數維的兩半 channel 固定配對成 2D plane。</li><li><b>Frame:</b> 每個 group 學 rotation 與 phase anchors，讓 2-bit directions 對準局部幾何。</li><li><b>Recover:</b> 以 least-squares scale 與 residual phase 補回 magnitude。</li><li><b>Deploy:</b> 只替換 QAT 的 nn.Linear；attention、norm、activation 都不改。</li></ol>
+      <div class="cite">§1 p.2 · §3 pp.3-5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 / GEOMETRIC INTUITION</div>
+      <h2 class="head">同樣是 2-bit，codebook 的「方向」決定能否貼住投影</h2>
+      <figure class="full" style="max-height:46vh;"><img src="figures/figure2_p4.jpg" alt="Phase geometry comparison for low-bit ViT weights"><figcaption>Fig.2: scalar ternary axes create 40.0-degree angular error in the illustrated pair; the rotated phase frame reduces it to 13.9 degrees.</figcaption></figure>
+      <div class="cite">Fig.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 / WHERE IT PLUGS IN</div>
+      <h2 class="head">線性投影量化；Transformer 的其餘計算圖保持原狀</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure1_p4.jpg" alt="RPFQ ViT architecture and quantizer overview"><figcaption>Fig.1: qkv, output projection, MLP, and head linear layers are replaced; Softmax, LayerNorm, GELU, and residual paths remain real-valued.</figcaption></figure>
+      <div class="cite">Fig.1 p.4 · §4.1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 / PAIRED REPRESENTATION</div>
+      <h2 class="head">先改座標，不改原本的 real-valued operator graph</h2>
+      <div class="formula">x<sub>c</sub> = x<sub>1:m</sub> + i x<sub>m+1:2m</sub>; &nbsp; y<sub>c</sub> = Ux<sub>c</sub> + Wx&#773;<sub>c</sub></div>
+      <div class="two-col"><div><ul class="bullets"><li>把 channel j 與 j+m 固定配對；不需要 learned matching 或 routing。</li><li>一個 complex coordinate 對應一個 2D direction。</li></ul></div><div><ul class="bullets"><li>U、W 與原實矩陣 R 有 exact mapping 與 inverse mapping。</li><li>量化後重建 R-hat，再走標準 real F.linear。</li></ul></div></div>
+      <div class="cite">§3.1 pp.3-4 · §3.2 p.5 · App. A.1 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 / WHAT 2 BITS MEAN HERE</div>
+      <h2 class="head">四個 phase direction 是一個 group-local codebook</h2>
+      <div class="formula">C<sub>Phi</sub> = {+1, -1, +i, -i} · e<sup>i theta<sub>g</sub></sup></div>
+      <ul class="bullets"><li>固定 frame 假設所有層都對齊 global real/imag axes；RPFQ 讓每個 group 學 theta<sub>g</sub> 與 anchors。</li><li>W2 時，一個 phase-assignment stage 對應每個原實數權重 1 effective bit；兩個 residual stages形成 2 effective bits。</li><li>作者明確把 per-group metadata 與 forward weight-code budget 分開計算。</li></ul>
+      <div class="cite">§3.3 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">07 / MAGNITUDE IS NOT FREE</div>
+      <h2 class="head">選方向之後，least-squares scale 再對齊 group magnitude</h2>
+      <div class="formula">Z-hat<sub>g</sub> = (alpha<sub>g</sub>C<sub>g</sub> + beta<sub>g</sub>S(Z-prime<sub>g</sub> - alpha<sub>g</sub>C<sub>g</sub>)) e<sup>i theta<sub>g</sub></sup></div>
+      <div class="two-col"><div><ul class="bullets"><li><b>alpha:</b> 對已選 phase directions 做 least-squares magnitude fitting。</li><li><b>beta:</b> 為 residual phase refinement 再給一個 group scale。</li></ul></div><div><ul class="bullets"><li>default S 保留 complex residual 的角度；低複雜度 sign 版本只保留粗 sign。</li><li>QAT 保留 FP master weights，forward 用 quantized reconstruction + STE。</li></ul></div></div>
+      <div class="cite">§3.4 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">08 / QUANTIZATION SCOPE</div>
+      <h2 class="head">這不是 fully integerized ViT，別把結論講滿</h2>
+      <div class="two-col"><div><p class="col-hint">RPFQ REPLACES</p><ul class="bullets"><li>qkv projection</li><li>attention output projection</li><li>MLP fc1 / fc2</li><li>classification head</li></ul></div><div><p class="col-hint">STAYS HIGH PRECISION</p><ul class="bullets"><li>patch embedding, LayerNorm, Softmax, GELU</li><li>biases and quantization scales</li><li>mobile runtime activation path</li></ul></div></div>
+      <div class="cite">§4.1 p.6 · App. A.3 p.12 · App. A.10 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big">極低 bit 的主因不是<br>「scalar 誤差太大」，而是<b>投影方向沒有留下來</b>。</p>
+      <div class="takeaway">Phase frame 先把有限 codewords 對準 local dominant direction；scale 與 residual 才處理剩下的幅度誤差。</div>
+      <div class="cite">§4.5 p.8 · Fig.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">09 / ABLATION</div>
+      <h2 class="head">每個元件都帶來可見增益，但 residual 是最大單一步</h2>
+      <table class="bench"><thead><tr><th>ViT-B/16 W2/A4</th><th class="num">Top-1</th><th class="num">Top-5</th></tr></thead><tbody><tr><td>Real scalar LSQ</td><td class="num">74.89</td><td class="num">91.28</td></tr><tr><td>Fixed phase frame</td><td class="num">76.56</td><td class="num">92.83</td></tr><tr><td>+ residual refinement</td><td class="num">78.74</td><td class="num">93.61</td></tr><tr><td>+ pre-aligned frame</td><td class="num">78.79</td><td class="num">93.78</td></tr><tr class="win"><td>RPFQ full</td><td class="num best">79.33</td><td class="num best">94.48</td></tr></tbody></table>
+      <div class="takeaway">Scalar LSQ → fixed phase already +1.67 Top-1; residual adds the largest next jump (+2.18).</div>
+      <div class="cite">Tab.2 pp.7-8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">10 / THE MECHANISM HAS MEASUREMENTS</div>
+      <h2 class="head">directional metrics and accuracy move in the same direction</h2>
+      <table class="bench"><thead><tr><th>W2/A4; normalized to real LSQ</th><th class="num">Angular error</th><th class="num">Attention-score MSE</th><th class="num">Feature cosine</th><th class="num">Top-1</th></tr></thead><tbody><tr><td>Real LSQ</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">0.931</td><td class="num">74.89</td></tr><tr><td>Fixed phase frame</td><td class="num">0.57</td><td class="num">0.61</td><td class="num">0.971</td><td class="num">78.74</td></tr><tr class="win"><td>RPFQ full</td><td class="num best">0.43</td><td class="num best">0.46</td><td class="num best">0.983</td><td class="num best">79.33</td></tr></tbody></table>
+      <div class="cite">Tab.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">11 / TRAINING DYNAMICS</div>
+      <h2 class="head">方向保持也對應較少的晚期 quantization-state flipping</h2>
+      <figure class="full" style="max-height:45vh;"><img src="figures/figure3_p14.jpg" alt="Training accuracy and quantization-state oscillation"><figcaption>Fig.3: RPFQ reaches 79.33% and reports 0.4% late-epoch flip rate, versus 1.3% for fixed phase and 3.5% for real LSQ.</figcaption></figure>
+      <div class="cite">Fig.3 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">12 / MAIN RESULT</div>
+      <h2 class="head">在三個 ViT family 的 2-bit weights，RPFQ 都高於列出的低位元 baseline</h2>
+      <table class="bench"><thead><tr><th>Backbone / W2</th><th>Method</th><th class="num">Top-1</th><th class="num">Top-5</th></tr></thead><tbody><tr><td>ViT-B/16</td><td>LSQ++KD (reproduced)</td><td class="num">75.10</td><td class="num">92.18</td></tr><tr class="win"><td>ViT-B/16</td><td>RPFQ</td><td class="num best">79.326</td><td class="num best">94.476</td></tr><tr><td>DeiT-S</td><td>OFQ (reported)</td><td class="num">75.72</td><td>—</td></tr><tr class="win"><td>DeiT-S</td><td>RPFQ</td><td class="num best">77.41</td><td class="num best">93.11</td></tr><tr><td>Swin-T</td><td>OFQ (reported)</td><td class="num">78.52</td><td>—</td></tr><tr class="win"><td>Swin-T</td><td>RPFQ</td><td class="num best">79.298</td><td class="num best">94.792</td></tr></tbody></table>
+      <div class="cite">Tab.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">13 / HOW TO READ TABLE 1</div>
+      <h2 class="head">matched recipe helps，但「effective weight bits」不是完整 systems equivalence</h2>
+      <ul class="bullets"><li>作者對自家訓練的 rows 使用相同 300-epoch recipe、augmentation、EMA 與 final-checkpoint rule，並取三 seed mean。</li><li>Prior numbers有 reported 與 reproduced 兩種來源；ViT-B/16 的 Q-ViT 列是 reproduced，原文沒有該 backbone。</li><li>主表以 forward weight-code budget 分組；side metadata 與 full-graph quantization protocols 不完全一致。</li></ul>
+      <div class="cite">§4.1 pp.6-7 · Tab.1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">14 / UNCERTAINTY CHECK</div>
+      <h2 class="head">作者以保守的 fixed-validation-set CI 檢查主要 accuracy gap</h2>
+      <table class="bench"><thead><tr><th>Comparison</th><th class="num">Gap (pt)</th><th class="num">95% CI (pt)</th></tr></thead><tbody><tr class="win"><td>ViT-B/16: RPFQ vs FP32</td><td class="num">+1.44</td><td class="num">[0.93, 1.95]</td></tr><tr class="win"><td>ViT-B/16: RPFQ vs LSQ++KD</td><td class="num">+4.23</td><td class="num">[3.71, 4.75]</td></tr><tr class="win"><td>DeiT-S: RPFQ vs OFQ</td><td class="num">+1.69</td><td class="num">[1.17, 2.21]</td></tr><tr class="win"><td>Swin-T: RPFQ vs OFQ</td><td class="num">+0.78</td><td class="num">[0.27, 1.28]</td></tr></tbody></table>
+      <p class="note">These are conservative independent-proportion intervals on the fixed 50k validation set; they do not replace the three-seed protocol.</p>
+      <div class="cite">App. A.4 p.12 · Tab.5 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">15 / MOBILE RESULT</div>
+      <h2 class="head">壓縮落到 native phone stacks，仍看到 end-to-end gain</h2>
+      <table class="bench"><thead><tr><th>Model / runtime</th><th class="num">Size MB</th><th class="num">p50 latency ms</th><th class="num">Speedup</th></tr></thead><tbody><tr><td>iOS ViT-B/16 FP32</td><td class="num">338.6</td><td class="num">86.4</td><td class="num">1.00x</td></tr><tr class="win"><td>iOS RPFQ ViT-B/16</td><td class="num best">47.7</td><td class="num best">54.9</td><td class="num best">1.57x</td></tr><tr><td>Android ViT-B/16 FP32</td><td class="num">338.6</td><td class="num">123.6</td><td class="num">1.00x</td></tr><tr class="win"><td>Android RPFQ ViT-B/16</td><td class="num best">47.7</td><td class="num best">78.1</td><td class="num best">1.58x</td></tr></tbody></table>
+      <div class="cite">Tab.4 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">16 / DEPLOYMENT CAVEAT</div>
+      <h2 class="head">2-bit packed weights ≠ all-integer mobile inference</h2>
+      <div class="two-col"><div><p class="col-hint">WHAT IS SHOWN</p><ul class="bullets"><li>ViT-B/16: 338.6 → 47.7 MB (7.1x); Swin-T: 110.2 → 20.4 MB (5.4x).</li><li>iOS/Android p50 speedups span 1.41x–1.58x.</li></ul></div><div><p class="col-hint">WHAT REMAINS</p><ul class="bullets"><li>Activations and surrounding operators run floating point on phone.</li><li>Backend may unpack or partially convert packed weights.</li><li>No matched energy measurements.</li></ul></div></div>
+      <div class="cite">§4.6 p.9 · App. A.10 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">17 / TRAINING COST</div>
+      <h2 class="head">方法的效率主張也包含 training path，不只 model size</h2>
+      <table class="bench"><thead><tr><th>ViT-B/16 setting</th><th>Protocol</th><th class="num">300-epoch total</th></tr></thead><tbody><tr class="win"><td>RPFQ W2/A4</td><td>single-stage QAT; no aux branch</td><td class="num best">46.55 h / 1.94 d</td></tr><tr><td>Q-ViT W2/A4</td><td>teacher + DGD attention distill.</td><td class="num">160.21 h / 6.68 d projected</td></tr><tr><td>OFQ</td><td>QAT + CGA fine-tune</td><td class="num">>=600 epochs</td></tr></tbody></table>
+      <p class="note">RPFQ/Q-ViT use 8xH800-80GB and the same global batch size; Q-ViT runtime is profiled then projected.</p>
+      <div class="cite">§4.4 p.8 · App. A.11 pp.15-16 · Tab.7 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">18 / WHAT THE PAPER ACTUALLY SUPPORTS</div>
+      <h2 class="head">把最強證據和外推邊界分開</h2>
+      <div class="two-col"><div><p class="col-hint">SUPPORTED</p><ul class="bullets"><li>在 ImageNet-1K 三個 ViT-family backbone 的 W2 setting，有完整 main results / ablations。</li><li>phase metrics、attention perturbation、feature cosine 與 accuracy ranking 一致。</li><li>native iOS/Android stacks 有 container size 和 end-to-end latency 實測。</li></ul></div><div><p class="col-hint">NOT YET SHOWN</p><ul class="bullets"><li>不是全 graph integer inference，也沒有 A2 stable result。</li><li>不是跨資料集、任務、或 robustness/fairness 的廣泛評估。</li><li>runtime-specific packed-weight behavior與能耗仍未定量。</li></ul></div></div>
+      <div class="cite">§4 pp.6-9 · §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">19 / ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">對部署量化，representation design 本身是一個 optimization knob</h2>
+      <ol class="numbered"><li>若 bottleneck 是極低 bit 的 direction distortion，先換 local coordinate system，未必只靠更複雜 scalar calibration。</li><li>把<b>weight-code bits</b>、metadata、activation precision、runtime packing 分開報，避免把不同成本混成一個 label。</li><li>ablation 不只看 Top-1：direction、attention-score 與 feature metrics 能把機制與結果接上。</li><li>手機端要看 end-to-end latency / load time；單一 kernel benchmark 不等於應用收益。</li></ol>
+      <div class="cite">§3.3 p.5 · §4.5-4.6 pp.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / ORIGINAL HIGHLIGHT</div>
+      <h2 class="head">作者如何描述這個轉換的本質</h2>
+      <div class="hl"><p class="hl__en">At very low precision, scalar codebooks can therefore preserve magnitude poorly and <b>distort the directions that matter most</b>.</p><p class="hl__zh">在極低精度下，純量碼本即使想留住幅度，仍會<b>扭曲真正關鍵的方向</b>。<span class="hl__src">§1 p.1</span></p></div>
+      <div class="hl"><p class="hl__en">RPFQ's advantage is <b>primarily geometric</b>.</p><p class="hl__zh">RPFQ 的優勢，主要是<b>幾何上的</b>。<span class="hl__src">§4.5 p.8</span></p></div>
+      <div class="cite">Original text from §1 p.1 and §4.5 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / ATTENTION MAPS</div>
+      <h2 class="head">可視化也和 directional metrics 指向同一件事</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure4_p14.jpg" alt="Attention maps for FP32, scalar low-bit and RPFQ variants"><figcaption>Fig.4: for the three examples, RPFQ reports 0.98–0.99 attention-map cosine similarity to FP32.</figcaption></figure>
+      <div class="cite">Fig.4 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">RPFQ-ViT</h2>
+      <p class="end__sub">For extremely low-bit ViTs, preserve local projection direction first; recover magnitude second.</p>
+      <div class="end__next">Tomorrow: AI agent frameworks / multimodal systems</div>
+      <div class="cite">Paper: arXiv:2610.04457 · NeurIPS 2026 accepted</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
