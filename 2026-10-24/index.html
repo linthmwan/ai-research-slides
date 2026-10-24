@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WALT: Web Agents that Learn Tools — AI Research Daily</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY · SAT · AGENT SYSTEMS</div>
+      <h1 class="title">WALT: Web Agents that Learn Tools</h1>
+      <p class="lead">把網站已經設計好的功能，轉成可驗證的高階工具；瀏覽器 agent 不必每次都從 click / type 開始推理。</p>
+      <div class="authors">Viraj Prabhu et al. · Salesforce AI Research</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv 2510.01524v1</span></div>
+      <p class="note">Accepted-paper fallback · arXiv submitted 2025-10-01 · source deck 2026-10-24</p>
+      <div class="cite">Primary: WALT: Web Agents that Learn Tools · arXiv:2510.01524 · ICLR 2026</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">THE THESIS</div>
+      <p class="big">不要讓 agent 「學會點擊」；讓它<b>呼叫網站本來就具備的功能</b>。</p>
+      <div class="takeaway">WALT 的單位不是 replayable UI trace，而是帶 schema、測試與失敗回饋的 callable tool。</div>
+      <div class="cite">Abstract; §1 pp.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 · PROBLEM</div>
+      <h2 class="head">web agent 的脆弱點在低階互動，而不是任務意圖</h2>
+      <ul class="bullets"><li>同一個「找最便宜藍色 kayak」任務，UI policy 得處理搜尋框、下拉選單、hover、排序與 timing。</li><li>layout change、動態元素與長 horizon 會把每個 primitive action 都變成額外失敗機會。</li><li>既有 skill discovery 多半從成功軌跡挖 action subsequence，或讓 agent 猜「有用技能」；仍然是易碎 UI script。</li></ul>
+      <div class="takeaway">真正要抽象掉的是 <b>how</b>，把 planner 留在 <b>what</b>。</div>
+      <div class="cite">§1–2 pp.1–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 · BEFORE / AFTER</div>
+      <h2 class="head">從 8+ 個介面步驟，縮成一個語意操作</h2>
+      <div class="two-col"><div><p class="col-hint">傳統 browser agent</p><ul class="bullets"><li>定位 search box</li><li>輸入 query</li><li>找 category</li><li>點 filter</li><li>選 sort</li><li>掃描結果與修正</li></ul></div><div><p class="col-hint">WALT tool</p><div class="formula"><b>search</b>(query="blue kayak", category="Boats", sort_by="price")</div><ul class="bullets"><li>schema 約束輸入</li><li>executor 封裝細節</li><li>失敗時保留受控 fallback</li></ul></div></div>
+      <div class="cite">Fig.1 + §1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">01 · VISUAL INTUITION</div>
+      <h2 class="head">工具化把 UI mechanics 移到可重用的實作層</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure1_p1.jpg" alt="Figure 1 — brittle step-by-step browser automation vs. high-level tool abstraction"><figcaption>Figure 1 — brittle step-by-step browser automation vs. high-level tool abstraction</figcaption></figure>
+      <div class="takeaway">planner 的工作變成選 tool 與組合 tool，不是反覆重新發明操作序列。</div>
+      <div class="cite">Fig.1 p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">02 · CONTRIBUTIONS</div>
+      <h2 class="head">四件事，讓「tool」有工程上的重量</h2>
+      <ol class="numbered"><li><b>網站功能 ≠ agent skill：</b>從 site-provided capability 出發。</li><li><b>兩階段產線：</b>discovery → construction / validation。</li><li><b>determinism-first：</b>穩定 selector、URL promotion、schema contract。</li><li><b>實證：</b>VisualWebArena 52.9%、WebArena 50.1% 平均成功率。</li></ol>
+      <div class="cite">§1; §3; §4.5 pp.1–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · PIPELINE</div>
+      <h2 class="head">先探索網站，再把候選功能做成可驗證的工具</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure2_p4.jpg" alt="Figure 2 — discovery, construction, and validation loop"><figcaption>Figure 2 — discovery, construction, and validation loop</figcaption></figure>
+      <div class="takeaway">關鍵不是一次把 trace 寫成 script；而是以 test input 把 tool 納入「可接受 / 退回修正」的閉環。</div>
+      <div class="cite">Fig.2; §3.1–3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · FORMULATION</div>
+      <h2 class="head">工具是擴充 action space 的原子操作</h2>
+      <div class="formula">A = A<sub>prim</sub> ∪ A<sub>tools</sub> &nbsp; · &nbsp; u: S → Goal</div>
+      <ul class="bullets"><li><b>A<sub>prim</sub>:</b> click, type, navigate 等底層 action。</li><li><b>u:</b> 接收結構化 schema S，完成明確目標，驗證後才註冊。</li><li>這使 policy 能保留原始操作能力，同時把反覆出現的網站功能升成可選 action。</li></ul>
+      <div class="cite">§3.1 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · OBJECTIVE</div>
+      <h2 class="head">最佳化的不是只有成功率</h2>
+      <div class="formula">minimize &nbsp; FailRate(u, I<sub>test</sub>) + StepCount(u) + AgenticRatio(u)</div>
+      <div class="two-col"><div><p class="col-hint">可靠性與效率</p><ul class="bullets"><li>固定測試集上的失敗率</li><li>primitive operations 的步數</li></ul></div><div><p class="col-hint">可控的 LLM 依賴</p><ul class="bullets"><li>AgenticRatio 計入需要推理的步驟</li><li>優先 URL / DOM deterministic operation</li></ul></div></div>
+      <div class="takeaway">把「少用 agentic step」寫進目標，才能避免 tool 只是換名字的 agent loop。</div>
+      <div class="cite">§3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · STAGE 1</div>
+      <h2 class="head">Tool discovery：找的是 user-facing intent 的覆蓋面</h2>
+      <ul class="bullets"><li>巡覽 content、discovery 與 communication 區域，透過 hover / menu / interaction 找可重用 functionality。</li><li>候選工具以「明確使用者意圖、最大覆蓋、最小冗餘」為選擇原則。</li><li>典型類型：search / filter / sort、create / edit / delete、comment / message / upvote。</li></ul>
+      <div class="cite">§3.2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · STAGE 2</div>
+      <h2 class="head">從 demonstration trace 合成 executor 與 contract</h2>
+      <div class="two-col"><div><p class="col-hint">B<sub>browser</sub></p><ul class="bullets"><li>執行 candidate 並產生 grounded trace X</li><li>保留穩定 selector 與 alternative selector</li><li>在真實 timing / layout 條件示範功能</li></ul></div><div><p class="col-hint">B<sub>tool</sub></p><ul class="bullets"><li>把 trace 分類成 navigation / extraction / interaction / agentic step</li><li>推導 enum、optional field、usage example</li><li>可行時將 UI chain 升格成 URL operation</li></ul></div></div>
+      <div class="cite">§3.2 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">03 · VALIDATION</div>
+      <h2 class="head">只有通過 end-to-end test 的工具能進 runtime</h2>
+      <ol class="numbered"><li>以預先整理的 I<sub>test</sub> 註冊並測試 tool。</li><li>失敗回傳 selector drift、缺 enum、timeout 或 URL promotion mismatch。</li><li>修 selector / schema / script 後重試；超過固定 budget 就拒絕此 candidate。</li><li>部署後才遇到未知失敗，才叫新 agent 作最後 fallback。</li></ol>
+      <div class="takeaway">驗證閘門把「看起來像 automation」和「可依賴的 action」分開。</div>
+      <div class="cite">§3.2 p.5; Algorithm 1 pp.15–16</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM · THE DESIGN CHOICE</div>
+      <p class="big"><b>Agentic reasoning 是例外路徑，不是 executor 的預設。</b></p>
+      <p class="lead">短 action script 通常是 URL promotion；較長的 content-management script 多為 deterministic UI interaction。Classifieds 分析中，9 個工具僅 3 個包含 agentic step。</p>
+      <div class="cite">§4.5 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · EVALUATION</div>
+      <h2 class="head">兩個 benchmark，binary success 而不是 LLM 自評</h2>
+      <div class="two-col"><div><p class="col-hint">VisualWebArena</p><ul class="bullets"><li>910 個 visually grounded、human-annotated tasks</li><li>Classifieds 234 · Shopping 466 · Reddit 210</li></ul></div><div><p class="col-hint">WebArena</p><ul class="bullets"><li>812 個 tasks、6 類網站 / multi-site setting</li><li>GitLab, Map, Shopping, CMS, Reddit, Multi-site</li></ul></div></div>
+      <div class="takeaway">成功以 benchmark evaluator 判定；不是 agent 或 LLM 說「我完成了」就算。</div>
+      <div class="cite">§4.2 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · SETUP</div>
+      <h2 class="head">對照控制了什麼</h2>
+      <ul class="bullets"><li>Planner 使用 GPT-5，browser action executor 使用 GPT-5-mini；每個 task 最多 30 steps、每 15 steps replan。</li><li>觀察包含 indexed Set-of-Mark screenshot 與對應 interactive elements；trajectory summaries 以 task intent 做 retrieval。</li><li>外部驗證器使用 GPT-5-mini；比較涵蓋 skill induction、MCTS / reflective MCTS、API agent、computer-use agent 與 SGV。</li></ul>
+      <div class="cite">§4.3–4.4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · MAIN RESULT</div>
+      <h2 class="head">VisualWebArena：52.9% weighted success，領先 listed baseline</h2>
+      <figure class="full" style="max-height:50vh;"><img src="figures/figure3_p7.jpg" alt="Figure 3 — VisualWebArena success and tool vs. no-tool efficiency comparison"><figcaption>Figure 3 — VisualWebArena success and tool vs. no-tool efficiency comparison</figcaption></figure>
+      <div class="takeaway">WALT 在 Classifieds 64.1%、Reddit 39.0% 領先；Shopping 53.4% 仍低於 SGV 的 57.0%，所以不是每一 split 都贏。</div>
+      <div class="cite">Fig.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">04 · MAIN RESULT</div>
+      <h2 class="head">WebArena：平均 50.1%，5 / 6 split 領先、另 1 個並列</h2>
+      <table class="bench" style="font-size:.80em;"><thead><tr><th>Method</th><th class="num">GitLab</th><th class="num">Map</th><th class="num">Shopping</th><th class="num">CMS</th><th class="num">Reddit</th><th class="num">Multi</th><th class="num">Avg.</th></tr></thead><tbody><tr><td>SkillWeaver</td><td class="num">22.2</td><td class="num">33.9</td><td class="num">27.2</td><td class="num">25.8</td><td class="num">50.0</td><td class="num">-</td><td class="num">29.8</td></tr><tr><td>AWM</td><td class="num">28.9</td><td class="num">39.4</td><td class="num">34.8</td><td class="num">39.0</td><td class="num">51.9</td><td class="num">18.8</td><td class="num">35.5</td></tr><tr><td>ASI</td><td class="num">32.2</td><td class="num">43.1</td><td class="num">40.1</td><td class="num">44.0</td><td class="num best">54.7</td><td class="num best">20.8</td><td class="num">40.4</td></tr><tr><td>Hybrid Agent</td><td class="num">44.4</td><td class="num">45.9</td><td class="num">25.7</td><td class="num">41.2</td><td class="num">51.9</td><td class="num">16.7</td><td class="num">38.9</td></tr><tr class="win"><td>WALT (Ours)</td><td class="num best">57.0</td><td class="num best">58.7</td><td class="num best">41.2</td><td class="num best">56.2</td><td class="num">48.5</td><td class="num best">20.8</td><td class="num best">50.1</td></tr></tbody></table>
+      <div class="cite">Table 1 p.7 · success rate (%)</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 · ABLATION</div>
+      <h2 class="head">工具先減少步數，再讓 DOM parser / verifier 補上可靠性</h2>
+      <table class="bench" style="font-size:.88em;"><thead><tr><th>GPT-5-mini variant</th><th class="num">Tools</th><th class="num">DOM</th><th class="num">Verify</th><th class="num">Steps ↓</th><th class="num">SR ↑</th></tr></thead><tbody><tr><td>baseline</td><td class="num">none</td><td class="num">text</td><td class="num">self</td><td class="num">8.9</td><td class="num">57.5</td></tr><tr><td>tool only</td><td class="num">discovered</td><td class="num">text</td><td class="num">self</td><td class="num best">6.5</td><td class="num">61.5</td></tr><tr><td>DOM parser</td><td class="num">none</td><td class="num">multimodal</td><td class="num">self</td><td class="num">7.5</td><td class="num">59.0</td></tr><tr><td>external verifier</td><td class="num">none</td><td class="num">text</td><td class="num">external</td><td class="num">11.0</td><td class="num">59.4</td></tr><tr class="win"><td>full WALT</td><td class="num">discovered</td><td class="num">multimodal</td><td class="num">external</td><td class="num">7.0</td><td class="num best">64.1</td></tr></tbody></table>
+      <div class="takeaway">tool-only：+7.0 pp / −27.0% steps；full stack：64.1% 且比 baseline 少 21.3% steps。</div>
+      <div class="cite">Table 2 p.8 · VisualWebArena Classifieds</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">05 · WHY IT WORKS</div>
+      <p class="big">WALT 的增益是把錯誤機會從「每一步 UI 推理」移到<b>一次驗證過的工具邊界</b>。</p>
+      <p class="lead">tool / no-tool control 共用 architecture，工具帶來的 30.7% relative gain 與 1.4x efficiency 不能只歸因於更強的 GPT-5。</p>
+      <div class="takeaway">工具化不是省 token 的包裝；它是對執行可靠性與可審計性的架構重分配。</div>
+      <div class="cite">Fig.3; §4.5 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">05 · QUALITATIVE</div>
+      <h2 class="head">成功任務：2–5 個 call，先縮小候選空間，再做必要的感知</h2>
+      <figure class="full" style="max-height:49vh;"><img src="figures/figure5_p9.jpg" alt="Figure 5 — qualitative WALT rollouts with pass and fail cases"><figcaption>Figure 5 — qualitative WALT rollouts with pass and fail cases</figcaption></figure>
+      <div class="takeaway">成功例以 URL search / sort 直達結果集合；失敗例把 global optimum、fine-grained visual predicate 與缺失的 rating tool 疊在一起。</div>
+      <div class="cite">Fig.5; §4.5 pp.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 · LIMITS</div>
+      <h2 class="head">工具邊界不會自動消失</h2>
+      <ul class="bullets"><li><b>Discovery cost：</b>每個網站都要承擔 offline exploration 與 validation 成本。</li><li><b>Site volatility：</b>A/B test、CAPTCHA、anti-automation、重設計與稀有參數都會破壞 determinism。</li><li><b>Coverage：</b>complex editor、file upload 和未被網站暴露的功能仍可能要 agentic step。</li><li><b>External validity：</b>僅在兩個研究 benchmark 評測；enterprise app 的可遷移性尚未驗證。</li></ul>
+      <div class="cite">§5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">06 · ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">把 agent capability 做成可維護介面，而不是祈禱 trajectory 記得住</h2>
+      <ol class="numbered"><li><b>先找已有功能：</b>優先從 UI / URL / site semantics 萃取 contract。</li><li><b>validation 是 admission control：</b>不通過測試的 tool 不進 runtime。</li><li><b>保留 fallback，但要可觀察：</b>把 agentic recovery 當例外事件收集。</li><li><b>把 drift 納入生命週期：</b>selector、schema 與 test input 都需要 online patching 策略。</li></ol>
+      <div class="cite">§3.2 pp.4–5; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER HIGHLIGHT</div>
+      <h2 class="head">核心論述：不是猜技能，而是暴露既有自動化</h2>
+      <div class="hl"><p class="hl__en">Rather than hypothesizing ad-hoc skills, WALT exposes robust implementations of automations already designed into websites.</p><p class="hl__zh">WALT 不猜測臨時技能，而是把網站原本就設計好的自動化能力，變成可呼叫且更穩健的實作。<span class="hl__src">Abstract p.1</span></p></div>
+      <p class="note">這個取向把「網站意圖」和「agent 的低階操作」拆開，才有機會讓後者被測試與維護。</p>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX · PAPER HIGHLIGHT</div>
+      <h2 class="head">部署條件：驗證成功才開放呼叫</h2>
+      <div class="hl"><p class="hl__en">Only tools that pass validation within a fixed number of attempts are exposed to the agent at runtime.</p><p class="hl__zh">只有在固定次數內通過驗證的工具，才會在執行期提供給 agent。<span class="hl__src">§3.2 p.5</span></p></div>
+      <p class="note">這條 gate 很實際：它把「腳本能跑」和「操作值得被 policy 信任」分成兩件事。</p>
+      <div class="cite">§3.2 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">WALT 的核心不是讓 agent 多一串 skills</h2>
+      <p class="end__sub">而是把 browser automation 改造成：semantic plan → validated tool → observable fallback。</p>
+      <div class="end__next">Next rotation: Sunday · GitHub Trending repo / company technical report</div>
+      <div class="cite">WALT: Web Agents that Learn Tools · ICLR 2026 Poster · arXiv:2510.01524</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
