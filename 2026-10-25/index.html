@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hindsight is 20/20 — Agent Memory Research Deep Dive</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">SUNDAY / GITHUB TRENDING DEEP DIVE</div>
+      <h1 class="title">Hindsight is 20/20</h1>
+      <p class="lead">把 agent memory 從「塞回 prompt 的 snippets」變成可區分 evidence、summary 與 belief 的推理底座。</p>
+      <div class="meta-row"><span class="badge tier">arXiv technical report</span><span class="badge date">2025-12-14</span><span class="badge date">GitHub Trending 2026-10-25</span></div>
+      <div class="authors">Chris Latimer, Nicolo Boschi, Andrew Neeser, Chris Bartholomew, Gaurav Srivastava, Xuan Wang, Naren Ramakrishnan et al.<br>Vectorize.io · The Washington Post · Virginia Tech</div>
+      <div class="cite">Hindsight is 20/20: Building Agent Memory that Retains, Recalls, and Reflects · arXiv:2512.12818v1 · cover p.1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">WHY THIS TODAY</div>
+      <p class="big">Trending 的不是一個 chatbot demo，<br>而是一個把「記住什麼、相信什麼、如何改變看法」拆成可追查 state 的 memory system。</p>
+      <div class="sub">Repo README 明確連到原始 technical report；本 deck 以 28 頁 PDF 為唯一事實來源。</div>
+      <div class="cite">vectorize-io/hindsight README, captured 2026-10-25 · arXiv report v1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big"><b>四種記憶</b> + <b>三個 operations</b> + <b>四路 retrieval</b>。<br>Hindsight 報告在 LongMemEval 以同一 OSS-20B backbone 將 39.0% 提升到 83.6%。</p>
+      <div class="sub">不過這是 technical report：LLM-as-judge、部分 baseline 為轉載數字，且 retrieval token budget 留有 <b>&lt;add&gt;</b> placeholder。</div>
+      <div class="cite">Abstract p.1 · Table 3 p.19 · Sec.7.3 pp.18-19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM</div>
+      <h1 class="title">現在的 agent memory 到底少了什麼？</h1>
+      <ul class="bullets"><li><b>Context dilution:</b> 把大量歷史直接丟進 context，長程訊息會被稀釋。</li><li><b>Epistemic blur:</b> 觀察到的事實、系統自己的經驗與主觀判斷常被混在同一種「memory」。</li><li><b>One-path retrieval:</b> 只做 top-k similarity，容易漏掉跨時間、跨 entity 或因果鏈上的相關訊息。</li><li><b>Static persona:</b> style 只是一次性 prompt，而不是會隨證據被追蹤與修訂的 belief state。</li></ul>
+      <div class="takeaway">作者的立場：記憶層要是 reasoning substrate，不是一個附加的 RAG cache。</div>
+      <div class="cite">Abstract p.1 · Sec.1 pp.1-2 · Sec.3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">STRESS TEST</div>
+      <h1 class="title">Benchmark 的規模讓「全部塞進 context」不再是一個答案</h1>
+      <table class="bench"><thead><tr><th>Benchmark</th><th>Conversations</th><th>Scale</th><th>What it tests</th></tr></thead><tbody><tr><td>LongMemEval</td><td>varies</td><td>115k tokens / 50 sessions (S)<br>1.5M / 500 (M)</td><td>IE, multi-session, temporal, update, abstain</td></tr><tr><td>LoCoMo</td><td>50</td><td>304.9 turns · 9,209.2 tokens<br>19.3 sessions avg.</td><td>long-term conversational recall; includes images</td></tr></tbody></table>
+      <ul class="bullets"><li>LongMemEval has 500 questions; LoCoMo includes dialogues extending to 35 sessions.</li></ul>
+      <div class="cite">Sec.7.1.1 pp.17-18 · Table 2 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ARCHITECTURE</div>
+      <h1 class="title">核心抽象：四個 networks 分開存放不同 epistemic status</h1>
+      <div class="two-col"><div><ol class="numbered"><li><b>World W</b>：外部世界的客觀 facts。</li><li><b>Experience B</b>：agent 自己做過、建議過的第一人稱經驗。</li></ol><div class="formula">M = {W, B, O, S}</div></div><div><ol class="numbered"><li><b>Opinion O</b>：主觀判斷 + confidence + timestamp。</li><li><b>Observation S</b>：從事實彙整出的、偏好中立的 entity profile。</li></ol><div class="takeaway">關鍵不是多一個 vector DB；是讓 belief 不再冒充 evidence。</div></div></div>
+      <div class="cite">Sec.3.1 p.4 · Fig.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THREE OPERATIONS</div>
+      <h1 class="title">所有 state transition 都落在 retain、recall、reflect</h1>
+      <ol class="numbered"><li><b>Retain(B, D)</b>：把 transcript / document 轉成有時間、entity 與 link 的 structured facts。</li><li><b>Recall(B, Q, k)</b>：在 token budget <b>k</b> 下，取回多策略排序後的相關 memories。</li><li><b>Reflect(B, Q, profile)</b>：用取回 facts + behavioral profile 生成回答，必要時新增或更新 opinions。</li></ol>
+      <p class="note">資料寫入、檢索、主觀更新不再是同一段 prompt 裡的隱式副作用。</p>
+      <div class="cite">Sec.3.2 pp.4-5 · Sec.6.1 pp.16-17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">END-TO-END</div>
+      <h1 class="title">TEMPR 做 retain/recall；CARA 做 reflect</h1>
+      <figure class="full" style="max-height:51vh; margin-top:.4rem;"><img src="figures/figure2_p5.jpg" alt=""><figcaption>Fig.2：從 input 到 four-network bank，再到多路 recall 與 profile-conditioned reflection。</figcaption></figure>
+      <div class="cite">Fig.2 p.5 · Sec.3.3 pp.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RETAIN</div>
+      <h1 class="title">不是切碎句子，而是抽取可獨立理解的 narrative facts</h1>
+      <ul class="bullets"><li>每段對話以 <b>2-5 個 comprehensive facts</b> 表示；保留人物、時間範圍、理由、fact type 與 entities。</li><li>相較於 sentence-level fragments，整段 narrative fact 對跨 turn 的因果與語境更不敏感。</li><li>每個 memory node 同時保存自然語言、embedding、發生時間、提及時間、type、confidence 與 metadata。</li></ul>
+      <div class="takeaway">事實單位越完整，後續 retrieval 才不必依賴 prompt 內殘留的局部上下文。</div>
+      <div class="cite">Sec.4.1.1-4.1.2 pp.6-7 · Fig.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">GRAPH</div>
+      <h1 class="title">Entity、time、meaning、causality：四種邊讓記憶能多跳</h1>
+      <div class="two-col"><div><h2 class="head">Entity resolution</h2><ul class="bullets"><li>string/name similarity</li><li>co-occurrence patterns</li><li>temporal proximity</li><li>shared canonical entity -> bidirectional links</li></ul></div><div><h2 class="head">Graph link types</h2><ul class="bullets"><li><b>temporal</b>：時間接近度衰減</li><li><b>semantic</b>：embedding similarity 過 threshold</li><li><b>entity</b>：同一 canonical entity</li><li><b>causal</b>：causes / caused_by / enables / prevents</li></ul></div></div>
+      <p class="note">因此，表面上不像 query 的紀錄，也可以沿著人、事件、時間或因果關係被找回。</p>
+      <div class="cite">Sec.4.1.3-4.1.4 pp.8-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OBSERVATIONS</div>
+      <h1 class="title">Entity profile 不是 opinion：它是可非同步重建的 factual summary</h1>
+      <ul class="bullets"><li>對「Tell me about Alice」這類 entity query，直接讀 synthesized observation 可避免把所有 raw facts 重複塞回上下文。</li><li>Observation 由底層 facts 彙整，<b>不受 behavioral profile 影響</b>，也不帶 opinion confidence。</li><li>新 facts 寫入後，以 background task 重建相關 entity 的 observation：降低 write latency，逐步提高 profile 品質。</li></ul>
+      <div class="cite">Sec.4.1.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RECALL</div>
+      <h1 class="title">四路平行 retrieval：不要讓單一相似度定義 relevance</h1>
+      <div class="two-col"><div><h2 class="head">Direct relevance</h2><ul class="bullets"><li><b>Semantic</b>：HNSW / vector cosine similarity</li><li><b>Keyword</b>：BM25 回收 proper nouns 與精確術語</li></ul></div><div><h2 class="head">Relational relevance</h2><ul class="bullets"><li><b>Graph</b>：從 semantic hits 出發做 spreading activation</li><li><b>Temporal graph</b>：解析 query 時間，再限制 / 排序發生於該區間的 facts</li></ul></div></div>
+      <div class="takeaway">這個拆法把「像不像 query」與「是否在關係/時間上必要」分開處理。</div>
+      <div class="cite">Sec.4.2.2 pp.9-10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">FUSION</div>
+      <h1 class="title">RRF + cross-encoder + token packing：從候選到 LLM context</h1>
+      <div class="formula">RRF(f) = Σ 1 / (k + rank<sub>i</sub>(f))</div>
+      <ul class="bullets"><li>Reciprocal Rank Fusion 只看 rank，不要求 vector、BM25、graph 分數彼此校準。</li><li>同一 fact 在多個 channel 都排前面時，自然累積更強的 evidence。</li><li>cross-encoder 在候選集上再排序；最後依 token budget 由高到低裝箱，直到超過 <b>k</b>。</li></ul>
+      <div class="cite">Sec.4.2.3-4.2.5 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CARA</div>
+      <h1 class="title">Reflect 把 persona 從一句 system prompt 變成可配置 profile</h1>
+      <table class="bench"><thead><tr><th>Parameter</th><th>Range</th><th>Stated behavioral effect</th></tr></thead><tbody><tr><td>Skepticism</td><td class="num">1-5</td><td>higher -> demands stronger evidence</td></tr><tr><td>Literalism</td><td class="num">1-5</td><td>higher -> follows explicit wording closely</td></tr><tr><td>Empathy</td><td class="num">1-5</td><td>higher -> weighs emotional/interpersonal context</td></tr><tr><td>Bias strength</td><td class="num">0-1</td><td>controls profile influence on opinion formation</td></tr></tbody></table>
+      <div class="cite">Sec.5.2.1 pp.11-12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OPINION STATE</div>
+      <h1 class="title">同一份 facts，不同 profile 可以導向不同判斷；但判斷會留下可更新的 state</h1>
+      <figure class="full" style="max-height:51vh; margin-top:.4rem;"><img src="figures/figure4_p13.jpg" alt=""><figcaption>Fig.4：query 先經 TEMPR recall，再載入 profile，最後生成並更新 opinion / observation memories。</figcaption></figure>
+      <div class="cite">Fig.4 p.13 · Sec.5.4 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BELIEF REVISION</div>
+      <h1 class="title">Opinion confidence 有顯式更新規則，而不是在下一輪悄悄覆寫</h1>
+      <ul class="bullets"><li>先用 entity overlap 或 embedding similarity 找出可能相關的 existing opinions。</li><li>LLM 將新證據判作 reinforce / weaken / contradict / neutral。</li><li><b>reinforce:</b> c + alpha；<b>weaken:</b> c - alpha；<b>contradict:</b> c - 2alpha；必要時同步修正 opinion text。</li><li>設計目標是避免單一新例子造成震盪，同時讓重複支持或強反證能改變 trajectory。</li></ul>
+      <div class="cite">Sec.5.5 pp.14-15</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big">報告最有說服力的機制不是「模型更大」。<br><b>同一個 OSS-20B</b>，有 structured memory 時 LongMemEval 從 <b>39.0%</b> 到 <b>83.6%</b>。</p>
+      <div class="sub">尤其是 multi-session 21.1 -> 79.7、temporal reasoning 31.6 -> 79.7；這些正是 graph 與 time-aware retrieval 應該幫得上忙的類別。</div>
+      <div class="cite">Table 3 p.19 · Sec.7.4 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EVALUATION</div>
+      <h1 class="title">實驗 protocol：結果有訊號，但不能把它讀成無條件的 SOTA 證明</h1>
+      <ul class="bullets"><li>主系統採 GPT-OSS-20B；報告以 GPT-OSS-120B 作 judge，temperature = 0.0。</li><li>評測是 LLM-as-a-judge 的 binary correctness / completeness；temporal 與 abstention 另有 prompt。</li><li>LongMemEval 中部分 baseline 來自 Supermemory technical report；LoCoMo prior values 來自 Backboard official figures。</li><li>作者清楚標示上述外部值為 reported reference points，而非自己重跑的 baselines。</li></ul>
+      <div class="cite">Secs.7.2-7.3 pp.18-19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS / LONGMEMEVAL</div>
+      <h1 class="title">LongMemEval S：同 backbone 的對照是最關鍵一列</h1>
+      <table class="bench"><thead><tr><th>Configuration</th><th class="num">Overall accuracy</th><th>Readout</th></tr></thead><tbody><tr><td>Full-context OSS-20B</td><td class="num">39.0%</td><td>same base model; no Hindsight memory</td></tr><tr class="win"><td>Hindsight OSS-20B</td><td class="num best">83.6%</td><td>+44.6 points vs same backbone</td></tr><tr><td>Hindsight OSS-120B</td><td class="num">89.0%</td><td>larger Hindsight stack</td></tr><tr><td>Hindsight + Gemini-3</td><td class="num">91.4%</td><td>Gemini-3 answer generator</td></tr></tbody></table>
+      <div class="cite">Table 3 p.19 · Sec.7.4 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS / DIAGNOSTIC</div>
+      <h1 class="title">LongMemEval：提升集中在長 horizon 的痛點</h1>
+      <table class="bench"><thead><tr><th>Question type</th><th class="num">Full-context OSS-20B</th><th class="num">Hindsight OSS-20B</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>multi-session</td><td class="num">21.1%</td><td class="num best">79.7%</td><td class="num">+58.6 pt</td></tr><tr class="win"><td>temporal reasoning</td><td class="num">31.6%</td><td class="num best">79.7%</td><td class="num">+48.1 pt</td></tr><tr class="win"><td>single-session preference</td><td class="num">20.0%</td><td class="num best">66.7%</td><td class="num">+46.7 pt</td></tr></tbody></table>
+      <p class="note">這支持「結構化 memory 有效」的解讀；但沒有 component ablation 來量化每一個 module 的邊際貢獻。</p>
+      <div class="cite">Table 3 p.19 · Sec.7.4 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS / LOCOMO</div>
+      <h1 class="title">LoCoMo：跨多 session 的人類對話也呈現提升</h1>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Overall accuracy</th><th>Source qualifier</th></tr></thead><tbody><tr><td>Memobase v0.0.37</td><td class="num">75.78%</td><td>reported reference</td></tr><tr class="win"><td>Hindsight OSS-20B</td><td class="num best">83.18%</td><td>authors result</td></tr><tr><td>Hindsight OSS-120B</td><td class="num">85.67%</td><td>authors result</td></tr><tr><td>Hindsight + Gemini-3</td><td class="num">89.61%</td><td>authors result; Open Domain 95.12%</td></tr></tbody></table>
+      <div class="cite">Table 4 p.20 · Sec.7.5 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHAT IS MISSING</div>
+      <h1 class="title">真正需要保留的保留：paper 沒有證明每個模組都必要</h1>
+      <div class="two-col"><div><h2 class="head">Evidence it provides</h2><ul class="bullets"><li>end-to-end comparisons on two long-horizon benchmarks</li><li>same-backbone LongMemEval contrast</li><li>explicit architecture and prompts in appendix</li></ul></div><div><h2 class="head">Evidence it does not provide</h2><ul class="bullets"><li>no ablation for graph vs temporal vs RRF vs reranker vs CARA</li><li>no filled-in retrieval token budgets: <b>&lt;add&gt;</b></li><li>third-party baselines not independently reproduced</li></ul></div></div>
+      <div class="takeaway">把它當作一個有清楚 system design 的實作報告，而不是已完成 peer-reviewed causal attribution。</div>
+      <div class="cite">Sec.7.3 pp.18-19 · Conclusion pp.20-21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAYS</div>
+      <h1 class="title">可直接帶走的三個設計原則</h1>
+      <ol class="numbered"><li><b>Provenance first：</b> world facts、agent experience、summary、opinion 應該有不同 type 與不同 update path。</li><li><b>Retrieval is plural：</b> semantic、keyword、graph、temporal 各自承擔不同 failure mode；fusion 比押一種 score 實際。</li><li><b>Beliefs are state：</b> 如果 agent 要有長期觀點，至少要讓 confidence、證據關係與 revision history 能被檢查。</li></ol>
+      <div class="cite">Secs.3-6 pp.4-17</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / ORIGINAL WORDING</div>
+      <h1 class="title">原文精華：architecture 的定位</h1>
+      <div class="hl"><p class="hl__en">“HINDSIGHT is a memory architecture for AI agents that unifies long-term factual recall with preference-conditioned reasoning.”</p><p class="hl__zh">HINDSIGHT 把長期事實回憶與受偏好條件約束的推理，放進同一個 agent memory architecture。</p></div>
+      <div class="hl"><p class="hl__en">“Because it is rank-based, it does not rely on raw scores being calibrated across systems.”</p><p class="hl__zh">RRF 以排名而不是未校準的原始分數融合多個 retrieval channel。</p></div>
+      <div class="cite">Sec.3 p.4 · Sec.4.2.3 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / REPRODUCIBILITY</div>
+      <h1 class="title">原文精華：最該被補上的一行</h1>
+      <div class="hl"><p class="hl__en">“Token budgets for retrieval are set to <add> tokens for LongMemEval and <add> tokens for LoCoMo.”</p><p class="hl__zh">報告未填入兩個 benchmark 的 retrieval token budget；這是會影響 coverage、latency 與可重現性的缺口。</p></div>
+      <ul class="bullets"><li>結論章也將 joint optimization、controlled forgetting、privacy-aware memory management 列為後續工作。</li></ul>
+      <div class="cite">Sec.7.3 p.18 · Conclusion p.21</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Memory 不該只是 context 的倉庫。</h2>
+      <p class="end__sub">Hindsight 的可取之處，是把 evidence、retrieval 與 belief revision 拆成可實作、可審計的明確介面。</p>
+      <div class="end__next">NEXT: Monday — LLM architecture, training, or alignment</div>
+      <div class="cite">Source: Hindsight is 20/20 · arXiv:2512.12818v1 · 2025-12-14</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
