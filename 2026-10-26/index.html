@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correct but Unselectable: The Hidden Interface Tax in Multi-Candidate Reasoning</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI RESEARCH DAILY / MONDAY / LLM</div>
+      <h1 class="title">Correct but<br>Unselectable</h1>
+      <p class="lead">Multi-candidate reasoning has a third bottleneck: the interface between generation and selection.</p>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">announced 2026-10-23</span></div>
+      <div class="authors">Qianli Ma et al. · Beijing Normal University / BNBU</div>
+      <div class="cite">Correct but Unselectable: The Hidden Interface Tax in Multi-Candidate Reasoning · Abstract / Figure 1, pp.1–2 · arXiv:2610.32235v1</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">TL;DR</div>
+      <p class="big">A correct trace can already be in the pool — and still be <b>unselectable</b>.</p>
+      <div class="takeaway">CACC repairs the interface before a fixed selector, rather than retraining the generator or reranker.</div>
+      <div class="cite">Abstract p.1; §1 pp.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">WHY THIS MATTERS</div>
+      <h2 class="head">Sampling more candidates is not a complete test-time scaling strategy</h2>
+      <ul class="bullets"><li>Small-model deployments are constrained by <b>cost, latency, privacy, and controllability</b>.</li><li>More samples can contain fragments, partial answers, wrong modes, or selector-attractive noise.</li><li>The pipeline has an unoptimized middle: candidate outputs must satisfy the selector and parser contracts.</li></ul>
+      <div class="cite">Abstract p.1; §1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">THE HIDDEN TAX</div>
+      <h2 class="head">Two different reasons a final answer can fail</h2>
+      <div class="two-col"><div><p class="col-hint">COVERAGE FAILURE</p><h1 class="title">Correct answer absent</h1><ul class="bullets"><li>Generator never produced a usable correct trace.</li><li>More/better generation is the relevant intervention.</li></ul></div><div><p class="col-hint">CONVERSION FAILURE</p><h1 class="title">Correct answer present but unusable</h1><ul class="bullets"><li>Trace is incomplete, unparseable, wrong-mode, or drowned by noise.</li><li>Repair/alignment/hygiene is the relevant intervention.</li></ul></div></div>
+      <div class="cite">§1 pp.2–3; §3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SYSTEM VIEW</div>
+      <h2 class="head">CACC is a compatibility layer between a fixed generator and fixed selector</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure1_p2.jpg" alt="Figure 1 — CACC diagnoses fragments, mode mismatch, and selector-attractive noise"><figcaption>Figure 1 — CACC diagnoses fragments, mode mismatch, and selector-attractive noise</figcaption></figure>
+      <div class="cite">Figure 1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MEASUREMENT</div>
+      <p class="big">Do not ask only “did a correct candidate appear?” Ask whether the fixed selector can <b>consume</b> it.</p>
+      <div class="takeaway">The key object is selectable coverage: Correct AND Parseable AND ModeMatch AND Clean.</div>
+      <div class="cite">§3 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">COVERAGE x CONVERSION</div>
+      <h2 class="head">A decomposition turns one opaque score into two actionable diagnoses</h2>
+      <div class="formula">A<sub>final</sub> = A<sub>oracle</sub> x V|O</div>
+      <ul class="bullets"><li><b>A_oracle</b>: any candidate in the retained pool parses to the gold answer.</li><li><b>V|O</b>: probability that the selector is correct given an oracle-hit pool.</li><li>For an extractive selector, the identity is exact: low final accuracy can come from missing candidates or failed conversion.</li></ul>
+      <div class="cite">Eq. 5–7 and §3 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">SELECTABLE COVERAGE</div>
+      <h2 class="head">Raw correctness is insufficient for a real interface</h2>
+      <div class="two-col"><div><p class="col-hint">RAW ORACLE HIT</p><ul class="bullets"><li>A semantically correct candidate exists.</li><li>It may still fail a parser or be ignored by the reranker.</li></ul></div><div><p class="col-hint">SELECTABLE ORACLE HIT</p><ul class="bullets"><li>Correct</li><li>Parseable under benchmark mode</li><li>Mode-matched</li><li>Clean of selector-confusing residue</li></ul></div></div>
+      <div class="takeaway">Selectable coverage is an operational diagnostic, not an assumed perfect upper bound.</div>
+      <div class="cite">Eq. 8–11, §3 pp.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ARCHITECTURE</div>
+      <h2 class="head">Offline-calibrated rules; online gold-free construction</h2>
+      <figure class="full" style="max-height:51vh;"><img src="figures/figure2_p5.jpg" alt="Figure 2 — CACC freezes a rulebook offline, then routes candidates online before the unchanged selector"><figcaption>Figure 2 — CACC freezes a rulebook offline, then routes candidates online before the unchanged selector</figcaption></figure>
+      <div class="cite">Figure 2 / §4 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">OFFLINE STAGE</div>
+      <h2 class="head">Freeze the contract before evaluation</h2>
+      <ol class="numbered"><li>Build the benchmark answer-mode registry and parser contract.</li><li>Audit failure traces; define diagnostics for completion, mode, wrappers, residue, and conflicts.</li><li>Instantiate CCR / AMC / SCH rule templates.</li><li>Calibrate and freeze the routing policy on audit data.</li></ol>
+      <p class="note">Offline attribution may use audited/dev labels; online inference never reads test gold labels.</p>
+      <div class="cite">§4 pp.5–6; Algorithm 1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ONLINE STAGE</div>
+      <h2 class="head">Apply a fixed policy to each raw candidate pool</h2>
+      <ol class="numbered"><li>Infer answer mode m from the registry.</li><li>Compute observable diagnostics: parser status, markers, residue, conflicts, scores.</li><li>Repair / align / clean according to frozen rules.</li><li>Deduplicate, parser-check, cap the pool, then call the unchanged selector.</li></ol>
+      <div class="takeaway">The selector is held fixed: CACC changes the distribution arriving at its input.</div>
+      <div class="cite">§4 p.6; Algorithm 1 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 1 / CCR</div>
+      <h2 class="head">Completion-Centric Replacement repairs coverage failures</h2>
+      <div class="two-col"><div><h1 class="title">Trigger</h1><ul class="bullets"><li>Fragment or missing final-answer span.</li><li>Candidate slot falls below the parser completion threshold.</li></ul></div><div><h1 class="title">Action</h1><ul class="bullets"><li>Call completion-oriented generation.</li><li>Merge, rescore, and retain under the same cap.</li><li>Recover a parsable final answer from a partial derivation.</li></ul></div></div>
+      <div class="cite">§4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 2 / AMC</div>
+      <h2 class="head">Answer-Mode Compatibility repairs conversion failures</h2>
+      <ul class="bullets"><li>MCQ requires a benchmark-mandated <b>choice letter</b>; a numerically correct rationale can still fail readout.</li><li>Numeric tasks normalize the final numeric span while protecting boxed-answer wrappers.</li><li>Answer-mode registry and parser contract are frozen offline — not patched after seeing test labels.</li></ul>
+      <div class="takeaway">Formatting is not cosmetic when the evaluator and selector are contract-bound.</div>
+      <div class="cite">§4 pp.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODULE 3 / SCH</div>
+      <h2 class="head">Selector-Compatible Hygiene prevents correct answers from being drowned out</h2>
+      <ul class="bullets"><li>Detect residue, scaffold leakage, wrapper drift, conflicts, and selector-attractive distractors.</li><li>Keep original and constructed candidates, then deduplicate <b>last</b>.</li><li>The retained cap should contain mode-aligned, diverse candidates — not repeated variants of one scaffold.</li></ul>
+      <div class="cite">§4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">EXPERIMENT DESIGN</div>
+      <h2 class="head">The matched comparison isolates the interface</h2>
+      <div class="two-col"><div><p class="col-hint">HELD FIXED</p><ul class="bullets"><li>Qwen3-1.7B generator for Base/CACC</li><li>Retained cap</li><li>Parser and scoring endpoint</li><li>Trained verifier-reranker</li></ul></div><div><p class="col-hint">EVALUATED REGIMES</p><ul class="bullets"><li>GSM8K</li><li>competition_math:numeric</li><li>MMLU-Pro</li><li>GPQA Diamond</li></ul></div></div>
+      <p class="note">CACC+SP uses a Qwen3-8B proposer and is explicitly a different compute regime.</p>
+      <div class="cite">§5 pp.6–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MAIN RESULTS</div>
+      <h2 class="head">CACC often improves both coverage and final accuracy — but not uniformly</h2>
+      <table class="bench"><thead><tr><th>Dataset</th><th class="num">Base final</th><th class="num">CACC final</th><th class="num">Delta</th></tr></thead><tbody><tr class="win"><td>GSM8K</td><td class="num">0.2873</td><td class="num">0.3632</td><td class="num best">+7.59 pp</td></tr><tr class="win"><td>CompMath</td><td class="num">0.1519</td><td class="num">0.2579</td><td class="num best">+10.60 pp</td></tr><tr><td>MMLU-Pro</td><td class="num">0.2362</td><td class="num">0.2277</td><td class="num">-0.85 pp</td></tr><tr class="win"><td>GPQA</td><td class="num">0.0556</td><td class="num">0.1919</td><td class="num best">+13.63 pp</td></tr></tbody></table>
+      <div class="takeaway">The MMLU-Pro regression is a feature of the analysis: extra oracle coverage did not convert through the fixed selector.</div>
+      <div class="cite">Table 1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS FIGURE</div>
+      <h2 class="head">Four datasets, one recurring signature: oracle and conversion move independently</h2>
+      <figure class="full" style="max-height:55vh;"><img src="figures/figure3_p7.jpg" alt="Figure 3 — Base vs CACC conversion matrix, latent-vs-selected bars, deltas, and MMLU-Pro chain"><figcaption>Figure 3 — Base vs CACC conversion matrix, latent-vs-selected bars, deltas, and MMLU-Pro chain</figcaption></figure>
+      <div class="cite">Figure 3 p.7; exact values in Table 1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN PAGE</div>
+      <p class="big">Increasing oracle coverage can <b>lower</b> final accuracy when it makes the selector less able to choose the correct candidate.</p>
+      <div class="takeaway">The system must optimize conversion, not merely candidate abundance.</div>
+      <div class="cite">Table 1–3 pp.8–9; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION / READOUT CONTRACT</div>
+      <h2 class="head">A correct answer mode can dominate a large apparent reasoning gain</h2>
+      <table class="bench"><thead><tr><th>MMLU-Pro transition</th><th class="num">Oracle</th><th class="num">V|O</th><th class="num">Final</th></tr></thead><tbody><tr><td>numeric scoring</td><td class="num">0.0369</td><td class="num">0.2590</td><td class="num">0.0096</td></tr><tr class="win"><td>MCQ reparse</td><td class="num">0.4072</td><td class="num">0.5800</td><td class="num best">0.2362</td></tr></tbody></table>
+      <div class="scorebox"><span class="score score--hi">+22.66 pp</span></div>
+      <ul class="bullets"><li>Merely switching from archived numeric scoring to benchmark-locked choice-letter reparse changes final accuracy by +22.66 pp.</li><li>This is readout compatibility, not an upgrade to the underlying generator.</li></ul>
+      <div class="cite">Table 3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION / CACC ON MMLU-PRO</div>
+      <h2 class="head">More oracle hits exposed a conversion gap</h2>
+      <table class="bench"><thead><tr><th>Transition</th><th class="num">Oracle</th><th class="num">V|O</th><th class="num">Final</th></tr></thead><tbody><tr><td>Base</td><td class="num">0.4072</td><td class="num">0.5800</td><td class="num">0.2362</td></tr><tr><td>CACC</td><td class="num">0.4767</td><td class="num">0.4777</td><td class="num">0.2277</td></tr></tbody></table>
+      <ul class="bullets"><li>Oracle rises by <b>+6.95 pp</b>.</li><li>Conditional conversion falls by <b>-10.23 pp</b>.</li><li>Final accuracy falls by <b>-0.85 pp</b>.</li></ul>
+      <div class="cite">Table 1 p.8; Table 3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ABLATION / HYGIENE</div>
+      <h2 class="head">Hygiene can improve final accuracy without adding oracle coverage</h2>
+      <table class="bench"><thead><tr><th>MMLU-512 transition</th><th class="num">Oracle</th><th class="num">V|O</th><th class="num">Final</th></tr></thead><tbody><tr><td>diverse -> CACC</td><td class="num">+9.38 pp</td><td class="num">-9.00 pp</td><td class="num">-0.78 pp</td></tr><tr class="win"><td>CACC -> +hygiene</td><td class="num">0.00 pp</td><td class="num">+4.58 pp</td><td class="num best">+2.54 pp</td></tr></tbody></table>
+      <div class="takeaway">This is the strongest direct evidence for SCH: candidate quality at selector input matters even when coverage is unchanged.</div>
+      <div class="cite">Table 2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">COUNTEREXAMPLE</div>
+      <h2 class="head">Coverage expansion at the wrong layer can backfire</h2>
+      <ul class="bullets"><li>On GSM8K, SP -> Power Sampling x CACC raises oracle by <b>+10.84 pp</b>.</li><li>But V|O falls by <b>-12.43 pp</b>, and final accuracy falls by <b>-2.50 pp</b>.</li><li>The paper’s prescription: choose interventions by the bottleneck layer, not by the number of stacked enhancements.</li></ul>
+      <div class="cite">Table 2 p.8; §5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">BEST CASE / GPQA</div>
+      <h2 class="head">Interface repair produces a large gain where readout invalidity is severe</h2>
+      <table class="bench"><thead><tr><th>GPQA method</th><th class="num">Oracle</th><th class="num">V|O</th><th class="num">Final</th></tr></thead><tbody><tr><td>Base</td><td class="num">0.1919</td><td class="num">0.2897</td><td class="num">0.0556</td></tr><tr class="win"><td>CACC</td><td class="num">0.4545</td><td class="num">0.4222</td><td class="num best">0.1919</td></tr><tr class="win"><td>CACC+SP*</td><td class="num">0.4899</td><td class="num">0.5258</td><td class="num best">0.2576</td></tr></tbody></table>
+      <p class="note">* CACC+SP uses a Qwen3-8B proposer, so it is composition evidence rather than a matched CACC-only result.</p>
+      <div class="cite">Table 1 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ROBUSTNESS</div>
+      <h2 class="head">Second-family checks support recoverable compatibility, not a transplanted rulebook</h2>
+      <ul class="bullets"><li>MMLU-Pro confirm-512: CACC -> +hygiene final 0.1992 -> 0.2246; McNemar p=0.0072.</li><li>GPQA-128: CACC -> +hygiene final 0.2031 -> 0.2656; p=0.0215.</li><li>The Mistral-7B smoke rows trend in the same direction, while the authors caution that rules and selector family matter.</li></ul>
+      <div class="cite">§5 p.8; Table 3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAY</div>
+      <h2 class="head">Run an interface audit before paying for more inference</h2>
+      <ol class="numbered"><li>Measure raw coverage, conversion V|O, and final accuracy separately.</li><li>Inspect parser contracts, answer modes, final markers, and selector-attractive residue.</li><li>Repair the layer that owns the failure: source, interface, or selector.</li><li>Keep compute-regime changes explicit; do not fold stronger proposers into matched CACC claims.</li></ol>
+      <div class="cite">§5–6 pp.8–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMITS</div>
+      <h2 class="head">The method is a useful diagnosis, not a universal free gain</h2>
+      <ul class="bullets"><li>Current registry targets numeric and MCQ parser contracts; free-form, code, and multi-turn interfaces remain open.</li><li>The rulebook is manually calibrated per benchmark; learned routing from selector feedback could reduce setup cost.</li><li>Effects depend on selector, readout, and scope — the original MMLU-Pro decline is the paper’s own warning.</li><li>CCR may call the generator, so total inference cost is not matched even with a fixed retained cap.</li></ul>
+      <div class="cite">§4 p.6; §6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / AUTHORS IN THEIR WORDS</div>
+      <div class="hl"><p class="hl__en">A correct answer may appear in the candidate pool yet fail to be selected because it is incomplete, unparseable, or misaligned with the answer mode the fixed selector expects.</p><p class="hl__zh">正確答案可能已出現在候選池，卻因不完整、不可解析，或與固定 selector 預期的答案格式不相容而未被選中。</p></div>
+      <div class="cite">Abstract p.1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / THE CENTRAL CLAIM</div>
+      <div class="hl"><p class="hl__en">Layer matching (not the number of stacked enhancements) is what predicts whether a given composition converts oracle expansion into final accuracy under a fixed selector.</p><p class="hl__zh">決定 oracle 擴張能否變成最終準確率的，是介入層位是否匹配，而不是疊了多少強化模組。</p></div>
+      <div class="cite">§5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Measure the interface.</h2>
+      <p class="end__sub">Correct generation is necessary. Selectable generation is what the fixed selector can actually use.</p>
+      <div class="end__next">Tomorrow: image generation / understanding</div>
+      <div class="cite">Correct but Unselectable: The Hidden Interface Tax in Multi-Candidate Reasoning · NeurIPS 2026 · https://arxiv.org/abs/2610.32235v1</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
