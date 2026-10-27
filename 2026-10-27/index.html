@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenCeption - Video Generation Models are General-Purpose Vision Learners</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">DAILY AI RESEARCH / TUE / IMAGE GENERATION x UNDERSTANDING</div>
+      <h1 class="title">Video Generation Models are General-Purpose Vision Learners</h1>
+      <p class="lead">GenCeption: turning a pretrained text-to-video diffusion transformer into a prompt-steered, one-pass perception model.</p>
+      <div class="authors">Letian Wang et al. - Google DeepMind, University of Toronto, UCL, Oxford, MIT, Lund University</div>
+      <div class="meta-row"><span class="badge tier">ECCV 2026 Poster</span><span class="badge date">arXiv:2607.09024</span></div>
+      <figure class="full" style="max-height:18vh; margin-top:.25rem;"><img src="figures/figure3_p5.jpg" alt="GenCeption capabilities across perception tasks"><figcaption>A single model is prompted for geometry, segmentation, pose, and keypoints.</figcaption></figure>
+      <div class="cite">Source: cover p.1; Figure 3 p.5; official ECCV 2026 paper index</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">THE THESIS</div>
+      <p class="big">Video <b>generation</b> can be the pretraining objective for general-purpose <b>perception</b>.</p>
+      <p class="lead">Keep the text-to-video backbone and its priors; replace 50-step sampling with one prompt-conditioned forward pass.</p>
+      <div class="cite">Abstract p.1; §1 p.2; §3.2 pp.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">PROBLEM</div>
+      <h2 class="head">Vision foundation models still specialize by task</h2>
+      <ul class="bullets"><li><b>Architecture fragmentation:</b> heads, decoders, and losses are commonly redesigned for each task.</li><li><b>Temporal gap:</b> image-domain generalists do not natively model 4D dynamics.</li><li><b>Missing analogue:</b> vision lacks a scalable, language-aligned counterpart to next-token prediction.</li></ul>
+      <div class="takeaway">The target is not “one multitask model”; it is a task-agnostic pretraining and post-training recipe.</div>
+      <div class="cite">§1 pp.1-2; §2 pp.3-4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">DESIGN CRITERIA</div>
+      <h2 class="head">Why text-to-video generation is the proposed catalyst</h2>
+      <ol class="numbered"><li><b>Spatiotemporal evolution:</b> predict a moving world, not independent frames.</li><li><b>Vision-language alignment:</b> text conditioning grounds visual features in semantics.</li><li><b>Scale:</b> video generation can use broad data and compute without dense task labels.</li></ol>
+      <div class="takeaway">Generation is valuable here for the priors it forces the backbone to internalize.</div>
+      <div class="cite">§1 pp.1-2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">CONTRIBUTIONS</div>
+      <h2 class="head">What GenCeption adds beyond a video generator</h2>
+      <ol class="numbered"><li>Repurpose a pretrained text-to-video DiT as a <b>unified perceiver</b>.</li><li>Use text instructions to select target modality in one architecture.</li><li>Represent dense tasks visually and sparse tasks with learnable query tokens.</li><li>Show multi-task results, synthetic-to-real transfer, and pretraining comparisons.</li></ol>
+      <div class="cite">Abstract p.1; §1-3 pp.2-9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MODEL OVERVIEW</div>
+      <h2 class="head">Prompt chooses the output; the backbone stays unified</h2>
+      <figure class="full" style="max-height:48vh;"><img src="figures/figure3_p5.jpg" alt="Capabilities of GenCeption"><figcaption>The same video-conditioned backbone serves normals, depth, segmentation, pose, and keypoints.</figcaption></figure>
+      <div class="cite">Figure 3 p.5; §3.1 pp.5-6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD / CONVERSION</div>
+      <h2 class="head">Convert diffusion into feed-forward perception</h2>
+      <div class="two-col"><div><div class="formula">Input: clean video latent x<sub>0</sub> + text prompt; timestep fixed at t = 0</div><ul class="bullets"><li>Standard WAN iterates denoising; GenCeption runs <b>one</b> DiT forward pass.</li><li>The DiT velocity output is negated before decoding or loss.</li></ul></div><div><div class="formula">DiT predicts v = epsilon - x<sub>0</sub><br>Use -v = x<sub>0</sub> - epsilon</div><div class="takeaway">The paper treats the final DiT layer as a rich, decoder-aligned feature extractor.</div></div></div>
+      <div class="cite">§3.2 pp.6-7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD / REPRESENTATION</div>
+      <h2 class="head">Make dense tasks look like visual generation</h2>
+      <div class="two-col"><div><div class="sub"><b>Dense outputs</b></div><ul class="bullets"><li>Depth and segmentation: replicate a scalar across RGB channels.</li><li>Normals and DensePose: use three channels directly.</li><li>Camera pose: pack ray origin and direction into a spatial “Rothko” raymap.</li></ul></div><div><div class="sub"><b>Benefit</b></div><ul class="bullets"><li>One backbone, one decoder, and no task-specific dense head.</li><li>Task customization migrates to target encoding and prompt language.</li></ul><div class="takeaway">The task format is designed to match the pretrained visual domain.</div></div></div>
+      <div class="cite">§3.3 p.7; Figure 5 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD / SPARSE OUTPUTS</div>
+      <h2 class="head">Coordinates need tokens, not pixels</h2>
+      <div class="two-col"><div><div class="sub"><b>Token extension</b></div><ul class="bullets"><li>Append one learnable token per video frame.</li><li>A small MLP maps each token to K-dimensional 2D/3D coordinate targets.</li><li>Use native 3D RoPE and temporally interpolate positions.</li></ul></div><div><div class="sub"><b>Trade-off exposed later</b></div><ul class="bullets"><li>It enables structured outputs unavailable in RGB.</li><li>But scratch-trained tokens deviate from pixel-space pretraining and can disturb attention.</li></ul></div></div>
+      <div class="cite">§3.3 p.7; §4.5 pp.12-13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD / DATA</div>
+      <h2 class="head">Synthetic video supplies dense ground truth at scale</h2>
+      <div class="scorebox"><span class="score score--hi">800 assets</span><span class="score score--hi">200 motions</span><span class="score score--hi">7,500 videos</span></div>
+      <ul class="bullets"><li>RenderPeople humans are animated with CMU motions, varied scenes/HDRIs, and varied cameras.</li><li>Separate Blender passes produce normals, depth, masks, and 2D/3D keypoint supervision.</li><li>Extra synthetic depth/camera data includes TartanAir, Virtual KITTI, and MVS Synth.</li></ul>
+      <div class="cite">§3.4 pp.8-9; §4.1 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">METHOD / OBJECTIVE</div>
+      <h2 class="head">One L2 loss - specialization moves into target design</h2>
+      <div class="two-col"><div><div class="formula">Dense tasks: L2 in latent space<br>Sparse tasks: L2 in output space</div><ul class="bullets"><li>Joint multi-task training does not need manually balanced task losses.</li></ul></div><div><div class="formula">Depth encoding: d_prime = clip(alpha log(d + 1), 0, 1)</div><ul class="bullets"><li>Median-normalize each depth map, then map it into RGB-range targets.</li><li>Scale ambiguity is addressed in representation rather than loss selection.</li></ul></div></div>
+      <div class="cite">§3.5 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">INFERENCE COST</div>
+      <h2 class="head">Single-step conversion removes WAN’s 50-step sampler</h2>
+      <table class="bench"><thead><tr><th>Model</th><th>Input</th><th class="num">Runtime</th><th class="num">Speed</th><th class="num">VRAM</th></tr></thead><tbody><tr class="win"><td>GenCeption 1.3B</td><td>81f, 480x832</td><td class="num best">5.92 s</td><td class="num best">13.6 FPS</td><td class="num">15.3 GB</td></tr><tr><td>GenCeption 14B</td><td>81f, 480x832</td><td class="num">10.03 s</td><td class="num">8.0 FPS</td><td class="num">42.8 GB</td></tr></tbody></table>
+      <div class="takeaway">The paper reports 0.96 s / 5.11 s for the DiT portion respectively; text encoder and VAE can be offloaded.</div>
+      <div class="cite">§4.2 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS / BREADTH</div>
+      <h2 class="head">One 14B generalist reaches competitive results across modalities</h2>
+      <table class="bench"><thead><tr><th>Task / benchmark</th><th>Metric</th><th class="num">Generalist-L</th><th class="num">Specialist-L</th></tr></thead><tbody><tr class="win"><td>Normals / Sintel</td><td>mAE down</td><td class="num best">29.3</td><td class="num">29.7</td></tr><tr><td>Camera / Sintel</td><td>ATE down</td><td class="num">0.156</td><td class="num best">0.130</td></tr><tr><td>Matting / VideoMatte</td><td>MSE down</td><td class="num best">0.0010</td><td class="num">0.0027</td></tr><tr><td>Referring seg. / Ref-DAVIS</td><td>J&F up</td><td class="num">75.8</td><td class="num best">76.4</td></tr></tbody></table>
+      <div class="cite">Table 1 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RESULTS / QUALITATIVE</div>
+      <h2 class="head">Text conditioning supports open-world referring segmentation</h2>
+      <figure class="full" style="max-height:49vh;"><img src="figures/figure7_p10.jpg" alt="Qualitative referring segmentation"><figcaption>Authors highlight recognition of objects, colors, spatial relations, motion, and unseen objects.</figcaption></figure>
+      <div class="cite">Figure 7 p.10; §4.4 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner slide__inner--center">
+      <div class="kicker">MECHANISM / CROWN INSIGHT</div>
+      <p class="big">The important prior is not just <b>video data</b>; it is the <b>generative diffusion objective</b> plus a post-training format that does not fight the backbone.</p>
+      <p class="lead">Matched-data depth experiments place WAN 2.1 ahead of V-JEPA and VideoMAE v2; transferring more pretrained layers also improves performance.</p>
+      <div class="cite">§4.5 p.13; Table 2 p.11; Figure 9 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM / CONTROLLED COMPARISON</div>
+      <h2 class="head">With 7.5K videos / 0.9M frames, WAN wins the depth comparison</h2>
+      <table class="bench"><thead><tr><th>Pretraining backbone</th><th class="num">Size</th><th class="num">Avg AbsRel down</th><th class="num">Avg delta-1 up</th></tr></thead><tbody><tr><td>V-JEPA-H</td><td class="num">0.6B</td><td class="num">0.281</td><td class="num">52.2</td></tr><tr><td>VideoMAE v2-G</td><td class="num">1B</td><td class="num">0.154</td><td class="num">66.9</td></tr><tr><td>WAN 2.1-S</td><td class="num">1.3B</td><td class="num">0.122</td><td class="num">85.8</td></tr><tr class="win"><td>WAN 2.1-L</td><td class="num">14B</td><td class="num best">0.093</td><td class="num best">90.7</td></tr></tbody></table>
+      <div class="takeaway">This is evidence under the authors’ comparison, not a universal proof that diffusion dominates all video representation learning.</div>
+      <div class="cite">Table 2 p.11; §4.5 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM / DATA EFFICIENCY</div>
+      <h2 class="head">The 14B WAN backbone improves as data grows</h2>
+      <table class="bench"><thead><tr><th>Model / data</th><th class="num">Videos</th><th class="num">Frames</th><th class="num">Avg AbsRel down</th><th class="num">Avg delta-1 up</th></tr></thead><tbody><tr><td>WAN 2.1-L / 1 dataset</td><td class="num">7.5K</td><td class="num">0.9M</td><td class="num">0.093</td><td class="num">90.7</td></tr><tr class="win"><td>WAN 2.1-L / 4 datasets</td><td class="num">8.08K</td><td class="num">1.23M</td><td class="num best">0.071</td><td class="num best">93.8</td></tr><tr><td>VGGT-Omega (reported)</td><td class="num">~3M</td><td class="num">~600M</td><td class="num">0.067</td><td class="num">95.2</td></tr></tbody></table>
+      <div class="takeaway">The authors call the scaling evidence preliminary; the comparison also indicates a much smaller fine-tuning data budget.</div>
+      <div class="cite">Table 2 p.11; §4.5 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">MECHANISM / ABLATION</div>
+      <h2 class="head">More transferred pretrained layers improve learning</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure9_p12.jpg" alt="Effect of transferred pretrained layers"><figcaption>The paper reports nearly flat learning from scratch and improved performance as more pretrained layers are retained.</figcaption></figure>
+      <div class="cite">Figure 9 p.12; §4.5 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">GENERALIZATION</div>
+      <h2 class="head">Synthetic, single-human training transfers beyond its setup</h2>
+      <figure class="full" style="max-height:47vh;"><img src="figures/figure10_p13.jpg" alt="Generalization to multiple instances and unseen categories"><figcaption>Qualitative zero-shot results: multiple instances and articulated non-human categories.</figcaption></figure>
+      <div class="cite">Figure 10 p.13; §4.6 pp.13-14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LIMIT / IMPORTANT COUNTEREVIDENCE</div>
+      <h2 class="head">Joint training is not uniformly better</h2>
+      <div class="two-col"><div><div class="sub"><b>What improves or holds</b></div><ul class="bullets"><li>Foreground segmentation consistently benefits from joint training.</li><li>Referring segmentation remains largely unchanged.</li><li>Some dense tasks retain performance or regress by benchmark.</li></ul></div><div><div class="sub"><b>What breaks</b></div><ul class="bullets"><li>3D human-keypoint estimation degrades severely.</li><li>Authors point to token-coordinate regression and scratch tokens disrupting pretrained attention.</li><li>Implication: preserve native backbone behavior where possible.</li></ul></div></div>
+      <div class="cite">§4.5 pp.12-13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">ENGINEERING TAKEAWAYS</div>
+      <h2 class="head">Three practical lessons for multimodal systems</h2>
+      <ol class="numbered"><li><b>Keep the pretraining contract:</b> use inputs, output formats, and computations that look native to the backbone.</li><li><b>Prompts can replace routing:</b> a task label in text is a simpler interface than branching model heads.</li><li><b>Test generality adversarially:</b> a shared dense representation may scale, while sparse structured outputs expose interference.</li></ol>
+      <div class="takeaway">This paper is most convincing as a post-training design argument: representation choices decide whether generative priors remain usable.</div>
+      <div class="cite">§3.2-3.5 pp.6-9; §4.5 pp.12-13</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / AUTHOR WORDING</div>
+      <h2 class="head">The single-pass claim</h2>
+      <div class="hl"><p class="hl__en">“By repurposing iterative diffusion into a feed-forward architecture, GenCeption dynamically infers the intended modality in a single forward pass, steered by the text instruction.”</p><p class="hl__zh">「將反覆的 diffusion 改成 feed-forward 架構後，模型由文字指令在一次前向傳播中決定並推論目標模態。」<span class="hl__src">§1 p.2</span></p></div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">APPENDIX / AUTHOR WORDING</div>
+      <h2 class="head">The representation-first claim</h2>
+      <div class="hl"><p class="hl__en">“We advocate for projecting fundamentally visual tasks directly into the continuous pixel space—the native domain where pre-trained visual priors are best leveraged.”</p><p class="hl__zh">「作者主張把本質上視覺的任務投影到連續像素空間，讓預訓練視覺先驗在它最原生的表徵域裡工作。」<span class="hl__src">§3.3 p.7</span></p></div>
+      <div class="cite">§3.3 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">From generators to perceivers</h2>
+      <p class="end__sub">GenCeption argues that video diffusion pretraining can provide both world priors and a scalable interface for generalist visual perception.</p>
+      <div class="end__next">Tomorrow: compute acceleration - attention, kernels, and hardware.</div>
+      <div class="cite">Paper: Video Generation Models are General-Purpose Vision Learners - ECCV 2026 - arXiv:2607.09024</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
