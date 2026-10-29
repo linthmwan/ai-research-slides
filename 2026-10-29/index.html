@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DynaFlow — Intra-Device Parallelism</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週四 · 計算加速</div>
+      <h1 class="title">DynaFlow: Transparent and Flexible Intra-Device Parallelism via Programmable Operator Scheduling</h1>
+      <div class="authors">Yi Pan, Yile Gu, Jinbin Luo, Yibo Wu, Ziren Wang, Hongtao Zhang, Ziyi Xu, Shengkai Lin, Baris Kasikci, Stephanie Wang · UW / SJTU</div>
+      <div class="meta-row"><span class="badge tier">MLSys 2026</span><span class="badge date">Announced 2026-05-20（回溯 17 天）</span></div>
+      <p class="note">Venue: Proceedings of the 9th MLSys Conference, Bellevue, 2026（PDF p.1 頁尾）· arXiv 2605.21603 · 回溯原因：今日 arXiv 清單無乾淨的計算加速頂會 accepted 論文 · Reviewer 資料：未抓取</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把「模型怎麼寫」和「算子怎麼排程」拆開：用 torch.compile backend 讓 overlap / fusion / split 三類 intra-device 平行化，只改數十行就接進 vLLM、SGLang 等 6 個系統，吞吐最高 <b>1.29×</b>。</p>
+      <div class="cite">Abstract, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">Intra-device parallelism 好用，卻幾乎沒人整合</h2>
+      <ul class="bullets"><li>算子資源需求迥異：GEMM 是 compute-bound、decode attention / norm 是 memory-bound、AllReduce / all-to-all 是 network-bound，序列執行讓某資源總在閒置</li><li>SGLang 實作 dual-batch overlap：<b>超過 2 個月、1.3K 行</b>專用程式碼，且只針對一個模型</li><li>框架（vLLM、SGLang）是靜態、循序的程式模型，與非循序執行衝突</li></ul>
+      <div class="takeaway">瓶頸不是演算法，是整合成本。</div>
+      <div class="cite">§1, p.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">動機</div>
+      <h2 class="head">資源閒置有多大？網路停滯最多讓 15% 效能留在桌上</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure3_p3.jpg" alt=""><figcaption>Figure 3：Llama-3-8B (TP) 與 DeepSeek-V2-Lite (EP) 的執行時間分解，batch 512、seq 1024（p.3）</figcaption></figure>
+      <div class="cite">§2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">動機</div>
+      <h2 class="head">沒有萬用策略：最佳選擇隨負載與硬體改變</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure2_p2.jpg" alt=""><figcaption>Figure 2：Llama-3-70B、4 GPU TP 下，不同策略在不同情境的相對加速（p.2）</figcaption></figure>
+      <ul class="bullets"><li>Batch splitting 對大 batch（prefill）有利，小 batch 因多讀權重而變慢</li><li>A100：partial overlap（all-reduce + RMSNorm）優於 full overlap（SM 競爭）；H100：full overlap 較佳（multimem 指令卸載 reduction）</li></ul>
+      <div class="cite">§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景</div>
+      <h2 class="head">三類策略：overlap、fusion、split</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure1_p1.jpg" alt=""><figcaption>Figure 1：(a) 多 stream 重疊計算與通訊；(b) 細粒度 kernel fusion；(c) 切 batch 並行（p.1）</figcaption></figure>
+      <div class="cite">§2.1, p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景</div>
+      <h2 class="head">三類策略各有整合痛點</h2>
+      <table class="bench"><thead><tr><th>策略</th><th>做法</th><th>痛點</th></tr></thead><tbody><tr><td>Overlap</td><td>CUDA streams / green contexts</td><td>stream 有資源競爭；green context 需手調 SM 數；峰值記憶體上升</td></tr><tr><td>Fusion</td><td>以專家寫的 custom kernel 取代多個算子</td><td>算子子序列組合爆炸，難維護</td></tr><tr><td>Split</td><td>沿 batch 維度切 micro-batch</td><td>每多一份 micro-batch 多讀一次權重；何時切、切多細要決定；split/merge 的拷貝</td></tr></tbody></table>
+      <div class="cite">§2.1, p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">設計挑戰</div>
+      <h2 class="head">三個要同時解決的問題</h2>
+      <ol class="numbered"><li><b>排程粒度</b>：太細（torch.add 等）排程複雜、開銷高並阻礙 fusion；太粗（整層）暴露不出層內重疊</li><li><b>統一且動態的抽象</b>：要夠表達各種策略，並能依 workload / 硬體 / 模型在執行期調整</li><li><b>效能不能因彈性而損失</b>：控制流 / 資料流開銷、split/merge 拷貝、與 CUDA Graphs / TorchInductor 的靜態圖假設衝突</li></ol>
+      <p class="note">靜態編譯器（如 XLA）假設穩定的執行圖，難處理這種動態性（§2.2）。</p>
+      <div class="cite">§2.2, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法總覽</div>
+      <h2 class="head">核心想法：在邏輯模型與實體執行之間插入可程式化的執行層</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure4_p5.jpg" alt=""><figcaption>Figure 4：DynaFlow 系統設計與流程（p.5）</figcaption></figure>
+      <div class="cite">§3.1, p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 前端</div>
+      <h2 class="head">Graph partition：沿用既有程式結構當排程單位</h2>
+      <ul class="bullets"><li>輸入是 TorchDynamo 追蹤出的計算圖，故與 vLLM、SGLang 等已支援的系統相容</li><li>排程目標通常是邏輯算子（RMSNorm、Attention），對應 <b>nn.Module</b> 或一次 <b>PyTorch API 呼叫</b></li><li>API：<b>SplitModule</b>（依模組切）、<b>SplitFunc</b>（依函式呼叫切）、<b>dynaflow.mark</b>（任意程式區塊的 context manager）</li></ul>
+      <div class="takeaway">用 2–3 種標註就能把細粒度圖收成粗粒度的可排程子圖。</div>
+      <div class="cite">§3.2.1, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 前端</div>
+      <h2 class="head">Programmable scheduling：三個原語組出任何排程</h2>
+      <ul class="bullets"><li>使用者繼承 <b>OpSchedulerBase</b>、覆寫 <b>schedule</b>（Python-native）</li><li><b>split([bs1…bsn])</b>：建立 n 個邏輯 micro-batch</li><li><b>get_ready_ops(i)</b>：查詢第 i 個 micro-batch 依賴已滿足的子圖</li><li><b>execute(ops, stream, replace_func)</b>：派發算子；多個 micro-batch 的同一算子可合併執行，或以 replace_func 換成 fused kernel；未特別指定時退回循序執行</li></ul>
+      <p class="note">設計取捨：直接暴露所有子圖會讓使用者自管資料流；宣告式改寫規則又不夠動態。</p>
+      <div class="cite">§3.2.2, p.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 前端</div>
+      <h2 class="head">範例：約 20 行 Python 寫出 DBO 與 TokenWeave</h2>
+      <figure class="full" style="max-height:55vh; margin-top:.4rem;"><img src="figures/figure7_p6.jpg" alt=""><figcaption>Figure 7：以 DynaFlow API 定義 DBO（上）與 TokenWeave（下）及其執行順序（p.6）</figcaption></figure>
+      <ul class="bullets"><li>DBO：attention 以大 batch 執行、MoE 切兩個 micro-batch 重疊通訊與計算；執行期先判斷 batch size，不夠大就退回循序</li><li>TokenWeave：用 replace_func 把 AllReduce + RMSNorm 換成 fused kernel 並與下一個計算重疊</li></ul>
+      <div class="cite">§3.2.2, p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 後端</div>
+      <h2 class="head">零拷貝資料流：靜態分析 + 執行期預配置</h2>
+      <ul class="bullets"><li>問題：micro-batch 數在上下游算子不同時需 re-shard，naive 的 torch.cat 拷貝會吃掉平行化收益</li><li><b>StaticAnalysis</b>：每個 tensor 預先算 reference count（生命週期）與 prealloc 旗標（是否屬於未來的 merge）</li><li><b>RuntimeExecute</b>：遞減 ref count 做垃圾回收；prealloc 的輸出先配一塊連續 buffer，hook 把算子輸出直接寫進對應切片</li></ul>
+      <div class="takeaway">re-shard 變成零拷貝，記憶體生命週期也可追蹤。</div>
+      <div class="cite">§3.3.1, Algorithm 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 後端</div>
+      <h2 class="head">與 CUDA Graphs、TorchInductor 相容：靜態優化下放到子圖層級</h2>
+      <ul class="bullets"><li>TorchInductor：每個子圖只編譯一次，可跨 micro-batch 重用</li><li>CUDA Graphs：為避免並行資料衝突，對每個 micro-batch 與子圖各自 capture；並在同一 micro-batch 的所有子圖與 batch size 間共用 graph pool 以壓低記憶體</li><li>實作：torch.compile backend，4.1K 行 Python，PyTorch 2.6+</li></ul>
+      <div class="cite">§3.3.2, §4, p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 整合成本</div>
+      <h2 class="head">接進現有系統只需少量程式碼</h2>
+      <table class="bench"><thead><tr><th>項目</th><th class="num">程式碼量（LoC）</th></tr></thead><tbody><tr><td>vLLM（GPUModelRunner 處理 micro-batch 的 attention metadata）</td><td class="num">75</td></tr><tr><td>MoE 模型額外標註（平均每個模型）</td><td class="num">約 8</td></tr><tr><td>其他系統（多為 torch.compile 支援所需）</td><td class="num">&lt; 100</td></tr><tr><td>每個策略：partition 規則（平均）</td><td class="num">11</td></tr><tr><td>每個策略：排程邏輯（平均）</td><td class="num">31</td></tr></tbody></table>
+      <p class="note">SGLang 因 backend 設計與 torch.compile 僅部分支援（v0.5.3.post3）而稍複雜。</p>
+      <div class="cite">§5.2.1, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 後端效率</div>
+      <h2 class="head">CPU 開銷：優化降 6.4×，循序 fallback 幾乎等於 vLLM</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure8_p8.jpg" alt=""><figcaption>Figure 8：vLLM 中單次 forward 的 CPU 執行時間（p.8）</figcaption></figure>
+      <ul class="bullets"><li>啟用低階優化比未優化版少 6.4× CPU 時間</li><li>動態排程 10.8 ms vs vLLM 靜態 4.4 ms；循序 fallback 4.7 ms，足以被 GPU 執行掩蓋</li></ul>
+      <div class="cite">§5.2.2, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 端到端</div>
+      <h2 class="head">NanoFlow 整合：vLLM 最高 1.29×，且動態開關避免小負載退化</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure9_p9.jpg" alt=""><figcaption>Figure 9：DynaFlow 啟用的 NanoFlow 整合之服務吞吐（p.9）</figcaption></figure>
+      <ul class="bullets"><li>vLLM 最高 1.17× / 1.29× / 1.29×（Llama-3-8B / Llama-3-70B / Qwen-2.5-72B）；SGLang 最高 1.17× / 1.17× / 1.19×</li><li>naive 的「每個輸入都切」在輕量負載降到 0.56×（合成）與 0.35×（真實）</li></ul>
+      <div class="cite">§5.3.1, p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 為何真實資料集加速較小</div>
+      <h2 class="head">可切 batch 的比例由 workload 決定</h2>
+      <table class="bench"><thead><tr><th>負載</th><th class="num">每次迭代平均 token</th><th class="num">使用 batch splitting 的迭代比例</th></tr></thead><tbody><tr><td>合成（512 in / 128 out）</td><td class="num">8,985</td><td class="num">91.71%</td></tr><tr><td>ShareGPT（246 in / 322 out）</td><td class="num">2,991</td><td class="num">46.21%</td></tr></tbody></table>
+      <div class="takeaway">動態判斷「何時值得切」正是可程式化排程的價值。</div>
+      <div class="cite">§5.3.1, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 其他策略</div>
+      <h2 class="head">DBO、通訊重疊、TokenWeave、Comet 一覽</h2>
+      <table class="bench"><thead><tr><th>策略 / 系統</th><th class="num">結果（最高）</th><th>備註</th></tr></thead><tbody><tr><td>DBO · vLLM · DeepSeek-V2-Lite</td><td class="num">1.14×</td><td>最高比 vLLM 原生 DBO 好 1.1×；Splitwise 1.16×</td></tr><tr><td>通訊重疊 · HF / Megatron / xDiT / FastVideo</td><td class="num">1.15×</td><td>Megatron 反向的融合 TP 算子無法被捕捉；Wan-14B 長影片受 attention 主導</td></tr><tr><td>TokenWeave · vLLM / HF</td><td class="num">1.21× / 1.22×</td><td>依 batch size 選 CTA 數，比原版 TokenWeave 最高再好 12%</td></tr><tr><td>Comet · Megatron-LM</td><td class="num">1.25×（Qwen2-MoE）/ 1.27×（Mixtral）</td><td>與 Comet 團隊自己的 fork 持平</td></tr><tr><td>Flux · vLLM</td><td class="num">最高退化 20%</td><td>fused kernel 延遲是分開 GEMM + AllReduce 的 1.6×</td></tr></tbody></table>
+      <div class="cite">§5.3.2–5.3.6, p.10–11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 消融</div>
+      <h2 class="head">每個設計都貢獻：動態排程、零拷貝、CUDA Graph</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure14_p12.jpg" alt=""><figcaption>Figure 14：消融（Llama-3-8B、2×B200、ShareGPT；vLLM+CUDA Graph = 1.00×）（p.12）</figcaption></figure>
+      <ul class="bullets"><li>完整 1.14×；關掉 CUDA Graph 0.96×；關掉零拷貝預配置 1.10×；改靜態固定門檻切分 1.00×</li></ul>
+      <div class="cite">§5.5, p.11–12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">成本</div>
+      <h2 class="head">初始化開銷：可接受，但記憶體約翻倍</h2>
+      <table class="bench"><thead><tr><th>項目</th><th class="num">DynaFlow</th><th class="num">vLLM</th></tr></thead><tbody><tr><td>CUDA graph capture 時間</td><td class="num">4.3 s</td><td class="num">2.4 s</td></tr><tr><td>CUDA graph 記憶體</td><td class="num">1.80 GiB</td><td class="num">0.98 GiB</td></tr><tr><td>靜態分析</td><td class="num">0.2 s</td><td class="num">—</td></tr></tbody></table>
+      <p class="note">對照 vLLM 整體初始化 24 s、不到測試機 GPU 記憶體 0.5%；作者指出可用 Medusa 類技術進一步降低（§5.4）。</p>
+      <div class="cite">§5.4, p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自己點出的限制</h2>
+      <ul class="bullets"><li>Megatron-LM 訓練反向：custom fused TP backward 算子超出 TorchDynamo 有限的 compiled autograd 支援，overlap 效果差</li><li>影片生成（Wan-14B）長序列由 attention 二次成長主導，通訊重疊收益下降</li><li>Megakernel 類技術的動態性（如 MoE 條件計算）仍是開放問題（Related Work）</li><li>實驗僅在 B200 與 H100 NVLink 機器上；多節點低頻寬只在附錄以 PCIe 模擬</li></ul>
+      <div class="cite">§5.3.3, §6, p.10–12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">為什麼這個設計 work（我的解讀，非論文結論）</h2>
+      <ul class="bullets"><li>把「策略」變成短小的 Python 函式，而不是散在框架各處的改寫——策略比較與實驗成本大降，Flux 的負結果也能快速驗出</li><li>性能關鍵不在排程 API，而在後端：零拷貝 + CUDA Graph 相容讓彈性不被開銷吃掉（消融 0.96× → 1.14×）</li><li>對工程師：想試新的 overlap 策略時，先確認 batch 條件與硬體，再決定是否開，比單一固定策略穩</li></ul>
+      <p class="note">此頁為編者的推論，已與論文內容分開標示。</p>
+      <div class="cite">綜合 §3、§5.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">DynaFlow：讓 intra-device parallelism 變成幾十行 Python</h2>
+      <p class="end__sub">來源：arXiv 2605.21603 · MLSys 2026 · 程式碼 github.com/uw-syfi/DynaFlow</p>
+      <div class="end__next">明日預告：週五 · 模型壓縮 / 效率</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
