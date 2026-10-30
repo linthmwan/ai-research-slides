@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ELSA — The Unseen Frontier of LLM Sparsity</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週五 · 模型壓縮 / 效率（Pruning）</div>
+      <h1 class="title">ELSA：突破 LLM 剪枝的「稀疏牆」</h1>
+      <div class="sub">The Unseen Frontier: Pushing the Limits of LLM Sparsity with Surrogate-Free ADMM</div>
+      <div class="authors">Kwanhee Lee, Hyeondo Jang, Dongyeop Lee, Dan Alistarh, Namhoon Lee · POSTECH / ISTA</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv 2510.01650v2 · 2026-02-23</span></div>
+      <p class="note">Venue：PDF 每頁頁首「Published as a conference paper at ICLR 2026」· 程式碼 github.com/log-postech/elsa · 選題：今日 arXiv API 429，改以 web 搜尋兜底，挑 ICLR 2026 accepted 的剪枝論文 · Reviewer 資料：未抓取</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">剪枝方法卡在 50–60% 稀疏度，問題出在「逐層重建誤差」這個代理目標。ELSA 改用 ADMM 直接最佳化真正的語言模型 loss，在 LLaMA-2-7B 90% 稀疏下，C4 perplexity 比過去最好的方法低 <b>7.8×</b>；在 95% 稀疏度下，吞吐提升 <b>3.98×</b>、記憶體減少 <b>7.80×</b>。</p>
+      <div class="cite">Abstract, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">「稀疏牆」：既有 LLM 剪枝到 70% 以上就崩</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1：LLaMA-2-7B 的 C4 perplexity 隨稀疏度變化，ELSA 在 90% 仍穩定（p.2）</figcaption></figure>
+      <ul class="bullets"><li>SparseGPT、Wanda、ALPS 等方法在 70% 以上 perplexity 暴增一個數量級（§2）</li><li>對照：CNN 時代的剪枝常能做到 90% 以上（Lottery Ticket、SNIP）</li></ul>
+      <div class="cite">§1–2, p.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">根因</div>
+      <h2 class="head">主流作法：逐層最小化重建誤差，再把各層疊起來</h2>
+      <div class="formula">x<sub>i</sub>* = argmin E<sub>D</sub> ‖ x̄<sub>i</sub><sup>T</sup> g(x<sub>i-1</sub>) − x<sub>i</sub><sup>T</sup> g(x<sub>i-1</sub>) ‖²  s.t. ‖x<sub>i</sub>‖<sub>0</sub> ≤ k<sub>i</sub></div>
+      <ul class="bullets"><li>每一層只負責重現 dense 模型在校準資料上的輸出（第 i 層）</li><li>記憶體很省：一次只需載入一層，所以在單張 GPU 上就能跑</li></ul>
+      <div class="takeaway">作者主張：稀疏牆不是 LLM 的本質限制，而是問題定義錯了。</div>
+      <div class="cite">§2, eq.(2)(3), p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">根因</div>
+      <h2 class="head">代理目標的三個陷阱</h2>
+      <ol class="numbered"><li><b>近似解的誤差會累積</b>：稀疏線性回歸是 NP-hard，只能靠 saliency 啟發式求近似解，每層的小誤差往後層層放大</li><li><b>搜尋空間被綁死</b>：強迫每層特徵對齊 dense 模型，但最佳的稀疏模型不一定長這樣；各層從不聯合最佳化，前面的層定了就不再修正</li><li><b>代理 ≠ 真目標</b>：就算 (2) 完美求解到誤差為零，也不保證 (1) 的語言模型 loss 最佳，甚至可能 overfit 到校準資料</li></ol>
+      <div class="cite">§2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 問題重述</div>
+      <h2 class="head">回到真正的問題：在稀疏約束下直接最小化 next-token loss</h2>
+      <div class="formula">min<sub>x</sub> f(x)  s.t. ‖x‖<sub>0</sub> ≤ k   →   min<sub>x,z</sub> f(x) + I<sub>S</sub>(z)  s.t. x = z</div>
+      <ul class="bullets"><li>f：整個模型的 cross-entropy（next-token prediction），不是逐層代理</li><li>變數分離：x 負責學習，輔助變數 z 負責滿足稀疏；I<sub>S</sub> 是稀疏集合 S 的指示函數（屬於 S 為 0，否則為 ∞）</li><li>用 augmented Lagrangian：L = f(x) + I<sub>S</sub>(z) + λ/2‖x − z + u‖² − λ/2‖u‖²</li></ul>
+      <div class="cite">§3.1, eq.(1)(4)(6), p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · ADMM 三步</div>
+      <h2 class="head">每一輪交替：訓練、投影、對偶更新</h2>
+      <table class="bench"><thead><tr><th>步驟</th><th>更新式</th><th>實際做法</th></tr></thead><tbody><tr><td>x-update (7)</td><td>argmin f(x) + λ/2‖x − z<sub>t</sub> + u<sub>t</sub>‖²</td><td>用 Adam 跑梯度步，loss 外加一個把 x 拉向稀疏 z 的 proximal 項</td></tr><tr><td>z-update (8)</td><td>Π<sub>S</sub>(x<sub>t+1</sub> + u<sub>t</sub>)</td><td>閉式解：把 d−k 個最小的元素歸零</td></tr><tr><td>u-update (9)</td><td>u<sub>t+1</sub> = u<sub>t</sub> + x<sub>t+1</sub> − z<sub>t+1</sub></td><td>對偶變數做一步梯度上升，累積 x 與 z 的差距</td></tr></tbody></table>
+      <p class="note">超參數：每 32 個 step 做一次 ADMM 投影；λ 在 70–90% 稀疏度時從 0 以 cosine 排程升到目標值；資料 32,768 條 × 2048 tokens（Tab.4、B.2）。</p>
+      <div class="cite">§3.1 eq.(7)–(9), p.4；App. B.2, p.16–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 關鍵改進</div>
+      <h2 class="head">Objective-aware projection：依 Fisher 重要度、而非權重大小來剪</h2>
+      <div class="formula">z<sub>t+1</sub> = argmin<sub>z∈S</sub> Σ<sub>i</sub> F̂<sub>ii</sub> ( z<sub>i</sub> − (x<sub>i</sub><sup>t+1</sup> + u<sub>i</sub><sup>t</sup>) )²</div>
+      <ul class="bullets"><li>理想做法是用 Hessian H 誘導的範數投影（類似 Optimal Brain Surgeon）</li><li>取對角近似 + 經驗 Fisher F̂，投影仍可逐座標分離 → 剪掉 F̂<sub>ii</sub>·w<sub>i</sub>² 最小者</li><li>F̂ 直接取自 Adam 的二階動差估計，<b>不需額外計算</b></li></ul>
+      <div class="cite">§3.2, eq.(10)(11), p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融</div>
+      <h2 class="head">稀疏度越高，objective-aware projection 的貢獻越大</h2>
+      <table class="bench"><thead><tr><th>稀疏度</th><th class="num">Euclidean 投影</th><th class="num">Objective-aware 投影</th></tr></thead><tbody><tr><td>70%</td><td class="num">29.44</td><td class="num">28.24</td></tr><tr><td>80%</td><td class="num">40.06</td><td class="num">37.50</td></tr><tr><td>90%</td><td class="num">65.41</td><td class="num">48.69</td></tr></tbody></table>
+      <p class="note">LLaMA-3.2-3B perplexity（越低越好）。差距：70% 時 1.20 → 80% 時 2.56 → 90% 時 16.72。</p>
+      <div class="cite">App. C.2, Table 9, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 擴展到大模型</div>
+      <h2 class="head">ELSA-L：ADMM 狀態以低精度儲存</h2>
+      <div class="formula">Q(z) = (z<sub>q</sub>, s),  s = max|z| / v<sub>max</sub>,  z<sub>q</sub> = round(z / s);   R(z<sub>q</sub>, s) = s · z<sub>q</sub></div>
+      <ul class="bullets"><li>z、u 是兩份和模型同大小的額外狀態；儲存時量化，計算前再反量化回高精度</li><li>FP8 相較 FP32 省 4×；每個 tensor 只多存一個 32-bit scale</li><li>27B 實驗：x-update 用 adam8bit，(u, z) 存成 (bf16, fp8) → 狀態記憶體比 ELSA <b>少 55%</b>，在 4×H200 上執行</li></ul>
+      <div class="cite">§3.3 eq.(12)(13), p.5；§5.4, p.8；App. B.4, p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">理論</div>
+      <h2 class="head">收斂保證：收斂到 λ-stationary point</h2>
+      <ul class="bullets"><li>假設：f 在 S 上有下界、β-smooth、μ-weakly convex</li><li>Corollary 4.5（ELSA）：若 β²/λ − (λ − μ)/2 &lt; 0，任何極限點都是 (1) 的 λ-stationary point——無法再用步長 1/λ 的 projected GD 改進</li><li>Theorem 4.6（ELSA-L）：在 iterates 有界的前提下，量化帶來的不精確度 γ 只要滿足類似不等式，結論同樣成立（證明見 App. A）</li></ul>
+      <p class="note">這是非凸問題的局部穩定性保證，不是全域最優保證。</p>
+      <div class="cite">§4, p.5–6；App. A, p.13–15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗設定</div>
+      <h2 class="head">7 個 baseline × 7 個模型（125M → 27B）</h2>
+      <ul class="bullets"><li>Baselines：Magnitude、SparseGPT、Wanda、ALPS、L-ADMM、SAFE、SparseLLM</li><li>模型：OPT-125M/1.3B、Gemma-2-2B/27B、LLaMA-3.2-3B、LLaMA-2-7B/13B（另加 LLaMA-3-8B）</li><li>評估：C4 / WikiText2 perplexity；lm-eval 的 7 個 zero-shot 任務</li><li>⚠ 資料量不對等：baseline 依慣例用 128 條 C4 校準序列，ELSA 用 32,768 條（作者的理由是 ELSA 屬於迭代最佳化）</li></ul>
+      <div class="cite">§5, p.6；App. B.1–B.2, p.16–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果</div>
+      <h2 class="head">跨 6 個模型，ELSA 在高稀疏度都維持穩定</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure2_p6.jpg" alt=""><figcaption>Figure 2：C4 perplexity 隨稀疏度（50–90%）的變化，涵蓋 OPT-125M 到 LLaMA-2-13B（p.6）</figcaption></figure>
+      <p class="note">OPT-125M：SparseGPT 從 60% 時的 49.83 升到 80% 時超過 1,000；ELSA 只從 42.99 升到 47.45（§5.1）。</p>
+      <div class="cite">§5.1, p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · 數字</div>
+      <h2 class="head">LLaMA-2-7B：90% 稀疏度下 C4 perplexity 23.14，對比 ALPS 的 180.9</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">70%（Wiki / C4）</th><th class="num">80%</th><th class="num">90%</th></tr></thead><tbody><tr><td>Wanda</td><td class="num">76.32 / 81.08</td><td class="num">4096 / 2673</td><td class="num">2.0e4 / 1.0e4</td></tr><tr><td>SparseGPT</td><td class="num">27.12 / 30.94</td><td class="num">107.3 / 100.8</td><td class="num">1430 / 864.5</td></tr><tr><td>L-ADMM</td><td class="num">20.56 / 22.20</td><td class="num">60.78 / 58.63</td><td class="num">400.5 / 287.1</td></tr><tr><td>ALPS</td><td class="num">19.39 / 20.37</td><td class="num">48.43 / 47.22</td><td class="num">248.8 / 180.9</td></tr><tr class="win"><td>ELSA</td><td class="num best">13.20 / 14.08</td><td class="num best">20.83 / 19.56</td><td class="num best">26.97 / 23.14</td></tr></tbody></table>
+      <p class="note">Dense：5.47 / 7.26。180.9 ÷ 23.14 ≈ 7.8×，即摘要中「7.8× less perplexity」的出處。</p>
+      <div class="cite">App. C.3, Table 10, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · Pareto</div>
+      <h2 class="head">以非零參數量計，ELSA 推出新的 Pareto 前緣</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure3_p7.jpg" alt=""><figcaption>Figure 3：perplexity 對非零參數量（B），ELSA 的曲線落在所有舊方法的前緣下方（p.7）</figcaption></figure>
+      <div class="takeaway">在同樣的非零參數預算下，把大模型剪得很稀疏，可能比用小一號的 dense 模型更划算。</div>
+      <div class="cite">§5.1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">下游任務</div>
+      <h2 class="head">Zero-shot：稀疏度越高，與其他方法的差距越大</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure4_p7.jpg" alt=""><figcaption>Figure 4：LLaMA-2-7B 在 70% / 80% / 90% 稀疏度下的 7 項 zero-shot 準確率（p.7）</figcaption></figure>
+      <ul class="bullets"><li>70%：與最佳方法相當</li><li>70→80%：其他方法在 Winogrande、ARC-E 上掉 10–20 個百分點，ELSA 的跌幅不到一半</li><li>90%：7 項任務中 6 項最高，平均領先 6.06 個百分點</li></ul>
+      <div class="cite">§5.1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">極限稀疏度</div>
+      <h2 class="head">95%、99% 稀疏度仍穩定；「剪完再微調」的 baseline 追不上</h2>
+      <table class="bench"><thead><tr><th>稀疏度</th><th class="num">Wanda + LoRA</th><th class="num">Wanda + Full FT</th><th class="num">ELSA</th></tr></thead><tbody><tr><td>90%</td><td class="num">92.66 / 65.56</td><td class="num">42.40 / 34.87</td><td class="num">26.97 / 23.14</td></tr><tr><td>95%</td><td class="num">371.0 / 143.0</td><td class="num">84.30 / 53.62</td><td class="num">38.91 / 28.39</td></tr><tr><td>99%</td><td class="num">588.3 / 247.5</td><td class="num">146.37 / 71.64</td><td class="num">55.94 / 40.10</td></tr></tbody></table>
+      <p class="note">LLaMA-2-7B Wiki / C4 perplexity；baseline 的再訓練使用與 ELSA 相同的資料量，超參數各自調整（B.3）。</p>
+      <div class="cite">§5.2, Table 2, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實際部署收益</div>
+      <h2 class="head">非結構化稀疏也能加速：靠 SpMV kernel（MACKO）</h2>
+      <table class="bench"><thead><tr><th>稀疏度</th><th class="num">Latency (s)</th><th class="num">Tokens/s</th><th class="num">記憶體 (MB)</th></tr></thead><tbody><tr><td>Dense</td><td class="num">1.84</td><td class="num">54.47</td><td class="num">13596</td></tr><tr><td>50%</td><td class="num">1.37 (1.34×)</td><td class="num">72.81 (1.33×)</td><td class="num">8870 (1.53×)</td></tr><tr><td>70%</td><td class="num">0.95 (1.94×)</td><td class="num">104.89 (1.93×)</td><td class="num">5603 (2.42×)</td></tr><tr><td>90%</td><td class="num">0.72 (2.50×)</td><td class="num">139.47 (2.56×)</td><td class="num">2918 (4.60×)</td></tr><tr class="win"><td>95%</td><td class="num best">0.46 (4.00×)</td><td class="num best">216.98 (3.98×)</td><td class="num best">1743 (7.80×)</td></tr></tbody></table>
+      <p class="note">LLaMA-2-7B 端到端文字生成，單張 RTX 3090。decode 階段以 sparse matrix–vector 運算為主，稀疏帶來的好處最明顯（§5.3）。</p>
+      <div class="cite">§5.3, Table 1, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">擴展到 27B</div>
+      <h2 class="head">Gemma-2-27B，90% 稀疏度：ELSA-L 的 perplexity 為 35.47</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:48vh;"><img src="figures/figure5_p8.jpg" alt=""><figcaption>Figure 5：Gemma-2-27B 在 90% 稀疏度下的 perplexity（對數軸，p.8）</figcaption></figure></div><div><ul class="bullets"><li>Magnitude 4.10e12、Wanda 1.60e4、SparseGPT 228.50、L-ADMM 152.20</li><li>ELSA-L 35.47，比次佳的方法好約 4×</li><li>所需狀態記憶體比 ELSA 少 55%</li></ul></div></div>
+      <div class="cite">§5.4, Fig.5, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">成本</div>
+      <h2 class="head">剪枝成本：7.12 GPU-hours，換來可用的 90% 稀疏模型</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">Wall-clock (h)</th><th class="num">#GPU</th><th class="num">Wiki / C4</th></tr></thead><tbody><tr><td>Wanda</td><td class="num">0.159</td><td class="num">1</td><td class="num">2.0e4 / 1.0e4</td></tr><tr><td>SparseGPT</td><td class="num">0.251</td><td class="num">1</td><td class="num">1430 / 864.5</td></tr><tr><td>ALPS</td><td class="num">12.57</td><td class="num">1</td><td class="num">248 / 180.9</td></tr><tr><td>Wanda + LoRA</td><td class="num">4.03</td><td class="num">1</td><td class="num">92.66 / 65.56</td></tr><tr><td>Wanda + Full</td><td class="num">1.64</td><td class="num">4</td><td class="num">42.40 / 34.87</td></tr><tr class="win"><td>ELSA</td><td class="num best">1.78</td><td class="num best">4</td><td class="num best">26.97 / 23.14</td></tr></tbody></table>
+      <p class="note">A100-80GB，LLaMA-2-7B，90% 稀疏度。逐層方法省記憶體，但在高稀疏度下，多花算力並不會換來相應的品質。</p>
+      <div class="cite">§5.5, Table 3, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">其他稀疏模式</div>
+      <h2 class="head">N:M 稀疏不是 ELSA 的強項；非均勻配置則勝出</h2>
+      <table class="bench"><thead><tr><th>LLaMA-3-8B，70%</th><th class="num">Wiki</th><th class="num">C4</th></tr></thead><tbody><tr><td>SparseGPT</td><td class="num">85.84</td><td class="num">98.35</td></tr><tr><td>OWL</td><td class="num">48.07</td><td class="num">52.32</td></tr><tr><td>EvoPress</td><td class="num">28.76</td><td class="num">33.72</td></tr><tr><td>ELSA（EvoPress mask）</td><td class="num">26.11</td><td class="num">29.33</td></tr><tr class="win"><td>ELSA（uniform）</td><td class="num best">24.97</td><td class="num best">29.09</td></tr></tbody></table>
+      <ul class="bullets"><li>2:4（LLaMA-2-7B）：ELSA 10.15 / 12.34，ALPS 9.945 / 12.09，大致持平</li><li>4:8：ELSA 9.20 / 11.47，SAFE 8.043 / 10.47，ELSA 反而較差</li><li>套用 EvoPress 搜出來的非均勻 mask，反而不如 ELSA 自己的均勻配置</li></ul>
+      <div class="cite">App. C.1, Tables 7–8, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 · 目標函數</div>
+      <h2 class="head">NTP 會隨資料量持續變好，REM 則提早飽和</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:46vh;"><img src="figures/figure6_p19.jpg" alt=""><figcaption>Figure 6：OPT-125M、90% 稀疏度，資料量從 2¹⁰ 增加到 2¹⁴ 的 perplexity（p.19）</figcaption></figure></div><div><ul class="bullets"><li>資料少時 REM（重建誤差）較好</li><li>資料增加時 REM 收益遞減，NTP（next-token）持續大幅改善</li><li>REM 必須儲存 dense 模型的預測，資料量一大，記憶體開銷就很可觀</li></ul></div></div>
+      <div class="takeaway">這解釋了為什麼 ELSA 要用 32k 條資料：代理目標吃不到資料量的紅利。</div>
+      <div class="cite">App. C.2, Fig.6, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">讀這篇要注意的幾點</h2>
+      <ul class="bullets"><li><b>中低稀疏度未必最佳</b>：LLaMA-2-7B 在 50% 時 ELSA 為 7.5 / 9.81，比 SAFE（6.72 / 8.87）和 SparseGPT（7.01 / 9.23）差（Tab.10）</li><li><b>資料與算力不對等</b>：baseline 用 128 條校準序列，ELSA 用 32,768 條、4 張 GPU；雖然有比較同資料量的 Wanda + 再訓練，但沒有提供同資料量的 ALPS</li><li><b>記憶體需求接近整模訓練</b>：作者主張可用 offloading 彌補，但沒有量化實驗</li><li><b>加速依賴特定 kernel</b>：只在 RTX 3090、batch-1 decode 上測量；沒有測 prefill 或大 batch serving</li><li><b>數字小出入</b>：內文 p.7 寫 LLaMA-2-13B 在 90% 時的 perplexity 是 27.84，但 Table 10 是 30.19 / 25.07</li></ul>
+      <div class="cite">Tab.10 p.20；§5.3 p.8；§6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">為什麼這個方法 work（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li>本質上是「帶稀疏投影的持續訓練」：x 在真實 loss 上學，z 只負責投影，u 記住被剪掉的方向，讓模型逐步適應 mask</li><li>Fisher 投影讓 mask 選擇跟著 loss 曲率走；稀疏度越高，選錯一個權重的代價越大，所以收益在 90% 時最明顯</li><li>對圖像 / 多模態工程師：若部署瓶頸在 decode 頻寬，非結構化 90% 稀疏 + SpMV kernel 是量化之外值得一試的方向；但要先確認推論引擎支援 sparse kernel</li></ul>
+      <p class="note">此頁為編者推論，已與論文內容分開標示。</p>
+      <div class="cite">綜合 §3、§5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">核心論點</h2>
+      <div class="hl"><p class="hl__en">We argue, however, that this “sparsity wall” is perhaps not an inherent limitation but rather an artifact of <b>ill-defined problem formulation</b>.</p><p class="hl__zh">然而我們認為，這道「稀疏牆」或許並非內在限制，而是<b>問題定義不當</b>所造成的假象。<span class="hl__src">§2, p.3</span></p></div>
+      <div class="hl"><p class="hl__en">its reliance on a surrogate objective implies that one cannot expect to obtain a solution on (1) <b>even after perfectly solving (2)</b>.</p><p class="hl__zh">依賴代理目標意味著，<b>即使完美解出 (2)</b>，也不能期待得到 (1) 的解。<span class="hl__src">§2, p.3</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">Objective-aware projection 為什麼幾乎不用額外成本</h2>
+      <div class="hl"><p class="hl__en">We found that using <b>Diag(H)</b> allows us to retain this simplicity while still keeping the benefits by zeroing the entries with the smallest contribution to the objective rather than by their magnitudes.</p><p class="hl__zh">我們發現，使用 <b>H 的對角近似</b>可以保留逐座標投影的簡單性，同時依「對目標函數的貢獻」而非權重大小來決定歸零哪些元素。<span class="hl__src">§3.2, p.4</span></p></div>
+      <div class="hl"><p class="hl__en">the standard Adam optimizer has already made F̂ available <b>for free</b> via its second-moment estimates</p><p class="hl__zh">標準 Adam 的二階動差估計<b>已經免費提供</b>了 F̂。<span class="hl__src">§3.2, p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">ELSA：問題定義對了，90% 稀疏的 LLM 也能用</h2>
+      <p class="end__sub">來源：arXiv 2510.01650 · ICLR 2026 · 程式碼 github.com/log-postech/elsa</p>
+      <div class="end__next">明日預告：週六 · AI Agent 框架 / 多模態系統</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
