@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CORAL — Don't Lose the Thread (COLM 2026)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週六 · AI Agent 框架 / 多模態系統</div>
+      <h1 class="title">CORAL：讓 Agent 自己整理工作記憶</h1>
+      <div class="sub">Don't Lose the Thread: Empowering Long-Horizon LLM Agents with Cognitive Resource Self-Allocation</div>
+      <div class="authors">Zheng Zhu, Xiaozhuan Liang, Xi Chen, Bei Yu, Jiaya Jia · CUHK / Tencent / HKUST</div>
+      <div class="meta-row"><span class="badge tier">COLM 2026</span><span class="badge date">arXiv 2610.40350v1 · 2026-10-29</span></div>
+      <p class="note">Venue：PDF 每頁頁首「Published as a conference paper at COLM 2026」· 程式碼 github.com/JIA-Lab-research/CORAL · 選題：daily_discover 週六清單中 ★ COLM accepted · Reviewer 資料：未抓取</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">長任務 agent 的 context 會被工具輸出塞爆。CORAL 給 agent 兩個工具：<b>MM</b> 把進度與已驗證事實寫成 checkpoint，<b>CO</b> 清空 context、只帶 checkpoint 重開。SFT + 多 episode RL 後，Qwen3-8B 在 GAIA 拿 <b>42.8%</b>，輸入 token 比 ReAct 少 <b>6–7×</b>；不需訓練，就讓 Claude Sonnet 4 在 BrowseComp <b>+8.0</b>。</p>
+      <div class="cite">Abstract, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">ReAct 迴圈的 context 只增不減</h2>
+      <ul class="bullets"><li>每輪 Thought → Action → Observation 都留在 context：冗長的網頁回饋、失敗的嘗試全部累積</li><li>雜訊越多，規劃與推理越差；作者類比人類工作記憶飽和時的「認知超載」</li><li>惡性循環：規劃不佳 → 呼叫產生無關回饋 → context 更亂 → 推理更差</li></ul>
+      <div class="formula">c<sub>t</sub> = (s, q, r<sub>1</sub>, a<sub>1</sub>, o<sub>1</sub>, …, r<sub>t−1</sub>, a<sub>t−1</sub>, o<sub>t−1</sub>)</div>
+      <p class="note">s：system prompt；q：問題；r / a / o：thought / action / observation。ReAct 每一步都以完整歷史 c<sub>t</sub> 為條件。</p>
+      <div class="cite">§1, p.1–2；§2.1 eq.(1), p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">前人缺陷</div>
+      <h2 class="head">既有 context 管理：由規則觸發，不由 agent 判斷</h2>
+      <table class="bench"><thead><tr><th>路線</th><th>代表</th><th>問題</th></tr></thead><tbody><tr><td>固定間隔壓縮</td><td>Mem1（每次 function call 後壓縮）</td><td>排程僵硬，可能丟掉有用資訊、打亂高層規劃</td></tr><tr><td>快滿時截斷 / 壓縮</td><td>外部模型摘要、直接截斷</td><td>時機與任務狀態無關</td></tr><tr><td>處理固定長輸入</td><td>MemAgent</td><td>針對靜態長文件，不處理互動中動態長出的 context</td></tr><tr><td>Agentic RL</td><td>Search-R1 類</td><td>長任務 reward 稀疏，中間動作難以 credit assignment</td></tr></tbody></table>
+      <div class="takeaway">CORAL 的立場：何時整理記憶，應該由 agent 依任務狀態自己決定。</div>
+      <div class="cite">§1, p.1–2；§5, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">動機</div>
+      <h2 class="head">從認知心理學借來的設計：cognitive offloading</h2>
+      <ul class="bullets"><li>Kahneman (1973)：注意力是有限資源，要在競爭需求之間分配</li><li>Baddeley &amp; Hitch (1974)：工作記憶是小而需要主動維護的儲存</li><li>Sweller (1988) 認知負荷理論：要記住的東西超過容量，即使每一步都不難，表現也會變差</li><li>人類的解法：把中間狀態寫下來（offloading），把內部容量留給眼前的子問題</li></ul>
+      <div class="takeaway">對 LLM agent：context 就是工作記憶 → 讓 agent 把進度寫到外部，再清掉被 checkpoint 摘要過的 context。</div>
+      <div class="cite">§3, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 總覽</div>
+      <h2 class="head">ReAct vs CORAL：一條軌跡被切成多個 episode</h2>
+      <figure class="full" style="max-height:56vh; margin-top:.3rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1：上為 ReAct（context 只增不減）；下為 CORAL，MM 更新記憶面板，CO 結束 episode，下一段只帶 system prompt + 任務 + 記憶（p.2）</figcaption></figure>
+      <div class="cite">Figure 1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 工具 1</div>
+      <h2 class="head">Memory Management（MM）：寫 checkpoint</h2>
+      <ul class="bullets"><li>兩類持久資訊：<b>task progress</b>（高層計畫、各子目標是否完成）與 <b>verified facts</b>（已確認的中間結果、找到的實體）</li><li>可新增、修改、刪除；checkpoint 在 context 重置後仍然存在</li><li>三個典型呼叫時機：任務開始時寫計畫；發現關鍵資訊時存成事實；完成子任務後更新進度</li><li>關鍵：由 agent 自己判斷何時呼叫，不是規則或外部控制器觸發</li></ul>
+      <div class="cite">§3.1, p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 工具 2</div>
+      <h2 class="head">Context Optimization（CO）：硬重置，開新 episode</h2>
+      <div class="formula">a<sub>t</sub> = a<sub>CO</sub> ⇒ o<sub>t</sub> = memory state；   c<sub>i</sub> = (s, q) if i = 1，  c<sub>i</sub> = (s, q, o<sub>i−1, M<sub>i−1</sub></sub>) if i &gt; 1</div>
+      <ul class="bullets"><li>agent 判斷 context 過長或充滿過時資訊時呼叫：清空對話歷史，把目前記憶當成 observation 回傳</li><li>下一個 episode 只看得到 system prompt、問題與 checkpoint；累積的工具輸出與推理痕跡全部丟棄</li><li>整條軌跡 T = (e<sub>1</sub>, e<sub>2</sub>, …, e<sub>N</sub>)；只有最後一個 episode 的最終 thought 含答案</li></ul>
+      <div class="cite">§3.1, eq.(2)–(4), p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">訓練 · 階段 1</div>
+      <h2 class="head">SFT：把軌跡切成 episode，各自當訓練樣本</h2>
+      <div class="formula">L = − (1 / Σ<sub>i</sub> I(x<sub>i</sub> ≠ o)) · Σ<sub>i</sub> I(x<sub>i</sub> ≠ o) · log π<sub>θ</sub>(x<sub>i</sub> | x<sub>&lt;i</sub>)</div>
+      <ul class="bullets"><li>每個 episode 的初始 context 不同，接成一段平坦對話會與推論時看到的不一致，所以必須切開</li><li>loss 只算 agent 自己產生的 token（thought、tool call），observation 被 mask 掉</li><li>非末段 episode 教「維護記憶，並判斷何時該 reset」；後段 episode 教「從 checkpoint 接續、不重做已完成的工作」</li><li>用一般單 episode ReAct 軌跡訓練，這兩種情境都不會出現</li></ul>
+      <div class="cite">§3.3, eq.(5), p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">訓練 · 階段 2</div>
+      <h2 class="head">Multi-episode ARPO：reward 跨 episode 廣播</h2>
+      <figure class="full" style="max-height:30vh; margin-top:.3rem;"><img src="figures/figure2_p5.jpg" alt=""><figcaption>Figure 2：reward 由最後一個 episode（含答案）算出，廣播給同軌跡所有 episode，再匯池做 group advantage（p.5）</figcaption></figure>
+      <div class="formula">R<sub>i</sub><sup>j</sup> = R<sub>i</sub>  ∀ j ∈ {1, …, N<sub>i</sub>}；   Â<sub>i</sub><sup>j</sup> = (R<sub>i</sub> − mean(R)) / std(R)</div>
+      <ul class="bullets"><li>以 DAPO 為基礎：每個 episode 是獨立的最佳化單位，token-level 平均、clip ε<sub>low</sub> = 0.2 / ε<sub>high</sub> = 0.28</li><li>同一題的 G 條軌跡、所有 episode 一起做 normalize → 同軌跡的 episode 共享 advantage</li><li>Reward：R = R<sub>format</sub> × R<sub>answer</sub>（JSON 格式合法 × LLM-as-judge 判對錯）</li></ul>
+      <div class="cite">§3.3 eq.(6)–(9), p.5–6；App. A.2 Tab.6, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗設定</div>
+      <h2 class="head">資料：Claude Sonnet 4 + CORAL 合成，對錯軌跡都保留</h2>
+      <ul class="bullets"><li>題目依 WebShaper 方法合成（可控推理深度），與所有測試集獨立</li><li>2,932 條 web 軌跡：1,642 條答對（56%）、1,290 條答錯（44%），只過濾格式</li><li>+ 241 條數學推理軌跡（NuminaMath、OpenMathReasoning）→ 共 3,173 條，切 episode 後 3,682 段對話</li><li>模型 Qwen3-8B：SFT 全參數 3 epoch、lr 1e-5、max len 65,536；RL lr 1e-6、每題 8 samples、最多 50 輪、無 KL</li></ul>
+      <p class="note">評估：GAIA text-only val 103 題（L1 39 / L2 52 / L3 12）；每題 8 次取樣，temp 0.7、top-p 0.8，報 Pass@1 = Avg@8。工具：Web Search、Web Browse + MM、CO。</p>
+      <div class="cite">§4.1, p.6–7；App. A, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · GAIA</div>
+      <h2 class="head">8B 級：平均 42.8%，優勢集中在 Level 2 / 3</h2>
+      <table class="bench"><thead><tr><th>模型</th><th class="num">L1</th><th class="num">L2</th><th class="num">L3</th><th class="num">Avg</th></tr></thead><tbody><tr><td>WebDancer-7B</td><td class="num">41.0</td><td class="num">30.7</td><td class="num">0.0</td><td class="num">31.0</td></tr><tr><td>WebSailor-7B</td><td class="num">-</td><td class="num">-</td><td class="num">-</td><td class="num">37.9</td></tr><tr><td>CK-Pro-8B</td><td class="num">56.4</td><td class="num">42.3</td><td class="num">8.3</td><td class="num">43.7</td></tr><tr><td>Qwen3-8B ReAct</td><td class="num">33.3</td><td class="num">11.5</td><td class="num">8.3</td><td class="num">19.4</td></tr><tr><td>CORAL Prompting</td><td class="num">28.2</td><td class="num">19.2</td><td class="num">0.0</td><td class="num">20.4</td></tr><tr><td>CORAL SFT</td><td class="num">47.1</td><td class="num">43.5</td><td class="num">15.6</td><td class="num">41.6</td></tr><tr class="win"><td>CORAL RL</td><td class="num best">46.2</td><td class="num best">45.7</td><td class="num best">19.8</td><td class="num best">42.8</td></tr></tbody></table>
+      <p class="note">CK-Pro-8B 平均較高（43.7 vs 42.8），但領先全在 L1（56.4 vs 46.2）；CORAL RL 在 L2 45.7 vs 42.3、L3 19.8 vs 8.3。作者解讀：短題目還沒亂到需要整理，維護記憶反而是額外負擔。</p>
+      <div class="cite">§4.2, Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · 強模型</div>
+      <h2 class="head">只靠 prompting：Claude Sonnet 4 從 60.2 升到 65.0</h2>
+      <table class="bench"><thead><tr><th>模型</th><th class="num">L1</th><th class="num">L2</th><th class="num">L3</th><th class="num">Avg</th></tr></thead><tbody><tr><td>WebThinker-32B-RL</td><td class="num">56.4</td><td class="num">50.0</td><td class="num">16.7</td><td class="num">48.5</td></tr><tr><td>WebShaper-72B</td><td class="num">-</td><td class="num">-</td><td class="num">-</td><td class="num">60.1</td></tr><tr><td>Claude Sonnet 4 ReAct</td><td class="num">69.2</td><td class="num">61.5</td><td class="num">25.0</td><td class="num">60.2</td></tr><tr class="win"><td>Claude Sonnet 4 + CORAL</td><td class="num best">74.4</td><td class="num best">65.4</td><td class="num best">33.3</td><td class="num best">65.0</td></tr><tr><td>OpenAI Deep Research</td><td class="num">74.3</td><td class="num">69.1</td><td class="num">47.6</td><td class="num">67.4</td></tr></tbody></table>
+      <ul class="bullets"><li>不需任何訓練，加上 MM / CO 工具就 +4.8；L3 從 25.0 升到 33.3（12 題中多答對 1 題）</li><li>與 OpenAI Deep Research（67.4）相近，但 L3 仍有明顯差距</li></ul>
+      <div class="cite">§4.2, Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">效率</div>
+      <h2 class="head">更準，也更便宜：輸入 token 少 87.4%</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">輸入 token</th><th class="num">LLM 呼叫</th><th class="num">Peak ctx</th><th class="num">MM</th><th class="num">CO</th><th class="num">GAIA</th></tr></thead><tbody><tr><td>ReAct</td><td class="num">1,078K</td><td class="num">45.3</td><td class="num">30.6K</td><td class="num">–</td><td class="num">–</td><td class="num">19.4</td></tr><tr><td>CORAL Prompting</td><td class="num">314K</td><td class="num">21.8</td><td class="num">14.3K</td><td class="num">20.6</td><td class="num">4.3</td><td class="num">20.4</td></tr><tr><td>CORAL SFT</td><td class="num">153K</td><td class="num">15.9</td><td class="num">13.9K</td><td class="num">3.9</td><td class="num">0.21</td><td class="num">41.6</td></tr><tr class="win"><td>CORAL RL</td><td class="num best">136K</td><td class="num best">15.2</td><td class="num best">12.7K</td><td class="num best">4.1</td><td class="num best">0.21</td><td class="num best">42.8</td></tr></tbody></table>
+      <ul class="bullets"><li>CO 限制 context 上限（peak 12.7K vs 30.6K）；ReAct 每輪重讀全歷史，成本隨輪數二次成長</li><li>更大的效果：記下計畫與事實後不再重搜已知的東西，輪數降約 3×</li></ul>
+      <div class="cite">§4.3, Table 2, p.8（Qwen3-8B，824 條軌跡的平均）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 反直覺</div>
+      <h2 class="head">訓練後 CO 幾乎不用：0.21 次 / 軌跡</h2>
+      <table class="bench"><thead><tr><th>設定</th><th>結果</th><th class="num">MM / 軌跡</th><th class="num">CO / 軌跡</th></tr></thead><tbody><tr><td>Prompting</td><td>答對</td><td class="num">20.11</td><td class="num">2.05</td></tr><tr><td>Prompting</td><td>答錯</td><td class="num">20.69</td><td class="num">4.80</td></tr><tr><td>SFT</td><td>答對</td><td class="num">3.37</td><td class="num">0.12</td></tr><tr><td>SFT</td><td>答錯</td><td class="num">4.44</td><td class="num">0.29</td></tr><tr><td>RL</td><td>答對</td><td class="num">3.30</td><td class="num">0.12</td></tr><tr><td>RL</td><td>答錯</td><td class="num">4.70</td><td class="num">0.28</td></tr></tbody></table>
+      <ul class="bullets"><li>各設定下，答錯的軌跡 reset 次數都約是答對的 2 倍 → reset 是「卡住的症狀」，不是該最大化的槓桿</li><li>訓練教會的是「checkpoint 寫得更好」而不是「更常 reset」：記憶抓對了，context 就不會亂到需要清空</li><li>未訓練模型幾乎每一步都重寫同一筆記憶（MM 20+ 次）</li></ul>
+      <div class="cite">§4.3, p.8；App. D.1, Table 8, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 記憶腐化實驗</div>
+      <h2 class="head">CO 會關掉自我稽核的通道</h2>
+      <table class="bench"><thead><tr><th>竄改時機</th><th>結果</th><th>原因</th></tr></thead><tbody><tr><td>剛寫完計畫</td><td>照單全收，執行到底</td><td>還沒有任何證據可以對照</td></tr><tr><td>中途竄改已驗證事實</td><td>常被發現（不穩定）</td><td>產生該事實的搜尋結果仍在 context</td></tr><tr><td>CO 之後竄改</td><td>永遠救不回</td><td>支撐證據已隨 reset 被丟棄</td></tr></tbody></table>
+      <div class="takeaway">對話歷史不只是冗餘，而是交叉驗證通道。MM 保留歷史、可以多用；CO 放棄自我稽核能力、應該少用——訓練後 3.9 次 MM vs 0.21 次 CO 正好符合。</div>
+      <p class="note">此實驗為定性觀察，論文未提供腐化率曲線。</p>
+      <div class="cite">App. D.2, p.18–19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 個案</div>
+      <h2 class="head">BrowseComp 6-hop 題：ReAct 第 5 輪認錯公司，之後全白費</h2>
+      <div class="two-col"><div><table class="bench"><thead><tr><th>指標</th><th class="num">CORAL</th><th class="num">ReAct</th></tr></thead><tbody><tr><td>總輪數</td><td class="num">36</td><td class="num">47</td></tr><tr><td>Web 搜尋</td><td class="num">17</td><td class="num">42</td></tr><tr><td>頁面瀏覽</td><td class="num">11</td><td class="num">4</td></tr><tr><td>MM checkpoint</td><td class="num">7</td><td class="num">–</td></tr><tr><td>結果</td><td class="num">答對</td><td class="num">放棄</td></tr></tbody></table></div><div><ul class="bullets"><li>ReAct 第 5 輪把公司認成 Coca-Cola（應為 Bumble Bee Seafoods），之後 30 多輪都在找根本不存在的組合</li><li>正確公司用同樣的搜尋就找得到；ReAct 缺的不是資訊，而是「後面 30 輪依賴哪個前提」的結構</li><li>CORAL 每驗證一跳就寫一筆 checkpoint；遇到死路時，回頭檢查的是一份短清單，而不是 42 筆搜尋結果</li></ul></div></div>
+      <div class="cite">App. G, Tables 10–11, p.20–22（Claude Sonnet 4，相同工具）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">泛化</div>
+      <h2 class="head">Knowledge QA：同一個 checkpoint，沒見過這些資料集</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">NQ</th><th class="num">HotpotQA</th><th class="num">2Wiki</th><th class="num">Musique</th><th class="num">Bamboogle</th></tr></thead><tbody><tr><td>Search-o1</td><td class="num">55.1</td><td class="num">42.4</td><td class="num">37.7</td><td class="num">19.7</td><td class="num">53.6</td></tr><tr><td>R1-Searcher</td><td class="num">52.3</td><td class="num">53.1</td><td class="num">65.8</td><td class="num">25.6</td><td class="num">65.6</td></tr><tr><td>DeepResearcher</td><td class="num">61.9</td><td class="num">64.3</td><td class="num">66.6</td><td class="num">29.3</td><td class="num">72.8</td></tr><tr><td>SimpleDeepSearcher</td><td class="num">-</td><td class="num">-</td><td class="num">79.8</td><td class="num">29.4</td><td class="num">76.8</td></tr><tr class="win"><td>CORAL</td><td class="num best">71.0</td><td class="num best">70.4</td><td class="num best">79.2</td><td class="num best">43.2</td><td class="num best">79.2</td></tr></tbody></table>
+      <p class="note">CORAL 在 2Wiki 略低於 SimpleDeepSearcher（79.2 vs 79.8），其餘最佳。作者也承認：這些題目考的是檢索與彙整，不太會懲罰 context 雜亂，對核心主張是較弱的檢驗。</p>
+      <div class="cite">§4.4, Table 3, p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">泛化 · 跨 backbone</div>
+      <h2 class="head">只用 prompting：模型越強，收益越大</h2>
+      <table class="bench"><thead><tr><th>Backbone</th><th>Benchmark</th><th class="num">ReAct</th><th class="num">+ CORAL</th><th class="num">Δ</th></tr></thead><tbody><tr><td>Qwen2.5-7B-Instruct</td><td>GAIA</td><td class="num">17.5</td><td class="num">13.6</td><td class="num">−3.9</td></tr><tr><td>Qwen3-8B</td><td>GAIA</td><td class="num">19.4</td><td class="num">20.4</td><td class="num">+1.0</td></tr><tr><td>QwQ-32B</td><td>GAIA</td><td class="num">26.2</td><td class="num">32.0</td><td class="num">+5.8</td></tr><tr><td>Qwen3-32B</td><td>GAIA</td><td class="num">34.0</td><td class="num">36.3</td><td class="num">+2.3</td></tr><tr><td>Claude Sonnet 4</td><td>GAIA</td><td class="num">60.2</td><td class="num">65.0</td><td class="num">+4.8</td></tr><tr class="win"><td>Claude Sonnet 4</td><td class="best">BrowseComp（前 150 題）</td><td class="num best">22.7</td><td class="num best">30.7</td><td class="num best">+8.0</td></tr></tbody></table>
+      <ul class="bullets"><li>Qwen2.5-7B 退步，是因為無法穩定輸出 4 個工具的 JSON；同 backbone 做 SFT 後達 34.4（ReAct 17.5）</li><li>最大收益出現在最考驗長程瀏覽的 BrowseComp</li></ul>
+      <div class="cite">§4.4, p.9；App. F, Table 9, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 · 訓練資料</div>
+      <h2 class="head">答錯的軌跡也有用：監督的是過程，不是結論</h2>
+      <table class="bench"><thead><tr><th>SFT 資料</th><th class="num">#Conv.</th><th class="num">L1</th><th class="num">L2</th><th class="num">L3</th><th class="num">Avg</th></tr></thead><tbody><tr class="win"><td>Full（web + math）</td><td class="num best">3,682</td><td class="num best">47.1</td><td class="num best">43.5</td><td class="num best">15.6</td><td class="num best">41.6</td></tr><tr><td>w/o math</td><td class="num">3,441</td><td class="num">47.1</td><td class="num">40.4</td><td class="num">14.6</td><td class="num">39.9</td></tr><tr><td>w/o incorrect</td><td class="num">2,030</td><td class="num">49.7</td><td class="num">37.5</td><td class="num">13.5</td><td class="num">39.3</td></tr><tr><td>random subsample</td><td class="num">2,030</td><td class="num">42.0</td><td class="num">36.8</td><td class="num">17.7</td><td class="num">36.5</td></tr></tbody></table>
+      <ul class="bullets"><li>同樣 2,030 段：只用答對的 39.3 &gt; 隨機抽樣 36.5 → 單筆來看，答對軌跡品質較高</li><li>但加入 1,652 段多半是失敗的資料，又再 +2.3：規劃合理、checkpoint 勤快，只在最後一跳認錯實體的軌跡，仍示範了要教的每一項技能</li><li>數學資料完全不含工具呼叫，移除仍掉 1.7（主要在 L2）</li></ul>
+      <div class="cite">§4.5, Table 4, p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RL 的價值</div>
+      <h2 class="head">平均只 +1.2，但更穩定，也更集中在難題</h2>
+      <table class="bench"><thead><tr><th>Qwen3-8B</th><th class="num">L1</th><th class="num">L2</th><th class="num">L3</th><th class="num">Avg</th></tr></thead><tbody><tr><td>SFT Avg@8</td><td class="num">47.1 ± 4.1</td><td class="num">43.5 ± 4.5</td><td class="num">15.6 ± 9.4</td><td class="num">41.6 ± 3.5</td></tr><tr><td>RL Avg@8</td><td class="num">46.2 ± 3.9</td><td class="num">45.7 ± 3.7</td><td class="num">19.8 ± 9.9</td><td class="num">42.8 ± 1.9</td></tr><tr><td>SFT 最差一次</td><td class="num">41.0</td><td class="num">38.5</td><td class="num">8.3</td><td class="num">36.9</td></tr><tr><td>RL 最差一次</td><td class="num">41.0</td><td class="num">42.3</td><td class="num">0.0</td><td class="num">39.8</td></tr><tr><td>SFT Pass@8</td><td class="num">74.4</td><td class="num">78.9</td><td class="num">33.3</td><td class="num">71.8</td></tr></tbody></table>
+      <ul class="bullets"><li>RL：L2 +2.2、L3 +4.2，L1 微降；整體 std 3.5% → 1.9%</li><li>Pass@8 71.8 vs Avg@8 41.6：差距很大，答案挑選 / 驗證機制仍有很大空間</li></ul>
+      <div class="cite">§4.2, p.8；App. B.2, Table 7, p.15–16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">讀這篇要注意的幾點</h2>
+      <ul class="bullets"><li><b>Reward 平均廣播</b>：好的鋪路 episode 與失敗的繞路拿同樣獎勵，和論文動機有張力；作者認為單純折扣早期 episode 也不對，需要 episode 層級的品質指標</li><li><b>記憶不可質疑</b>：checkpoint 一律被當成事實；作者建議 provenance-aware memory（每個事實附上證據來源）</li><li><b>GAIA L3 只有 12 題</b>：一題就是 8.3 分，std 9–10%，只能當方向性證據</li><li><b>驗證範圍窄</b>：BrowseComp 只跑前 150 題、單一 backbone；SFT / RL 只在 Qwen3-8B（另有一次 Qwen2.5-7B SFT）</li><li><b>比較條件不同</b>（編者觀察）：CORAL 的 SFT 資料由 Claude Sonnet 4 蒸餾而來；8B 平均仍略低於 CK-Pro-8B</li></ul>
+      <div class="cite">App. E, p.19–20；Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">對做 agent 系統的工程師有什麼用（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li>最便宜的試法：不訓練，只給強模型加 MM / CO 兩個工具（論文的 prompting-only 結果），在長鏈瀏覽任務上就有明顯收益</li><li>MM 與 CO 不對稱：「寫筆記」幾乎沒有代價，「清空 context」會失去自我稽核能力 → 實作時 reset 應保守，checkpoint 可積極</li><li>Checkpoint 顯式記錄推理的依賴結構：遇到死路時，能回頭檢查前提，而不只是換關鍵字重搜</li><li>小模型的瓶頸在工具呼叫格式；要在 7–8B 上用，SFT 幾乎是必要的</li></ul>
+      <p class="note">此頁為編者推論，已與論文內容分開標示。</p>
+      <div class="cite">綜合 §4、App. D–F</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">核心機制</h2>
+      <div class="hl"><p class="hl__en">CO resets bound how long the context may ever become ... Less directly but more powerfully, an agent that has <b>written down its plan and verified facts stops re-searching</b> what it already knows, cutting turns threefold.</p><p class="hl__zh">CO 重置限制了 context 的最大長度……而更間接、但效果更大的是：<b>把計畫與已驗證事實寫下來的 agent 不會重搜</b>已經知道的東西，輪數因此降為三分之一。<span class="hl__src">§4.3, p.8</span></p></div>
+      <div class="hl"><p class="hl__en">Training teaches the model <b>not to reset more but to checkpoint better</b>.</p><p class="hl__zh">訓練教會模型的<b>不是更常 reset，而是把 checkpoint 寫得更好</b>。<span class="hl__src">§4.3, p.8</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">為什麼 MM 與 CO 不對稱</h2>
+      <div class="hl"><p class="hl__en">The conversation history is not merely redundant with the memory store; it functions as a <b>cross-validation channel</b>, and CO closes that channel permanently for everything the memory currently holds.</p><p class="hl__zh">對話歷史並不只是記憶庫的冗餘副本，它是一條<b>交叉驗證通道</b>；而 CO 會對記憶中所有內容永久關閉這條通道。<span class="hl__src">App. D.2, p.19</span></p></div>
+      <div class="hl"><p class="hl__en">behavior cloning on masked agent outputs <b>supervises the process rather than the conclusion</b></p><p class="hl__zh">在遮罩後的 agent 輸出上做行為複製，<b>監督的是過程而非結論</b>。<span class="hl__src">§4.5, p.9</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">CORAL：會寫筆記的 agent，更準也更省</h2>
+      <p class="end__sub">來源：arXiv 2610.40350 · COLM 2026 · 程式碼 github.com/JIA-Lab-research/CORAL</p>
+      <div class="end__next">明日預告：週日 · 火爆 GitHub Repo / 公司技術報告</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
