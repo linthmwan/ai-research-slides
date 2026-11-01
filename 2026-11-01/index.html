@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepTutor — Agentic Personalized Tutoring (HKUDS Tech Report)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週日 · 火爆 GitHub Repo / 技術報告</div>
+      <h1 class="title">DeepTutor：讓輔導與出題共用同一份學習者記憶</h1>
+      <div class="sub">DeepTutor: Towards Agentic Personalized Tutoring</div>
+      <div class="authors">Bingxi Zhao*, Jiahao Zhang*, Xubin Ren, Zirui Guo, Tianzhe Chu, Yi Ma, Chao Huang† · The University of Hong Kong</div>
+      <div class="meta-row"><span class="badge tier">Technical Report</span><span class="badge date">arXiv 2604.26962v3 · 2026-07-09</span><span class="badge">GitHub ⭐52.8k · +1,034 today</span></div>
+      <p class="note">選題：2026-11-01 GitHub Trending（Python 日榜 #1、總榜 #7）HKUDS/DeepTutor，README 明確連到 arXiv 2604.26962 · Venue：PDF 頁首標「Technical Report」，未經頂會審稿 · Reviewer 資料：無</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把<b>解題輔導</b>和<b>出題</b>接到同一份會演化的學習者記憶上：輔導時診斷出的弱點決定下一題出什麼，學生作答結果再回頭調整之後的講解。在自建的 TutorBench 上整體品質 <b>+10.76%</b>；把個人化整個關掉、只留 investigate → solve → write 骨架，五個 backbone 在通用推理 benchmark 上平均 <b>+29.4%</b>。</p>
+      <div class="cite">Abstract, p.1；Table 2, p.12；§5.5, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">現有 AI 家教是 task-local：輔導與出題互不影響</h2>
+      <ul class="bullets"><li>解題輔導端：已能診斷學生推理錯誤、引導解題，但診斷結果<b>只在同一輪內被使用</b></li><li>出題端：用 planning / self-refine 控制內容與難度，但由<b>預設目標</b>驅動，而不是學生最近的輔導軌跡</li><li>結果：輔導軌跡不影響下一題，練習結果也不更新之後的講解</li><li>共同根因：沒有細粒度、會演化的學習者模型；頂多記粗粒度的 skill 清單，記不到「學生怎麼錯」</li></ul>
+      <figure class="full" style="max-height:30vh; margin-top:.3rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1：(a)(b) 既有輔導與出題 agent 各自運作；(c) DeepTutor 以 SKG + DPM 串成閉環（p.2）</figcaption></figure>
+      <div class="cite">§1, p.1–2；Figure 1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 評測端</div>
+      <h2 class="head">評測也把學生當成「泛用接收者」</h2>
+      <ul class="bullets"><li>多數教育 benchmark 是 instructor-centric：檢查 LLM 是否遵守教學原則、答案是否正確</li><li>少數 learner-aware 的評測只用粗標籤（struggling / proficient），而且與具體教材脫鉤</li><li>因此「系統能否在多輪對話中適應<b>個別</b>學習者」一直沒被真正測過</li></ul>
+      <div class="takeaway">作者的主張：兩個缺口都需要閉環 ＝ 記錄細粒度互動歷史的結構化記憶 + 共享並持續更新它的統一系統（formative assessment）。</div>
+      <div class="cite">§1, p.2；§4, p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">四件事</h2>
+      <ol class="numbered"><li><b>DeepTutor</b>：開源 agentic 家教框架，用共享 learner context 串起有引用的解題輔導與難度校準的出題</li><li><b>Hybrid Personalization Engine</b>：Static Knowledge Grounding（課程知識）+ Dynamic Personal Memory（學習者記憶），以 trace forest 把多輪互動蒸餾成可重用的 profile</li><li><b>Substrate 延伸</b>：同一套底座支撐 Deep Research、Mastery Path、Co-Writer、互動書、主動式多通道 agent（明確標示這些不在量化評測範圍）</li><li><b>TutorBench</b>：student-centric benchmark，30 個知識庫、270 個互動任務，用第一人稱學生模擬器做多輪評測</li></ol>
+      <div class="cite">§1, p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 總覽</div>
+      <h2 class="head">兩條 pipeline 共用一個個人化引擎</h2>
+      <figure class="full" style="max-height:58vh; margin-top:.3rem;"><img src="figures/figure2_p3.jpg" alt=""><figcaption>Figure 2：左 ①–③ 解題輔導、右 ④–⑤ 出題；中間上為 SKG（雙索引 KB），下為 DPM（Trace Forest + 三視角 profile）；完成的互動回寫 trace（p.3）</figcaption></figure>
+      <div class="cite">§2, p.3；Figure 2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · SKG</div>
+      <h2 class="head">Static Knowledge Grounding：圖 + 向量雙索引</h2>
+      <ul class="bullets"><li>教材拆成 atomic content unit，保留文字 / 圖 / 公式 / 表格等模態結構</li><li>兩個互補索引：knowledge graph <b>G</b> 記結構與脈絡關係；dense embedding index <b>B</b> 找語意相近內容</li><li>查詢時：G 上做 graph traversal 抓明確關係 + B 上做 dense search → <b>reciprocal rank fusion</b> 合併 → 去重 → 截到 context 預算，得到 C<sub>rag</sub></li></ul>
+      <div class="takeaway">這部分沿用 HKUDS 自家的 RAG-Anything / LightRAG 路線（引用 Guo et al. 2025b），不是本文新提出的檢索方法。</div>
+      <div class="cite">§2.1.1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · DPM ①</div>
+      <h2 class="head">Trace Forest：每次互動是一棵三層的樹</h2>
+      <table class="bench"><thead><tr><th>層級</th><th>內容</th><th>用途</th></tr></thead><tbody><tr><td>Level 1</td><td>session 輸入 + 全域摘要</td><td>找「以前問過類似的嗎」</td></tr><tr><td>Level 2</td><td>任務分解出的規劃單元（解題步驟 / 出題模板）</td><td>找「以前怎麼拆這類問題」</td></tr><tr><td>Level 3</td><td>細粒度執行紀錄：工具輸出、證據、驗證結果</td><td>找「具體在哪一步錯」</td></tr></tbody></table>
+      <ul class="bullets"><li>每個節點都有 dense embedding → 整座森林可做相似度檢索</li><li>TraceToolkit 三個操作：<b>SearchTrace</b>（ANN 語意檢索）、<b>ListTraces</b>（依時間 / 任務 / 主題列舉）、<b>ReadNodes</b>（全文 + 祖先路徑）</li><li>記憶不是被動倉庫，而是讓每個 agent 用需要的解析度去查學生歷史</li></ul>
+      <div class="cite">§2.1.2, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · DPM ②</div>
+      <h2 class="head">Profile 由三個 memory agent 主動分析產生</h2>
+      <table class="bench"><thead><tr><th>視角</th><th>記錄什麼</th><th>誰會讀</th></tr></thead><tbody><tr><td>D<sub>s</sub> session history</td><td>涵蓋主題、解法路徑、表現趨勢</td><td>planner</td></tr><tr><td>D<sub>w</sub> weakness</td><td>有證據支撐的反覆混淆、錯誤模式、active / resolved gaps</td><td>planner、出題 agent</td></tr><tr><td>D<sub>r</sub> self-reflection</td><td>教學上的自我反思，指導之後的互動</td><td>writer</td></tr></tbody></table>
+      <ul class="bullets"><li>每條新 trace 進來，三個 agent 用 TraceToolkit 撈相關舊 session、必要時讀細節節點、比對跨 session 模式，再更新 profile</li><li>→ profile 是「工具輔助的分析流程」，不是對最新一輪的單次摘要，也不是 latent mastery 分數</li><li>C<sub>mem</sub> 兩條通道：主動 trace 檢索（預算按層級比例分配）+ 依角色摘錄 profile；總 token 預算在 C<sub>rag</sub> 與 C<sub>mem</sub> 間動態切分</li></ul>
+      <div class="cite">§2.1.2, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 解題輔導</div>
+      <h2 class="head">① 先調查 → ② 逐步解 → ③ 依證據迭代寫作</h2>
+      <ul class="bullets"><li>動機：一般 tool agent 把規劃、檢索、組稿塞進同一個推理迴圈；在輔導場景，「徹底調查」與「個人化呈現」會搶同一個 context window</li><li><b>① Investigation</b>：把 q 拆成 meta-question，從 K、trace forest、工具蒐證後才出計畫 P = ⟨s<sub>1</sub>, …, s<sub>K</sub>⟩ → sub-goal 具體到學生的缺口（「複習三角函數裡的 chain rule」而非「複習微積分」）</li><li><b>② Guided Solving</b>：每個 sub-goal 分析 → 工具行動 → 記筆記；<b>self-notes</b> 以精簡結論取代冗長中間結果，<b>hierarchical compression</b> 把完成的 sub-goal 壓成摘要；計畫不夠時 replan，保留已完成部分</li><li><b>③ Iterative Writing</b>：從 scratchpad 抽結構化證據、多輪精修；依 ZPD 調整深淺（初學者給逐步推導、熟手給重點摘要）；每個外部事實都附 citation</li></ul>
+      <div class="cite">§2.2, p.5；Algorithm 1, p.29</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 出題</div>
+      <h2 class="head">④ 先決定問什麼 → ⑤ 再生成並由獨立 validator 把關</h2>
+      <ul class="bullets"><li><b>④ Idea Generation</b>：以 C<sub>rag</sub> + C<sub>mem</sub>（過去錯誤、難度趨勢、相關舊題）產生候選 idea，每個含目標概念、題型（選擇 / 問答 / 程式）與個人化理由；evaluator 依 clarity、relevance、diversity 迭代過濾 → 題目模板 {T<sub>i</sub>}</li><li><b>⑤ Critic-Guided QAE</b>：generator 產出 (q<sub>i</sub>, a<sub>i</sub>, e<sub>i</sub>)，validator 做 LLM 驗證（模板對齊、事實、教學合理性）；計算題另外在 sandbox 執行程式碼</li><li>validator 與 generator <b>不共享推理鏈</b> → 必須獨立驗證，避免自我評估看不出來的自我確認錯誤</li><li>沒通過就帶結構化診斷回饋重生，直到教學與事實限制都滿足</li></ul>
+      <div class="cite">§2.3, p.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 閉環</div>
+      <p class="big">輔導中診斷出的弱點 → 寫進 D<sub>w</sub> → <b>決定下一題出什麼</b>；<br>學生在練習題上的表現 → 更新 D<sub>s</sub>、D<sub>r</sub> → <b>改善之後的講解</b>。</p>
+      <div class="sub">每次互動後 append 一棵新 trace tree，三個 memory agent 平行更新 profile。因為每個 agent 都能直接查 trace forest，回饋不只是 profile 層級的摘要，也包含任何一次舊互動的細節。</div>
+      <div class="cite">§2.4, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">系統延伸（未量化評測）</div>
+      <h2 class="head">同一套 substrate，多種學習介面</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:46vh;"><img src="figures/figure4_p7.jpg" alt=""><figcaption>Figure 4：單一 agent loop + 跨介面記憶 + 可插拔 KB + skills + sub-agents（p.7）</figcaption></figure></div><div><ul class="bullets"><li><b>Deep Research / Visualize</b>：與 Deep Solve 平行的一級 capability</li><li><b>Mastery Path</b>：主題 → 分段計畫，每次作答評分、更新 D<sub>w</sub>、排程複習</li><li><b>Co-Writer</b>：Markdown 編輯器，對選取段落做改寫，以 accept / reject diff 回傳</li><li><b>Book Engine</b>：proposal → 章節骨架 + concept graph → typed block 頁面；頁面對來源做 fingerprint，偵測內容過期</li><li><b>Partners</b>：同一 TutorBot runtime，heartbeat 主動提醒複習；接 Feishu、Slack、Discord、Telegram 等十多個平台</li></ul></div></div>
+      <p class="note">作者明確標示：這些是架構實例，對保留率、參與度、學習成效的影響需要長期真人研究。</p>
+      <div class="cite">§3, p.6–11；Table 1, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">TutorBench</div>
+      <h2 class="head">每筆資料 = 學習者 profile + 錨定到頁的缺口 + 互動任務</h2>
+      <figure class="full" style="max-height:30vh; margin-top:.3rem;"><img src="figures/figure3_p6.jpg" alt=""><figcaption>Figure 3：TutorBench 四階段建構流程（p.6）</figcaption></figure>
+      <ul class="bullets"><li>30 個知識庫 × 5 學科（人文 / 科學 / 工程 / 商業 / 前沿研究）→ 每 KB 3 個 profile = <b>90 profiles</b> → 每 profile 3 個任務 = <b>270 tasks</b></li><li>profile 以 beginner / intermediate / advanced 為起點，再加教育背景、學習目的、per-topic 掌握程度（known well / partially / unknown）</li><li>每題 3 個缺口：misconception / incomplete / missing knowledge；含「學生會怎麼表現」與「正確理解」，後者<b>只給 judge</b></li><li>rejection sampling 驗 gap 一致性、task–gap 契合、對話自然度，最後人工審</li></ul>
+      <div class="cite">§4, p.11；App. C</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">評測協定</div>
+      <h2 class="head">第一人稱學生模擬器 + 10 項個人化 rubric</h2>
+      <ul class="bullets"><li>模擬器把缺口轉成<b>第一人稱信念</b>，多輪接受輔導後再要求練習題 → 扮演學生，而不是從外部旁白錯誤</li><li>輔導側 5 項（每輪評）：SF 來源忠實、PER 個人化、APP 可操作、VID 生動、LD 邏輯深度</li><li>練習側 5 項（對話後評）：FIT 難度契合、GND 有據、DIV 多樣、ANS 答案品質、CC 跨概念</li><li>simulator 與所有 tutor backbone = <b>Gemini-3-Flash</b>；judge = <b>Claude Sonnet 4.6</b>（temperature 0），每份對話評三次取平均</li><li>Baseline 都在同一 harness、同 backbone、同 RAG 工具：Naive / CoT / Self-Refine / ReAct Tutor</li></ul>
+      <div class="cite">§5.1, p.12–13；App. D</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果</div>
+      <h2 class="head">四個 baseline 擠在一起，DeepTutor 整體品質 +10.76%</h2>
+      <table class="bench"><thead><tr><th>System</th><th class="num">Tutor Avg</th><th class="num">Practice Avg</th><th class="num">OQ</th><th class="num">Δ%</th></tr></thead><tbody><tr><td>Naive Tutor</td><td class="num">3.96</td><td class="num">3.10</td><td class="num">3.53</td><td class="num">–</td></tr><tr><td>CoT Tutor</td><td class="num">3.97</td><td class="num">3.06</td><td class="num">3.52</td><td class="num">−0.28%</td></tr><tr><td>Self-Refine Tutor</td><td class="num">4.05</td><td class="num">3.08</td><td class="num">3.57</td><td class="num">+1.13%</td></tr><tr><td>ReAct Tutor</td><td class="num">3.96</td><td class="num">3.08</td><td class="num">3.52</td><td class="num">−0.28%</td></tr><tr class="win"><td>DeepTutor</td><td class="num best">4.39</td><td class="num best">3.42</td><td class="num best">3.91</td><td class="num best">+10.76%</td></tr></tbody></table>
+      <ul class="bullets"><li>加 CoT、自我修正或 ReAct 工具迴圈，都<b>無法</b>在同 backbone、同 RAG 下帶出適應性</li><li>輔導側最大增益：VID 3.89 → 4.81、LD 3.99 → 4.61、PER 4.24 → 4.59；SF 與 APP 持平 → 個人化沒有犧牲 grounding</li><li>練習側：GND 2.46 → 2.96、DIV 2.83 → 3.44、CC 3.12 → 3.38；FIT、ANS 增益較小</li></ul>
+      <div class="cite">Table 2, p.12；§5.1, p.13（所有指標 1–5 分）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · Ablation</div>
+      <h2 class="head">SKG 決定「說什麼」，DPM 決定「怎麼適應」</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.3rem;"><img src="figures/figure9_p15.jpg" alt=""><figcaption>Figure 9：(a) 拿掉模組後 OQ 掉幅；(b) 各指標相對完整系統的變化（p.15）</figcaption></figure>
+      <ul class="bullets"><li><b>w/o SKG</b>（OQ −4.6%）：GND <b>−24.7%</b>、SF −7.4%、CC −5.6% → 解釋與題目都失去來源錨點</li><li><b>w/o DPM</b>（OQ −2.8%）：PER <b>−8.1%</b>、FIT −6.0% → profile 是對準缺口與難度校準的核心；GND 也降 5.4%，代表 learner context 會把檢索導向相關證據</li><li>兩者都拿掉（OQ −5.4%）退化最大 → 兩者互補，不能互相取代</li></ul>
+      <div class="cite">§5.4, p.15–16；Figure 9, p.15；Table 5, p.38</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 反推</div>
+      <h2 class="head">VID 的大幅增益，來自 pipeline 結構而非個人化</h2>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">VID</th><th class="num">PER</th><th class="num">GND</th><th class="num">OQ*</th></tr></thead><tbody><tr><td>Naive Tutor</td><td class="num">3.89</td><td class="num">4.24</td><td class="num">2.46</td><td class="num">3.53</td></tr><tr><td>DeepTutor (full)</td><td class="num">4.81</td><td class="num">4.59</td><td class="num">2.96</td><td class="num">3.91</td></tr><tr><td>w/o SKG + DPM</td><td class="num">4.82</td><td class="num">4.17</td><td class="num">2.22</td><td class="num">3.70</td></tr></tbody></table>
+      <ul class="bullets"><li>拿掉兩個個人化模組後，VID 仍是 4.82 → 生動度幾乎全來自 ③ 迭代寫作等 pipeline 設計</li><li>同一變體的 PER 4.17 已低於 Naive（4.24）、GND 2.22 也低於 Naive（2.46）→ 個人化與 grounding 的增益確實來自 DPM 與 SKG</li><li>與 §5.5 呼應：骨架本身就有價值，個人化模組再補上 PER / FIT / GND</li></ul>
+      <p class="note">* OQ 由編者以 Table 5 十項指標平均重算；本頁為編者對 Table 5 的解讀，論文正文未直接如此陳述。</p>
+      <div class="cite">Table 5, p.38；Table 2, p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">泛化</div>
+      <h2 class="head">五個領域表現穩定，人評與 LLM judge 趨勢一致</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:44vh;"><img src="figures/figure8_p15.jpg" alt=""><figcaption>Figure 8：十項指標上人類多數決（H）與 LLM judge（L）的偏好分布（p.15）</figcaption></figure></div><div><ul class="bullets"><li><b>跨領域</b>：OQ 在五個領域間只差 0.16；各指標平均跨領域差 0.36，SF 波動最大；GND 仍是最低維度</li><li><b>人評</b>：45 個 session（每領域 9 個），10 位學生標註者（6 大學部、4 研究生）盲測 A/B，比較 DeepTutor 與 Naive Tutor</li><li>人類與 LLM 的各指標勝率：Pearson <b>r = 0.82</b>（p = 0.0038）、Spearman <b>ρ = 0.83</b>（p = 0.0027）</li><li>差距最明顯：PER、VID、DIV；APP、GND、CC 平手較多</li></ul></div></div>
+      <div class="cite">§5.2, p.14；§5.3, p.14–15；App. D.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">遷移 · 不只用於家教</div>
+      <h2 class="head">關掉個人化，只留 investigate → solve → write：五個 backbone 平均 +29.4%</h2>
+      <table class="bench"><thead><tr><th>Backbone</th><th class="num">HLE</th><th class="num">GPQA-D</th><th class="num">LiveBench</th><th class="num">GAIA</th><th class="num">AA-LCR</th><th class="num">Avg Δ</th></tr></thead><tbody><tr><td>Gemini-3-Flash</td><td class="num">19.4 → 30.8</td><td class="num">81.3 → 84.9</td><td class="num">70.0 → 96.0</td><td class="num">37.6 → 47.9</td><td class="num">63.0 → 74.7</td><td class="num">+29.24%</td></tr><tr><td>Sonnet-4.5</td><td class="num">8.4 → 14.6</td><td class="num">72.2 → 73.2</td><td class="num">64.3 → 82.0</td><td class="num">29.1 → 45.5</td><td class="num">53.3 → 54.0</td><td class="num">+32.03%</td></tr><tr><td>Qwen-3.5-Plus</td><td class="num">16.8 → 24.2</td><td class="num">88.4 → 87.9</td><td class="num">69.0 → 93.0</td><td class="num">33.9 → 49.1</td><td class="num">66.0 → 69.7</td><td class="num">+25.69%</td></tr><tr><td>GPT-5-Mini</td><td class="num">16.5 → 21.2</td><td class="num">80.8 → 80.3</td><td class="num">71.0 → 93.0</td><td class="num">27.3 → 49.1</td><td class="num">68.7 → 71.0</td><td class="num">+28.51%</td></tr><tr><td>Minimax-M2.5</td><td class="num">14.0 → 19.4</td><td class="num">82.8 → 83.3</td><td class="num">59.3 → 73.0</td><td class="num">23.6 → 42.4</td><td class="num">66.0 → 76.4</td><td class="num">+31.50%</td></tr></tbody></table>
+      <div class="formula">Avg Δ<sub>m</sub> = (1/|B|) · Σ<sub>b∈B</sub> (s<sub>m,b</sub><sup>DeepTutor</sup> − s<sub>m,b</sub><sup>base</sup>) / s<sub>m,b</sub><sup>base</sup> × 100%</div>
+      <ul class="bullets"><li>增益集中在 LiveBench、GAIA、HLE；GPQA-Diamond 幾乎不動（兩個 backbone 微降）</li><li>HLE 為固定 500 題子集、LiveBench 為 reasoning 子集；GAIA 欄為 Overall（L1–L3 細項見原表）</li></ul>
+      <div class="cite">§5.5 eq.(1), p.16；Table 3, p.16（Pass@1）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者承認的，與值得追問的</h2>
+      <ul class="bullets"><li><b>模擬器 ≠ 真實學生</b>：評測依賴 LLM 學生模擬器與 rubric judge，缺大規模真人驗證</li><li><b>推論成本</b>：多階段 pipeline 用成本換可控性與個人化；論文沒有報 token 或延遲數字</li><li><b>延伸功能未驗證</b>：Book Engine、Partners 只是架構實例，學習成效需長期研究</li><li><b>Baseline 皆為自建</b>：既有教育系統多半不開源；人評只比較 DeepTutor 與 Naive Tutor</li><li><b>非頂會審稿</b>：Technical Report，TutorBench 也是作者自建；judge（Claude）與 backbone（Gemini）不同家，降低 self-preference 疑慮</li></ul>
+      <div class="cite">Limitations, p.16–17；§5.1、§5.3；末兩點含編者觀察</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">對做 agent / 個人化系統的工程師有什麼用（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li><b>記憶要能查，不只能讀</b>：三層 trace tree + Search / List / Read 工具，讓不同 agent 用不同解析度查歷史，比把摘要塞進 prompt 更有彈性</li><li><b>依角色切 profile</b>：planner、writer、出題 agent 各拿不同切片，是控制 context 雜訊的便宜手段</li><li><b>Generator / validator 分離</b>：不共享推理鏈的 validator + sandbox 執行，是出題正確性的關鍵設計，可直接套用到任何「生成 + 驗證」任務</li><li><b>先調查、再規劃</b>：§5.5 顯示光是這個骨架就能讓通用 benchmark 平均 +29%，比個人化模組本身的增益更大</li></ul>
+      <p class="note">此頁為編者推論，已與論文內容分開標示。</p>
+      <div class="cite">綜合 §2、§5.4、§5.5</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">Profile 怎麼來</h2>
+      <div class="hl"><p class="hl__en">This process makes profile construction <b>a tool-mediated analysis procedure rather than a single-pass textual summary</b>.</p><p class="hl__zh">這讓 profile 建構成為<b>工具輔助的分析流程，而不是單次的文字摘要</b>。<span class="hl__src">§2.1.2, p.4</span></p></div>
+      <div class="hl"><p class="hl__en">because the validator <b>shares no reasoning chain with the generator</b>, it must independently verify correctness</p><p class="hl__zh">因為 validator <b>與 generator 不共享推理鏈</b>，它必須獨立驗證正確性。<span class="hl__src">§2.3, p.6</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">Ablation 結論</h2>
+      <div class="hl"><p class="hl__en">The two ablations therefore affect different parts of the rubric: <b>SKG anchors what the tutor says, while DPM shapes how it adapts</b>.</p><p class="hl__zh">因此兩個 ablation 影響 rubric 的不同部分：<b>SKG 錨定家教說什麼，DPM 決定它如何適應</b>。<span class="hl__src">§5.4, p.16</span></p></div>
+      <div class="hl"><p class="hl__en">the gains point to <b>the general value of the investigate–solve–write scaffold</b> rather than learner-specific context alone.</p><p class="hl__zh">這些增益指向 <b>investigate–solve–write 骨架本身的通用價值</b>，而不只是學習者專屬的 context。<span class="hl__src">§5.5, p.16</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 完整指標</div>
+      <h2 class="head">Table 5：十項指標（Gemini-3-Flash backbone）</h2>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">SF</th><th class="num">PER</th><th class="num">APP</th><th class="num">VID</th><th class="num">LD</th><th class="num">FIT</th><th class="num">GND</th><th class="num">DIV</th><th class="num">ANS</th><th class="num">CC</th></tr></thead><tbody><tr><td>Naive</td><td class="num">3.22</td><td class="num">4.24</td><td class="num">4.44</td><td class="num">3.89</td><td class="num">3.99</td><td class="num">3.20</td><td class="num">2.46</td><td class="num">2.83</td><td class="num">3.87</td><td class="num">3.12</td></tr><tr><td>CoT</td><td class="num">3.34</td><td class="num">4.22</td><td class="num">4.47</td><td class="num">3.82</td><td class="num">4.01</td><td class="num">3.18</td><td class="num">2.50</td><td class="num">2.79</td><td class="num">3.81</td><td class="num">3.04</td></tr><tr><td>Self-Refine</td><td class="num">3.28</td><td class="num">4.28</td><td class="num">4.61</td><td class="num">3.94</td><td class="num">4.14</td><td class="num">3.17</td><td class="num">2.49</td><td class="num">2.88</td><td class="num">3.88</td><td class="num">2.97</td></tr><tr><td>ReAct</td><td class="num">3.35</td><td class="num">4.37</td><td class="num">4.40</td><td class="num">3.70</td><td class="num">3.96</td><td class="num">3.16</td><td class="num">2.47</td><td class="num">2.75</td><td class="num">3.94</td><td class="num">3.07</td></tr><tr><td>DeepTutor</td><td class="num">3.36</td><td class="num">4.59</td><td class="num">4.56</td><td class="num">4.81</td><td class="num">4.61</td><td class="num">3.35</td><td class="num">2.96</td><td class="num">3.44</td><td class="num">3.98</td><td class="num">3.38</td></tr><tr><td>w/o SKG</td><td class="num">3.11</td><td class="num">4.41</td><td class="num">4.55</td><td class="num">4.83</td><td class="num">4.53</td><td class="num">3.31</td><td class="num">2.23</td><td class="num">3.30</td><td class="num">3.84</td><td class="num">3.19</td></tr><tr><td>w/o DPM</td><td class="num">3.36</td><td class="num">4.22</td><td class="num">4.57</td><td class="num">4.83</td><td class="num">4.52</td><td class="num">3.15</td><td class="num">2.80</td><td class="num">3.34</td><td class="num">3.90</td><td class="num">3.31</td></tr><tr><td>w/o SKG+DPM</td><td class="num">3.16</td><td class="num">4.17</td><td class="num">4.60</td><td class="num">4.82</td><td class="num">4.48</td><td class="num">3.25</td><td class="num">2.22</td><td class="num">3.27</td><td class="num">3.85</td><td class="num">3.14</td></tr></tbody></table>
+      <div class="cite">Table 5, p.38（原表四位小數，此處四捨五入至兩位）</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">DeepTutor：讓每次輔導都個人化下一次</h2>
+      <p class="end__sub">來源：arXiv 2604.26962 · Technical Report · 程式碼 github.com/HKUDS/DeepTutor</p>
+      <div class="end__next">明日預告：週一 · LLM（架構、訓練、對齊）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
