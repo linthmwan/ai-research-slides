@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LARC — Latent Reasoning in Continuous Space for UMMs (NeurIPS 2026)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週二 · 圖像生成 / 理解（Diffusion、VLM、CLIP）</div>
+      <h1 class="title">LARC：讓 UMM 在連續空間裡「想」，再畫圖</h1>
+      <div class="sub">Latent Reasoning in Continuous Space for Unified Multimodal Models</div>
+      <div class="authors">Byungwoo Jeon, Yoonwoo Jeong, Hyunseok Lee, Minsu Cho*, Jinwoo Shin*（KAIST · POSTECH · RLWRLD；* equal advising）</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">arXiv 2610.42149v1 · 2026-10-30（回溯 4 天）</span></div>
+      <p class="note">Venue：PDF p.1 頁尾「40th Conference on Neural Information Processing Systems (NeurIPS 2026)」；arXiv comment「Published as conference proceeding for NeurIPS 2026」· Project：rootyjeon.github.io/larc-umm · Reviewer 資料：未抓取</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">UMM 的 CoT 在<b>離散 token</b> 裡推理，影像卻在<b>連續空間</b>生成 —— 所以推理加長也不會畫得更好。LARC 把 last hidden state 直接當下一步輸入，讓推理留在連續空間；用 <b>curriculum SFT</b> + <b>information-gain 自獎勵 RL</b> 訓練。BAGEL 上 GenEval <b>0.81 → 0.88</b>，並且是第一個推理越多、分數單調變高的 reasoning UMM。</p>
+      <div class="cite">Abstract, p.1；§1, p.2；Table 1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">為什麼 reasoning-UMM 沒有 test-time scaling？</h2>
+      <ul class="bullets"><li>UMM（BAGEL、Show-o2、Janus-Pro…）把影像生成模組接進 LLM，但加大推理預算<b>不會</b>像 LLM benchmark 那樣平滑變好</li><li>作者主張根因是 <b>modality mismatch</b>：離散 chain 很難編碼影像合成需要的稠密、具空間性的資訊</li><li>結果：推理退化成「表層 prompt 改寫」—— 這正是既有方法唯一有增益的窄區間</li><li>核心主張：要把推理的好處推出這個區間，<b>推理本身就得在連續空間</b></li></ul>
+      <div class="cite">§1, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">障礙</div>
+      <h2 class="head">把 Coconut 式 latent reasoning 搬到影像 + RL，有兩個坑</h2>
+      <div class="two-col"><div><h2 class="head">① 沒有隨機性</h2><ul class="bullets"><li>Coconut 的 latent step 是 deterministic：hidden state 直接回灌，沒有取樣</li><li>Policy gradient（GRPO）需要同一 prompt 的多條<b>不同</b> rollout 才能算 advantage</li></ul></div><div><h2 class="head">② 沒有評審</h2><ul class="bullets"><li>latent trace 不在人類可讀空間 → 無法人工偏好標註（DPO 不適用）</li><li>影像 reward model 只看成品 x，分不出兩條產出相近影像的 latent trace</li><li>PPO 的 critic 讓參數約翻倍，且仍缺 dense 監督</li></ul></div></div>
+      <div class="takeaway">LARC 的解法：用 <b>interleaved text span</b> 補回隨機性，用<b>模型自己</b>算 information gain 當 reward。</div>
+      <div class="cite">§1, p.2；App. C.1, p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">三個主張</h2>
+      <ol class="numbered"><li><b>診斷</b>：離散推理 vs 連續生成的 modality mismatch，是現有 reasoning-UMM 增益有限、沒有 test-time scaling 的根因</li><li><b>框架</b>：LARC 是第一個在 UMM 內、在與影像生成<b>同一個連續 latent 空間</b>做推理的框架</li><li><b>訓練 recipe</b>：(i) 帶受控隨機性的 Coconut 式 latent reasoning，讓它能接 RL；(ii) information-gain reward + collapse-prevention reward，<b>不需 ground-truth latent chain、不需外部 critic</b></li></ol>
+      <div class="cite">§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法總覽</div>
+      <h2 class="head">兩階段：Curriculum SFT → Self-Evolving RL</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.3rem;"><img src="figures/figure2_p3_crop.jpg" alt=""><figcaption>Figure 2：左 Stage 1 —— latent step 把 last hidden state 當下一個 input embedding（黃格）；右 Stage 2 —— 以凍結的 π<sub>ref</sub>（Stage 1 模型）比較「有 / 無推理軌跡 h(τ)」的分佈差當 reward（p.3）</figcaption></figure>
+      <div class="cite">Figure 2, p.3；§2.1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① · Interleaved Latent Reasoning</div>
+      <h2 class="head">文字 span 與連續 latent step 交錯</h2>
+      <div class="formula">E<sub>t+1</sub> = [E<sub>t</sub> ; h<sub>t</sub>]（latent mode）　或　[E<sub>t</sub> ; e(x<sub>t+1</sub>)]（language mode）　　H<sub>t+1</sub> = Transformer(E<sub>t+1</sub>)</div>
+      <div class="formula">τ = (s<sub>1</sub>, l<sub>1</sub>, s<sub>2</sub>, l<sub>2</sub>, …, s<sub>N</sub>, l<sub>N</sub>)</div>
+      <ul class="bullets"><li>h<sub>t</sub> = 最後一層 hidden state；遇到 &lt;latent&gt; 轉 latent mode，固定步數後回 language mode</li><li>language span s<sub>n</sub> 用取樣產生 → 提供 policy gradient 需要的隨機性；latent step l<sub>n</sub> 繞過 text decoding → 保留稠密語意</li><li>&lt;eos&gt; 結束後，image module 以 cross-attention 讀整條 h(τ) 生成影像；N 與 |s<sub>n</sub>| 由模型自己決定</li></ul>
+      <div class="cite">§2.2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ② · Stage 1</div>
+      <h2 class="head">Curriculum SFT：一次只多開一個 latent step</h2>
+      <ul class="bullets"><li>資料：1M interleaved CoT（FLUX-Reason 500K T2I、WEAVE 100K T2I、ScaleEdit 400K 編輯），在推理步邊界插入 &lt;latent&gt;</li><li>phase 0 只訓純文字 τ<sup>(0)</sup>；phase k 只啟動前 k 個 latent；最後全開，每次換 phase 降 learning rate</li><li>原因：一開始就開滿 N 個 latent 不穩（latent 沒有直接監督，模型又還沒學會推理格式）</li></ul>
+      <div class="formula">L<sup>(k)</sup><sub>SFT</sub> = − Σ<sub>n</sub> log π<sub>θ</sub>( s<sub>n</sub> | c, s<sub>&lt;n</sub>, l<sub>&lt;min(n,k+1)</sub> ) + L<sub>flow</sub>( x | c, s<sub>1:N</sub>, l<sub>1:k</sub> )</div>
+      <div class="takeaway">latent step <b>沒有顯式 target</b>：梯度從 text loss 與影像 flow-matching loss 穿過 latent，讓它自己學到有用表示。</div>
+      <div class="cite">§2.3, p.4；Table 10, p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ③ · Stage 2</div>
+      <h2 class="head">Information-Gain reward：推理讓目標影像「更可能」多少？</h2>
+      <div class="formula">r<sub>IG</sub>(τ; x, c) = log p<sub>ref</sub>(x | c, h(τ)) − log p<sub>ref</sub>(x | c)　　E[r<sub>IG</sub>] = I<sub>ref</sub>(x ; h(τ) | c) ≥ 0</div>
+      <div class="formula">r<sub>IG</sub> ≈ L<sup>ref</sup><sub>flow</sub>(x, c) − L<sup>ref</sup><sub>flow</sub>(x, c, h(τ))　（兩次評估共用同一 noise η 與時間 t）</div>
+      <ul class="bullets"><li>π<sub>ref</sub> = 凍結的 Stage 1 模型；reward 就是 per-sample 的<b>條件互資訊</b>：軌跡沒帶新資訊 → 0</li><li>image module 拿不到 log-likelihood → 用 rectified-flow 的 −log p = L<sub>flow</sub> + C(x)，共用 noise 讓 C(x) 精確相消</li><li>不需要額外 reward model，直接重用 generation expert</li></ul>
+      <div class="cite">§2.4, eq.(1)–(2), p.4–5；App. C.2, eq.(5)–(8), p.17–18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ④ · Stage 2</div>
+      <h2 class="head">防坍縮 + GRPO</h2>
+      <div class="formula">r<sub>div</sub>(τ) = 1/(N(N−1)) · Σ<sub>n≠n′</sub> (1 − cos(l<sub>n</sub>, l<sub>n′</sub>))　　R = r<sub>IG</sub> + λ<sub>div</sub> · r<sub>div</sub></div>
+      <ul class="bullets"><li>r<sub>div</sub> 懲罰所有 latent step 收斂成同一個向量（latent collapse）</li><li>GRPO：每個 context 取 G=8 條 rollout，組內標準化得 advantage，不需要 value network</li><li>RL 只更新 <b>understanding expert</b>；generation expert 保留給 reward 估計</li><li>超參：lr 1e-6、batch 64、ε<sub>clip</sub>=0.2、KL β=10<sup>−3</sup>、λ<sub>div</sub>=0.1、10<sup>3</sup> steps</li></ul>
+      <p class="note">算力：8× A100，Stage 1 約 300 GPU-hours、Stage 2 約 96 GPU-hours。</p>
+      <div class="cite">§2.4, eq.(3)–(4), p.5–6；Algorithm 1, p.18；Table 9 + App. A.1, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗設定</div>
+      <h2 class="head">Base = BAGEL，三類 benchmark</h2>
+      <ul class="bullets"><li><b>T2I</b>：GenEval（物件偵測自動驗組合性）、DPG-Bench（1,065 個 dense prompt，MLLM-as-judge）、OneIG-Bench（報 alignment 分數）</li><li><b>影像編輯</b>：CompBench 多物件編輯（LC-T / LC-I / PSNR / SSIM / LPIPS）</li><li><b>理解</b>：MME、MMBench、MMMU、MIRA（546 題 visual CoT）</li><li>Baseline：SD3-medium、FLUX.1-dev、GPT-4o；UMM：Janus-Pro、Emu3、Show-o2、BAGEL；reasoning UMM：Uni-CoT</li><li>推論：greedy sampling，每個 prompt 一張圖</li></ul>
+      <div class="cite">§3, p.6；App. A.2, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 · GenEval</div>
+      <h2 class="head">Overall 0.88，Attribute Binding 比 BAGEL 高 15 個百分點</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Two Obj.</th><th class="num">Counting</th><th class="num">Position</th><th class="num">Attr. Bind.</th><th class="num">Overall</th></tr></thead><tbody><tr><td>GPT-4o</td><td class="num">0.92</td><td class="num">0.85</td><td class="num">0.75</td><td class="num">0.61</td><td class="num">0.84</td></tr><tr><td>Janus-Pro</td><td class="num">0.89</td><td class="num">0.59</td><td class="num">0.79</td><td class="num">0.66</td><td class="num">0.80</td></tr><tr><td>BAGEL（base）</td><td class="num">0.94</td><td class="num">0.80</td><td class="num">0.64</td><td class="num">0.63</td><td class="num">0.81</td></tr><tr><td>Uni-CoT</td><td class="num">0.96</td><td class="num">0.84</td><td class="num">0.57</td><td class="num">0.71</td><td class="num">0.83</td></tr><tr class="win"><td>LARC（ours）</td><td class="num best">0.98</td><td class="num best">0.86</td><td class="num best">0.77</td><td class="num best">0.78</td><td class="num best">0.88</td></tr></tbody></table>
+      <ul class="bullets"><li>最大增益在 Attr. Binding（0.63 → 0.78）—— 需要同時處理視覺實現與組合規劃</li><li>Position 0.77，僅次於 Janus-Pro 的 0.79</li></ul>
+      <div class="cite">Table 1, p.4（節選欄位）；§3.1, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 · Prompt following</div>
+      <h2 class="head">DPG-Bench 與 OneIG-Bench 全面領先</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">DPG Relation</th><th class="num">DPG Overall</th><th class="num">OneIG Long</th><th class="num">OneIG Overall</th></tr></thead><tbody><tr><td>Show-o2</td><td class="num">91.81</td><td class="num">86.14</td><td class="num">0.807</td><td class="num">0.811</td></tr><tr><td>BAGEL（base）</td><td class="num">90.82</td><td class="num">85.07</td><td class="num">0.759</td><td class="num">0.764</td></tr><tr><td>Uni-CoT</td><td class="num">91.09</td><td class="num">85.56</td><td class="num">0.776</td><td class="num">0.790</td></tr><tr class="win"><td>LARC（ours）</td><td class="num best">94.70</td><td class="num best">90.04</td><td class="num best">0.840</td><td class="num best">0.866</td></tr></tbody></table>
+      <ul class="bullets"><li>DPG-Bench Overall：85.07 → 90.04（+5.8%）</li><li>OneIG-Bench Overall：0.764 → 0.866（論文寫 +10.2%p）；對 Uni-CoT 也多約 7.6 點</li><li>所有子類別（prompt 類型、長短）都有提升</li></ul>
+      <div class="cite">Table 2–3, p.5（節選欄位）；§3.1, p.6；§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 · 編輯與理解</div>
+      <h2 class="head">不只生成：編輯更準、理解也沒退</h2>
+      <div class="two-col"><div><table class="bench"><thead><tr><th>CompBench</th><th class="num">BAGEL</th><th class="num">LARC</th></tr></thead><tbody><tr><td>LC-T ↑</td><td class="num">20.434</td><td class="num">22.509</td></tr><tr><td>LC-I ↑</td><td class="num">0.842</td><td class="num">0.880</td></tr><tr><td>PSNR ↑</td><td class="num">24.370</td><td class="num">25.710</td></tr><tr><td>SSIM ↑</td><td class="num">0.917</td><td class="num">0.953</td></tr><tr><td>LPIPS ↓</td><td class="num">0.069</td><td class="num">0.049</td></tr></tbody></table><p class="note">Table 4, p.7</p></div><div><table class="bench"><thead><tr><th>理解</th><th class="num">BAGEL</th><th class="num">Uni-CoT</th><th class="num">LARC</th></tr></thead><tbody><tr><td>MME</td><td class="num">1687.0</td><td class="num">1691.7</td><td class="num">1725.3</td></tr><tr><td>MMB</td><td class="num">85.0</td><td class="num">85.4</td><td class="num">88.1</td></tr><tr><td>MMMU</td><td class="num">55.3</td><td class="num">55.5</td><td class="num">56.2</td></tr><tr><td>MIRA</td><td class="num">7.5</td><td class="num">10.6</td><td class="num">11.7</td></tr></tbody></table><p class="note">Table 5, p.7</p></div></div>
+      <ul class="bullets"><li>最大的理解增益在 MIRA（7.5 → 11.7），這個 benchmark 需要多步 visual CoT</li><li>MME / MMB 也上升 → 加了 latent 推理訓練沒有犧牲原本的感知能力</li></ul>
+      <div class="cite">Table 4–5, p.7；§3.1–3.2, p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 · Test-time scaling</div>
+      <h2 class="head">latent 數 1 → 10：三個任務都單調上升，每個預算都勝 best-of-N</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.3rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1：紅 = 增加 latent 數，藍 = BAGEL best-of-N（同樣橫軸數目）；左到右為影像生成、影像編輯（CLIP）、visual reasoning（p.2）</figcaption></figure>
+      <table class="bench"><thead><tr><th>每張耗時（A100, bs=1）</th><th class="num">1</th><th class="num">4</th><th class="num">10</th></tr></thead><tbody><tr><td>BAGEL + Best-of-N（N 張）</td><td class="num">46.5 s</td><td class="num">187.1 s</td><td class="num">469.0 s</td></tr><tr class="win"><td>LARC（L 個 latent）</td><td class="num best">46.8 s</td><td class="num best">47.0 s</td><td class="num best">48.0 s</td></tr></tbody></table>
+      <div class="cite">Figure 1, p.2；§3.3, p.7；Table 11, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">機制 ★ 為什麼 work</div>
+      <p class="big">增益來自<b>推理的空間</b>，而不只是「多想一點」：同一個 base 上，<b>token-level CoT 在 MIRA 反而退步</b>（7.5 → 7.1），只做 SFT 的 latent reasoning 就到 9.7。latent 推理只延長 understanding expert 的一小段 forward，所以 10 個 latent 只多 1.2 秒；best-of-N 則要整個 generation expert 重跑 N 次。</p>
+      <div class="cite">Table 6, p.8；Table 11 + App. D.1, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 ①</div>
+      <h2 class="head">推理空間：離散 vs 連續（皆為 Stage 1，同一 base）</h2>
+      <table class="bench"><thead><tr><th>Method</th><th>空間</th><th class="num">T2I</th><th class="num">Comp. gen</th><th class="num">Editing</th><th class="num">Visual reas.</th></tr></thead><tbody><tr><td>Baseline（BAGEL）</td><td>—</td><td class="num">0.81</td><td class="num">0.76</td><td class="num">20.43</td><td class="num">7.5</td></tr><tr><td>Token-level CoT</td><td>離散</td><td class="num">0.82</td><td class="num">0.79</td><td class="num">20.81</td><td class="num">7.1</td></tr><tr class="win"><td>Latent（Stage 1）</td><td>連續</td><td class="num best">0.83</td><td class="num best">0.81</td><td class="num best">21.46</td><td class="num best">9.7</td></tr></tbody></table>
+      <ul class="bullets"><li>四個 benchmark 全部是 latent 勝；visual reasoning +2.6、editing LC-T +0.65</li><li>token-level CoT 在 visual reasoning 甚至低於 baseline → 作者解讀為離散推理承受 modality gap</li></ul>
+      <p class="note">T2I = GenEval、Comp. gen = OneIG-Bench、Editing = CompBench LC-T、Visual reas. = MIRA。表中 Baseline 列在原表標為 Discrete。</p>
+      <div class="cite">Table 6, p.8；§3.4, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 ②</div>
+      <h2 class="head">Interleaved vs Naive，以及兩個訓練階段</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">T2I</th><th class="num">Comp. gen</th><th class="num">Editing</th><th class="num">Visual reas.</th></tr></thead><tbody><tr><td>Baseline（BAGEL）</td><td class="num">0.81</td><td class="num">0.76</td><td class="num">20.43</td><td class="num">7.5</td></tr><tr><td>Naive latent（無 text span）</td><td class="num">0.83</td><td class="num">0.79</td><td class="num">21.02</td><td class="num">9.9</td></tr><tr><td>Interleaved（Stage 1）</td><td class="num">0.83</td><td class="num">0.81</td><td class="num">21.46</td><td class="num">9.7</td></tr><tr class="win"><td>Interleaved（Stage 1 + 2）</td><td class="num best">0.88</td><td class="num best">0.87</td><td class="num best">22.51</td><td class="num best">11.7</td></tr></tbody></table>
+      <ul class="bullets"><li>Interleaved 對 Naive：comp. gen +0.02、editing +0.44，但 visual reasoning 略低（9.7 vs 9.9）</li><li><b>RL 才是大頭</b>：Stage 2 讓 GenEval 0.83 → 0.88、MIRA 9.7 → 11.7</li><li>作者對 interleaved 的解釋：text span 保住 RL 需要的 rollout 多樣性</li></ul>
+      <div class="cite">Table 7–8, p.8–9；§3.4, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 ③</div>
+      <h2 class="head">沒有 diversity reward，latent 會坍縮成同一個向量</h2>
+      <table class="bench"><thead><tr><th>λ<sub>div</sub></th><th class="num">Cos. Sim.</th><th class="num">GenEval</th><th class="num">OneIG</th><th class="num">MIRA</th></tr></thead><tbody><tr><td>0.0</td><td class="num">0.97</td><td class="num">0.83</td><td class="num">0.81</td><td class="num">9.8</td></tr><tr><td>0.05</td><td class="num">0.87</td><td class="num">0.85</td><td class="num">0.84</td><td class="num">10.9</td></tr><tr class="win"><td>0.1（ours）</td><td class="num">0.79</td><td class="num best">0.88</td><td class="num best">0.87</td><td class="num best">11.7</td></tr><tr><td>0.2</td><td class="num">0.71</td><td class="num">0.85</td><td class="num">0.85</td><td class="num">11.4</td></tr><tr><td>0.5</td><td class="num">0.65</td><td class="num">0.82</td><td class="num">0.82</td><td class="num">10.6</td></tr></tbody></table>
+      <ul class="bullets"><li>λ=0：latent 之間 cosine 0.97，多步推理等於一步</li><li>多樣性太高（λ=0.5）也會降分 —— 是 trade-off，不是越多越好</li></ul>
+      <div class="cite">Table 12, p.19；App. D.2, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">質性結果</div>
+      <h2 class="head">「looking front」：BAGEL best-of-N vs LARC（N = L = 1 / 4 / 10）</h2>
+      <figure class="full" style="max-height:54vh; margin-top:.3rem;"><img src="figures/figure3_p20_crop.jpg" alt=""><figcaption>Figure 3：每列由上到下為 N = L = 1、4、10；LARC 隨 latent 增加正確轉成正面朝向（p.20）</figcaption></figure>
+      <div class="cite">Figure 3, App. D.3, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自述 + 編者觀察</h2>
+      <ul class="bullets"><li><b>只驗連續生成 head</b>：框架目前建在 flow-matching image module 上；離散生成的 UMM 還沒驗（作者自述）</li><li><b>推論額外成本</b>：interleaved 軌跡比 base UMM 多一些延遲，作者提到可用 distillation 或自適應 latent 數改善（作者自述）</li><li><b>單一 base</b>（編者觀察）：所有結果都在 BAGEL 上，沒有跨架構驗證</li><li><b>統計強度</b>（編者觀察）：主表都是單一數值、無 seed 方差；消融中 Naive 在 MIRA 反勝 interleaved</li><li><b>reward 是近似</b>（編者觀察）：期望非負是對真實 likelihood 成立；實作是單樣本 flow-matching loss 差</li></ul>
+      <div class="cite">App. E, p.22；Table 7, p.8；App. C.2, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">對做圖像生成 / UMM 的工程師（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li>想給 UMM 加「思考」時，先別直接上文字 CoT：本文同一 base 上 token CoT 對 visual reasoning 有負效果</li><li>Information-gain reward 很好移植：任何 flow / diffusion head 都能用「有 / 無條件的 loss 差 + 共用 noise」當自獎勵</li><li>test-time 加算力的便宜方案：延長 understanding 側幾步 forward（+1.2 s / 10 步），遠比 best-of-N 重跑生成划算</li><li>做 latent RL 一定要加防坍縮項並監控 latent 之間的 cosine 相似度（λ=0 時 0.97）</li></ul>
+      <p class="note">此頁為編者推論，已與論文內容分開標示。</p>
+      <div class="cite">綜合 §2–3、App. C–D</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">核心診斷與 reward 定義</h2>
+      <div class="hl"><p class="hl__en">We argue that this failure stems from a fundamental modality mismatch: <b>reasoning is performed in a discrete token space, whereas image generation operates in a continuous latent space</b>.</p><p class="hl__zh">我們認為失敗源自根本的模態錯配：<b>推理在離散 token 空間進行，影像生成卻在連續 latent 空間運作</b>。<span class="hl__src">§1, p.1</span></p></div>
+      <div class="hl"><p class="hl__en">Equation 1 assigns reward exactly when the trace <b>raises likelihood of the target image</b> in reference model, and zero reward when the trace carries no information beyond the context c.</p><p class="hl__zh">式 (1) 只在推理軌跡<b>提高參考模型對目標影像的似然</b>時給獎勵；若軌跡沒有帶來 context c 以外的資訊，獎勵為零。<span class="hl__src">§2.4, p.5</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">估計技巧與效率來源</h2>
+      <div class="hl"><p class="hl__en">Crucially, the constant C(x) cancels exactly when the two flow-matching losses are evaluated under <b>the same noise sample</b> η ∼ N(0, I) and the same time step t.</p><p class="hl__zh">關鍵在於：當兩個 flow-matching loss 在<b>同一個 noise 樣本</b> η 與同一個時間步 t 下評估時，常數 C(x) 會精確相消。<span class="hl__src">App. C.2, p.18</span></p></div>
+      <div class="hl"><p class="hl__en">Latent reasoning extends only <b>a small portion of the forward pass through the understanding expert</b>, whereas best-of-N requires repeated invocation of the full generation expert.</p><p class="hl__zh">latent 推理只延長 <b>understanding expert 的一小段 forward</b>；best-of-N 則需要反覆呼叫整個 generation expert。<span class="hl__src">App. D.1, p.19</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 演算法</div>
+      <h2 class="head">Algorithm 1：Self-Evolving RL of LARC</h2>
+      <ol class="numbered"><li>輸入：凍結的 π<sub>ref</sub> = M<sub>SFT</sub>、資料集 D、超參 G、ε<sub>clip</sub>、β、λ<sub>div</sub>；初始化 π<sub>θ</sub> ← π<sub>ref</sub></li><li>每個 RL step：π<sub>θold</sub> ← π<sub>θ</sub>；取 (c, x) ∼ D，rollout {τ<sub>i</sub>}<sub>i=1..G</sub> ∼ π<sub>θold</sub>(· | c)</li><li>r<sub>IG</sub>(τ<sub>i</sub>) ← L<sup>ref</sup><sub>flow</sub>(x, c) − L<sup>ref</sup><sub>flow</sub>(x, c, h(τ<sub>i</sub>))（shared noise）</li><li>R<sub>i</sub> ← r<sub>IG</sub>(τ<sub>i</sub>) + λ<sub>div</sub> · r<sub>div</sub>(τ<sub>i</sub>)；A<sub>i</sub> ← (R<sub>i</sub> − μ<sub>R</sub>) / (σ<sub>R</sub> + ε)</li><li>最大化 J<sub>GRPO</sub>(θ) = E[ (1/G) Σ<sub>i</sub> min(ρ<sub>i</sub>A<sub>i</sub>, clip(ρ<sub>i</sub>, 1−ε<sub>clip</sub>, 1+ε<sub>clip</sub>)A<sub>i</sub>) − β·KL(π<sub>θ</sub> || π<sub>ref</sub>) ]</li><li>回傳 M<sub>LARC</sub> ← π<sub>θ</sub></li></ol>
+      <div class="cite">Algorithm 1 + eq.(9), App. C.3, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">讓推理和生成住在同一個空間</h2>
+      <p class="end__sub">來源：arXiv 2610.42149 · NeurIPS 2026 · Latent Reasoning in Continuous Space for Unified Multimodal Models</p>
+      <div class="end__next">明日預告：週三 · 影片生成 / 時序模型</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
