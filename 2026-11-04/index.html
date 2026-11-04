@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rolling Forcing — Autoregressive Long Video Diffusion in Real Time (ICLR 2026)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週三 · 影片生成 / 時序模型</div>
+      <h1 class="title">Rolling Forcing：讓串流影片生成幾分鐘都不漂</h1>
+      <div class="sub">Rolling Forcing: Autoregressive Long Video Diffusion in Real Time</div>
+      <div class="authors">Kunhao Liu, Wenbo Hu†, Jiale Xu, Ying Shan, Shijian Lu†（NTU · Tencent PCG ARC Lab）</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv 2509.25161 · 2025-09-29</span></div>
+      <figure class="full" style="max-height:24vh; margin-top:.3rem;"><img src="figures/figure1_p1.jpg" alt=""><figcaption>Figure 1：單 GPU 16 fps 即時串流，0 → 2 分鐘幾乎不累積誤差（p.1）</figcaption></figure>
+      <p class="note">Venue：ICLR 2026 官方 virtual poster 頁（iclr.cc/virtual/2026/poster/10010326）與 mlanthology iclr/2026；arXiv v1 PDF 本身無 venue 頁尾 · Reviewer：OpenReview forum IAyzXjbfwo，JSON HTTP 403 未取得</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Self Forcing 這類即時自回歸影片模型，一幀接一幀<b>嚴格因果</b>地生成，誤差會一路往下傳。Rolling Forcing 改成<b>一次對 T 幀聯合去噪</b>（噪聲逐幀遞增、窗內雙向注意力），再把<b>開頭幾幀的 KV 當 attention sink</b> 固定全域外觀，並用<b>不重疊梯度窗</b>做 DMD 蒸餾。Wan2.1-1.3B 上 30 秒畫質漂移 ΔDrift <b>1.66 → 0.01</b>，仍維持 15.79 FPS / 0.76 s。</p>
+      <div class="cite">Abstract, p.1；Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">串流影片生成：要即時、要依序、還要長時間不壞</h2>
+      <ul class="bullets"><li>世界模型、neural game engine、XR 需要<b>逐幀即時輸出</b>：幀一生成就被播放或被下游消費，不能事後回頭改</li><li>CausVid / Self Forcing 把雙向教師蒸餾成少步數的因果生成器，短片一致性好</li><li>但<b>嚴格逐幀因果</b>：每幀都繼承前一幀的瑕疵，小誤差在長 horizon 累積成色偏、偽影、動作失真</li><li>Self Forcing 雖已用自生成 history 訓練緩解 exposure bias，<b>超出訓練時間窗後</b>仍嚴重累積誤差</li></ul>
+      <div class="cite">§1, p.2；§3.1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">前人路線</div>
+      <h2 class="head">四種自回歸範式，各缺一角</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.3rem;"><img src="figures/figure2_p2.jpg" alt=""><figcaption>Figure 2：(a) History corruption 犧牲一致性；(b) Planning 不能依序串流；(c) Self Forcing 長片誤差累積；(d) Rolling Forcing 三者兼顧（p.2）</figcaption></figure>
+      <table class="bench"><thead><tr><th>路線</th><th>代表</th><th>問題</th></tr></thead><tbody><tr><td>History corruption</td><td>Diffusion Forcing、SkyReels-V2</td><td>往 history 加噪 → 失去乾淨參考，時間一致性變差</td></tr><tr><td>Planning generation</td><td>先生遠處關鍵幀再補幀</td><td>破壞依序輸出，無法即時串流</td></tr><tr><td>Distilled causal</td><td>CausVid、Self Forcing</td><td>依序、一致，但誤差逐幀累積</td></tr></tbody></table>
+      <div class="cite">Fig. 2, p.2；§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">三個設計</h2>
+      <ol class="numbered"><li><b>Rolling-window 聯合去噪</b>：一次 forward 處理多個連續幀、噪聲逐幀遞增、窗內雙向注意力 → 幀與幀在定稿前互相修正，且每次 forward 仍吐出一張乾淨幀</li><li><b>Attention sink 進串流影片</b>：保留開頭幀的 KV 當全域錨點，並<b>動態套 RoPE</b> 讓它與當前幀維持固定相對距離</li><li><b>高效訓練</b>：只在<b>不重疊</b>、合起來覆蓋全片的窗上算梯度，條件於自生成 history → 在加長的去噪窗上也能做少步數 DMD 蒸餾，同時緩解 exposure bias</li></ol>
+      <p class="note">與同期 StreamDiT / APT2 的差異：不改架構、只訓 3,000 步、不需要任何影片資料、只用 5 秒片段訓練就能推到數分鐘；基於開源 Wan2.1（§2, p.4）。</p>
+      <div class="cite">§1, p.3；§2, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景</div>
+      <h2 class="head">Exposure bias 與 DMD：為什麼蒸餾路線能用自生成 history</h2>
+      <div class="formula">p(x<sup>1:N</sup>) = Π<sub>i</sub> p(x<sup>i</sup> | x<sup>&lt;i</sup>)　　（每個條件分佈用擴散建模；「幀」實際是 chunk）</div>
+      <ul class="bullets"><li>Teacher Forcing 條件於 GT 乾淨幀、Diffusion Forcing 條件於加噪 GT → 訓練看 GT、推論看自己 = <b>exposure bias</b></li><li>去噪 loss 需要「模型預測 + 對應 GT」成對資料，條件在自生成 history 上時沒有 GT，所以從頭訓很難修</li></ul>
+      <div class="formula">∇<sub>θ</sub>L<sub>DMD</sub> ≈ −E<sub>t</sub>[ ( s<sub>data</sub>(Ψ(G<sub>θ</sub>(ε),t),t) − s<sub>gen</sub>(Ψ(G<sub>θ</sub>(ε),t),t) ) · dG<sub>θ</sub>(ε)/dθ ]</div>
+      <div class="takeaway">DMD 只比對分佈（reverse KL），<b>不需要 GT 影片</b> → 可以直接在自生成的 history 上訓練。Rolling Forcing 沿用這點，把它擴展到整個去噪窗。</div>
+      <div class="cite">§3.1, Eq.(1), p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① · Rolling window</div>
+      <h2 class="head">從「一幀一幀」到「一窗 T 幀一起滾」</h2>
+      <figure class="full" style="max-height:42vh; margin-top:.3rem;"><img src="figures/figure3_p5.jpg" alt=""><figcaption>Figure 3（T=4）：去噪窗內幀的噪聲逐幀遞增、彼此雙向注意；近期幀 KV = temporal context，開頭幀 KV = global context；紅框 = 訓練時才算梯度的窗（p.5）</figcaption></figure>
+      <div class="formula">p<sub>θ</sub>( x<sup>i:i+T−1</sup><sub>t<sub>0:T−1</sub></sub> | x<sup>i:i+T−1</sup><sub>t<sub>1:T</sub></sub>, x<sup>&lt;i</sup><sub>0</sub> ) = Ψ( G<sub>θ</sub>( x<sup>i:i+T−1</sup><sub>t<sub>1:T</sub></sub>, t<sub>1:T</sub>, x<sup>&lt;i</sup><sub>0</sub> ), t<sub>0:T−1</sub> )</div>
+      <div class="cite">§3.2, Eq.(2), p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① · Rolling window</div>
+      <h2 class="head">怎麼滾、為什麼放得進一張 GPU</h2>
+      <ul class="bullets"><li>窗長 L<sub>win</sub> = 去噪步數 T；第 i 幀下一步的噪聲等級 = 第 i−1 幀現在的噪聲等級 → 窗可以無限往前滾</li><li>每滾一次：最前面那幀變乾淨輸出，尾端補一張純高斯噪聲 → <b>每次 forward 吐一幀</b>，吞吐量跟逐幀方法同級</li><li>窗內雙向、窗對 history KV 仍是因果 → 只放寬<b>相鄰幀</b>之間的因果，不破壞依序輸出</li><li>痛點：一般影片擴散 T ≈ 50，窗太大；FIFO 類要多 GPU、或把 T 壓到 ≈ 30</li><li>解法：DMD 蒸餾把 T 降到 <b>5</b>（每幀 = 3 個 latent frame 的 chunk → 窗 15 latent frames）</li></ul>
+      <div class="cite">§3.2, p.5；§4.1, p.7；App. A, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ② · 兩層 context</div>
+      <h2 class="head">Temporal context 管短期，Global context 管長期</h2>
+      <div class="two-col"><div><h2 class="head">Temporal context（L<sub>tem</sub>=3）</h2><ul class="bullets"><li>只留最近 L<sub>tem</sub> 個乾淨幀的 KV，避免 cache 隨片長平方成長 / OOM</li><li>只靠它 → 曝光、色調、白平衡這類<b>長程屬性</b>會慢慢漂</li><li>更新 KV 時只看近期幀，不看 global</li></ul></div><div><h2 class="head">Global context（L<sub>glo</sub>=3）</h2><ul class="bullets"><li>永久保留<b>開頭 L<sub>glo</sub> 幀</b>的 KV，類比 StreamingLLM 的 attention sink</li><li>L<sub>tem</sub> + L<sub>glo</sub> + L<sub>win</sub> = 3 + 3 + 15 = 21 = 雙向教師的序列長度</li><li>過期的 temporal 幀丟掉 → <b>記憶體恆定</b></li></ul></div></div>
+      <div class="takeaway">總注意力窗長度刻意對齊教師模型 → 學生看到的 token 數跟教師訓練時一樣多。</div>
+      <div class="cite">§3.3, p.6；App. A, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ② · Dynamic RoPE</div>
+      <h2 class="head">Sink 幀要「跟著走」：先存 key、用時才套 RoPE</h2>
+      <ul class="bullets"><li>直接 cache 開頭幀：隨 i 增加，它與當前幀的相對距離超出 RoPE 訓練範圍 → 偽影</li><li>做法：cache <b>未套 RoPE</b> 的 key；生成時把 sink 幀放在索引 <b>i−L<sub>tem</sub>−L<sub>glo</sub> : i−L<sub>tem</sub>−1</b>，即緊貼在 temporal context 之前</li><li>結果：sink 對去噪幀的相對位置<b>永遠固定</b></li></ul>
+      <table class="bench"><thead><tr><th>Sink 索引放哪</th><th>現象（App. D）</th></tr></thead><tbody><tr class="win"><td class="best">緊貼 temporal context 之前（採用）</td><td class="best">一致、偽影最少</td></tr><tr><td>固定 0:L<sub>glo</sub>−1</td><td>強烈「跳回首幀」（Fig. 7）</td></tr><tr><td>與 temporal context 重疊</td><td>閃爍：分不清 global / temporal</td></tr><tr><td>放進去噪窗內</td><td>坍縮成靜態畫面</td></tr><tr><td>放在去噪窗之後</td><td>動作不自然，往錯位錨點收斂</td></tr></tbody></table>
+      <div class="cite">§3.3, p.6；App. D, p.15–16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ③ · 訓練</div>
+      <h2 class="head">DMD 需要整段乾淨影片：天真做法會 OOM</h2>
+      <div class="formula">SF（Eq.3）：x̂<sup>i</sup><sub>0</sub> = G<sub>θ</sub>(x<sup>i</sup><sub>t<sub>j</sub></sub>, t<sub>j</sub>, x<sup>&lt;i</sup><sub>0</sub>),　j ~ U{0..T−1}</div>
+      <div class="formula">天真 RF（Eq.4）：取每個窗的第 j 幀 → query 大 T 倍 → 80GB GPU 都 OOM</div>
+      <div class="formula">RF（Eq.5）：x̂<sup>1:N</sup><sub>0</sub> = { G<sub>θ</sub>(x<sup>i:i+T−1</sup><sub>t<sub>1:T</sub></sub>, t<sub>1:T</sub>, x<sup>&lt;i</sup><sub>0</sub>) | i ≡ j (mod T) }</div>
+      <ul class="bullets"><li>只在 i ≡ j (mod T) 的窗開梯度：這些窗<b>互不重疊、合起來覆蓋所有幀</b></li><li>需梯度的 forward 次數從 N 降到 ⌈N/T⌉；其餘窗 no-grad 只負責產生自生成 history</li><li>輸入的 noisy 幀由模型自己生成 → 同時緩解 exposure bias</li></ul>
+      <div class="cite">§3.4, Eq.(3)–(5), p.6–7；Alg. 1, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ③ · 訓練</div>
+      <h2 class="head">Mixed training：用 Self Forcing 目標當正則</h2>
+      <ul class="bullets"><li>Eq.5 拼出的影片裡，各幀來自<b>不同噪聲等級</b>（t<sub>1:T</sub>），清晰度不一 → DMD 看到「不自然的影片」與怪異運鏡</li><li>解法：每步以 <b>1/2 機率</b>在 SF 目標（Eq.3）與 RF 目標（Eq.5）間切換</li><li>SF 目標扮演正則，讓運鏡自然；<b>推論只用 Rolling Forcing</b>（Alg. 2）</li><li>拿掉 SF 訓練是所有 ablation 中一致性跌最多的（Subject 92.80 → 83.27）</li></ul>
+      <div class="takeaway">訓練窗的「混合噪聲拼接」本身是個 distribution artifact；作者沒有硬修，而是用舊目標拉住它。</div>
+      <div class="cite">§3.4, p.7；Table 2, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實作</div>
+      <h2 class="head">設定一覽</h2>
+      <table class="bench"><thead><tr><th>項目</th><th>設定</th></tr></thead><tbody><tr><td>Base</td><td>Wan2.1-T2V-1.3B（5 s、16 FPS、832×480）</td></tr><tr><td>初始化</td><td>因果 mask + 16k ODE solution pairs；prompt 取自過濾並經 LLM 擴寫的 VidProM</td></tr><tr><td>去噪</td><td>T = 5，schedule [1000, 800, 600, 400, 200]；flow matching，shift k = 5</td></tr><tr><td>Chunk / 窗</td><td>每 chunk 3 latent frames；L<sub>win</sub>=15、L<sub>tem</sub>=3、L<sub>glo</sub>=3</td></tr><tr><td>訓練</td><td>3,000 steps、batch 8、N ∈ [21, 27] latent frames，DMD 算在最後 21 幀</td></tr><tr><td>Optimizer</td><td>AdamW；generator lr 1.5e-6、fake score lr 4.0e-7；fake score 更新 5 次才更新 generator 1 次</td></tr></tbody></table>
+      <p class="note">選 5 步而非 4 步：作者表示即使 5 步，速度仍持平甚至略快於 4 步的 Self Forcing（App. A）。</p>
+      <div class="cite">§4.1, p.7；App. A, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">評測協定</div>
+      <h2 class="head">怎麼量「漂移」</h2>
+      <ul class="bullets"><li>VBench 品質指標：temporal flickering、subject / background consistency、motion smoothness、aesthetic、imaging quality</li><li>200 條隨機 MovieGen prompt，所有方法統一生成 <b>30 s</b>、16 fps、832×480</li><li><b>ΔDrift</b> = 片頭 5 秒與片尾 5 秒 imaging quality 的絕對差 → 越大代表誤差累積越嚴重</li><li>Latency 量的是<b>穩定速度後</b>，不是首幀延遲（與前人不同）</li></ul>
+      <div class="cite">§4.1, p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果</div>
+      <h2 class="head">Table 1：同為 1.3B，漂移幾乎歸零</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">FPS↑</th><th class="num">Lat(s)↓</th><th class="num">Subj</th><th class="num">Back</th><th class="num">Aes</th><th class="num">Img</th><th class="num">ΔDrift↓</th></tr></thead><tbody><tr><td>SkyReels-V2（DF）</td><td class="num">0.49†</td><td class="num">112†</td><td class="num">89.23</td><td class="num">93.45</td><td class="num">61.55</td><td class="num">62.90</td><td class="num">5.59</td></tr><tr><td>MAGI-1（4.5B）</td><td class="num">0.19†</td><td class="num">282†</td><td class="num">90.86</td><td class="num">93.25</td><td class="num">59.91</td><td class="num">59.87</td><td class="num">2.15</td></tr><tr><td>CausVid</td><td class="num">15.38</td><td class="num">0.78</td><td class="num">87.99</td><td class="num">89.99</td><td class="num">60.95</td><td class="num">66.38</td><td class="num">2.18</td></tr><tr><td>Self Forcing</td><td class="num">15.38</td><td class="num">0.78</td><td class="num">86.48</td><td class="num">90.29</td><td class="num">60.54</td><td class="num">68.68</td><td class="num">1.66</td></tr><tr class="win"><td><b>Rolling Forcing</b></td><td class="num best">15.79</td><td class="num best">0.76</td><td class="num best">92.80</td><td class="num best">93.71</td><td class="num best">62.39</td><td class="num best">70.75</td><td class="num best">0.01</td></tr></tbody></table>
+      <div class="scorebox"><span class="score score--hi">ΔDrift 0.01</span><span class="score score--hi">Subj +6.32 vs SF</span><span class="score">15.79 FPS</span></div>
+      <p class="note">† 數字取自 Self Forcing 論文。Temporal flickering / Motion smoothness 未列：MAGI-1 在這兩項最高（98.21 / 99.20），RF 為 97.61 / 98.70。</p>
+      <div class="cite">Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">質性結果</div>
+      <h2 class="head">兩分鐘長片：baseline 色偏、偽影、動作崩</h2>
+      <figure class="full" style="max-height:54vh; margin-top:.3rem;"><img src="figures/figure4_p8.jpg" alt=""><figcaption>Figure 4：t = 0 → 120 s 對比；Rolling Forcing 維持高保真與一致，其他方法明顯退化（p.8）</figcaption></figure>
+      <div class="cite">Fig. 4, p.8；§4.2, p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 為什麼 work</div>
+      <p class="big">漂移的根源是<b>誤差只能往下游傳、無法回頭修</b>。Rolling window 讓每一幀在定稿前，會在窗內不同位置被去噪 T 次、每次都和左右鄰居雙向對齊 —— 誤差在提交前就被<b>鄰居互相校正</b>。而色調、曝光這類「慢變量」沒有鄰居能救，只能靠一個<b>相對位置固定的全域錨點</b>（attention sink + dynamic RoPE）拉住。</p>
+      <p class="lead">證據：同一組權重只換成逐幀推論，ΔDrift 0.01 → 5.53；拿掉 sink，ΔDrift → 4.63、Subject 跌到 83.22。</p>
+      <div class="cite">§1, p.2；§3.2–3.3, p.5–6；Table 2, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h2 class="head">Table 2：三個設計各自不可少</h2>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">Temp</th><th class="num">Subj</th><th class="num">Back</th><th class="num">Mot</th><th class="num">Aes</th><th class="num">Img</th><th class="num">ΔDrift↓</th></tr></thead><tbody><tr><td>w/o RF inference</td><td class="num">95.45</td><td class="num">86.01</td><td class="num">89.94</td><td class="num">97.36</td><td class="num">57.59</td><td class="num">65.19</td><td class="num">5.53</td></tr><tr><td>w/o RF training</td><td class="num">95.91</td><td class="num">87.50</td><td class="num">90.86</td><td class="num">98.05</td><td class="num">60.41</td><td class="num">69.24</td><td class="num">0.89</td></tr><tr><td>w/o SF training</td><td class="num">90.83</td><td class="num">83.27</td><td class="num">88.14</td><td class="num">95.63</td><td class="num">55.30</td><td class="num">62.00</td><td class="num">1.62</td></tr><tr><td>w/o attention sink</td><td class="num">97.53</td><td class="num">83.22</td><td class="num">87.99</td><td class="num">98.56</td><td class="num">58.99</td><td class="num">67.30</td><td class="num">4.63</td></tr><tr class="win"><td><b>Ours full</b></td><td class="num best">97.61</td><td class="num best">92.80</td><td class="num best">93.71</td><td class="num best">98.70</td><td class="num best">62.39</td><td class="num best">70.75</td><td class="num best">0.01</td></tr></tbody></table>
+      <ul class="bullets"><li><b>RF inference</b>：同權重換逐幀推論 → 漂移最大（5.53）；<b>RF training</b>：全程逐幀訓練 + 推論 → 30 s 內就看得到累積</li><li><b>SF training</b>：運鏡不自然 → 一致性與畫質全面下滑；<b>attention sink</b>：長程漂移 4.63</li></ul>
+      <div class="cite">Table 2 & §4.3, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · 視覺</div>
+      <h2 class="head">30 秒內各 ablation 的崩壞樣態</h2>
+      <figure class="full" style="max-height:54vh; margin-top:.3rem;"><img src="figures/figure5_p9.jpg" alt=""><figcaption>Figure 5：t = 0 / 15 / 30 s；拿掉 rolling window、mixed training 或 attention sink 都會出現明顯漂移（p.9）</figcaption></figure>
+      <div class="cite">Fig. 5, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">完整 VBench</div>
+      <h2 class="head">946 prompts / 16 指標：品質大幅領先，但不是全面勝</h2>
+      <table class="bench"><thead><tr><th>Metric</th><th class="num">CausVid</th><th class="num">Self Forcing</th><th class="num">Rolling Forcing</th></tr></thead><tbody><tr><td>Quality Score</td><td class="num">80.89</td><td class="num">81.39</td><td class="num">84.08</td></tr><tr><td>Subject Consistency</td><td class="num">89.50</td><td class="num">88.61</td><td class="num">94.80</td></tr><tr><td>Imaging Quality</td><td class="num">65.30</td><td class="num">68.98</td><td class="num">72.31</td></tr><tr><td>Dynamic Degree</td><td class="num">63.88</td><td class="num">68.05</td><td class="num">60.14</td></tr><tr><td>Human Action</td><td class="num">81.00</td><td class="num">83.00</td><td class="num">73.00</td></tr><tr><td>Semantic Score</td><td class="num">65.85</td><td class="num">69.17</td><td class="num">69.78</td></tr></tbody></table>
+      <div class="takeaway">我們的觀察：一致性變好的同時，<b>Dynamic Degree 與 Human Action 掉了</b> —— 錨點與窗內互修可能也讓畫面「更保守」。論文正文沒有討論這個 trade-off。</div>
+      <div class="cite">App. B, Tables 3–4, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">延伸應用</div>
+      <h2 class="head">互動串流：中途換 prompt</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.3rem;"><img src="figures/figure6_p15.jpg" alt=""><figcaption>Figure 6：串流中把 dog → cat、boy → girl 等；實作只要丟掉舊 prompt 的 cross-attention cache、改用新 prompt（p.15）</figcaption></figure>
+      <div class="cite">App. C, Fig. 6, p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自承 + 數據上看到的</h2>
+      <ul class="bullets"><li><b>沒有中段記憶</b>：離開 temporal context 的中間幀被丟掉，只剩開頭錨點 → 回到之前場景不會記得</li><li><b>訓練很吃記憶體</b>：加大的注意力窗 + DMD loss，可能限制擴到更大模型</li><li><b>互動延遲</b>：rolling window 會預先生成未來幀，使用者輸入要等窗滾過去才生效；作者建議互動時切回逐幀去噪的混合推論</li><li>（我們補充）只在 1.3B 上驗證；動態程度與人物動作分數低於 Self Forcing</li></ul>
+      <div class="cite">App. E, p.16；App. B, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀 · 給影像工程師</div>
+      <h2 class="head">可以帶走的三件事</h2>
+      <ol class="numbered"><li><b>「放寬局部因果」換穩定</b>：只在一個小窗內允許雙向、對 history 仍因果 —— 對任何逐步生成（影片、world model、甚至影像 tile 串流）都是便宜的穩定化手段</li><li><b>Attention sink 移植到視覺要處理位置編碼</b>：key 存 pre-RoPE、使用時重定位；放錯位置會出現跳幀、閃爍、靜止等截然不同的失敗模式</li><li><b>蒸餾是讓 rolling 可行的前提</b>：T 從 ~50 壓到 5，窗才塞得進單卡；DMD 不需 GT 影片，才能在自生成 history 上訓練</li></ol>
+      <div class="cite">§3.2–3.4, p.5–7；App. D, p.15–16</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">核心機制</h2>
+      <div class="hl"><p class="hl__en">Within each window, frames are connected by bidirectional attention and assigned progressively increasing noise levels. Such <b>mutual refinement corrects local errors before any frame is finalized</b>, thereby suppressing long-horizon drift.</p><p class="hl__zh">在每個窗內，幀之間以雙向注意力相連，並被指派逐幀遞增的噪聲等級。這種<b>互相修正讓局部誤差在任何一幀定稿前就被校正</b>，從而抑制長時間漂移。<span class="hl__src">§1, p.2</span></p></div>
+      <div class="hl"><p class="hl__en">We cache the key states of the global context frames before applying the RoPE transformation. During generation, we <b>dynamically apply RoPE</b> to these cached key states at the effective indices.</p><p class="hl__zh">我們在套用 RoPE 之前快取 global context 幀的 key；生成時再於有效索引位置上<b>動態套用 RoPE</b>。<span class="hl__src">§3.3, p.6</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">訓練取捨與局限</h2>
+      <div class="hl"><p class="hl__en">We sample a subset of <b>non-overlapping windows</b> to construct the predicted clean video. Gradient computation is performed only on these selected windows.</p><p class="hl__zh">我們抽樣一組<b>互不重疊的窗</b>來拼出預測的乾淨影片，只在這些窗上計算梯度。<span class="hl__src">§3.4, p.7</span></p></div>
+      <div class="hl"><p class="hl__en">Frames generated in the middle are discarded once they leave the temporal context. As a result, <b>the model retains no memory of mid-sequence content</b>.</p><p class="hl__zh">中段生成的幀一旦離開 temporal context 就被丟棄，因此<b>模型對序列中段內容沒有任何記憶</b>。<span class="hl__src">App. E, p.16</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 演算法</div>
+      <h2 class="head">Algorithm 1：Rolling Forcing Training（摘要）</h2>
+      <ol class="numbered"><li>初始化 KV cache 與前 T−1 幀的 noisy 狀態；抽 j ~ U{0..T−1}</li><li>對 i = 1..N：尾端補 x<sup>i+T−1</sup> ~ N(0, I)；依 §3.3 選 KV 並套 RoPE</li><li>若 i ≡ j (mod T)：<b>開梯度</b>算 x̂<sup>i:i+T−1</sup><sub>0</sub> = G<sub>θ</sub>(·)，加入輸出；否則 no-grad 前向</li><li>把 x̂<sup>i</sup><sub>0</sub> 的 KV 加入 cache；對 x̂<sup>i+1:i+T−1</sup><sub>0</sub> 重新加噪到 t<sub>1:T−1</sub>（Ψ）</li><li>迴圈結束後用 DMD loss（Eq.1）更新 θ；與 SF 目標 1:1 交替</li></ol>
+      <p class="note">推論（Alg. 2）相同流程但無梯度分支，每步只輸出 x̂<sup>i</sup><sub>0</sub>；影片開頭窗還含第一幀時不使用任何 context（App. A）。</p>
+      <div class="cite">Alg. 1, p.6；Alg. 2 & App. A, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 失敗案例</div>
+      <h2 class="head">Dynamic RoPE 放錯：影片跳回首幀</h2>
+      <figure class="full" style="max-height:46vh; margin-top:.3rem;"><img src="figures/figure7_p16.jpg" alt=""><figcaption>Figure 7：sink 用固定索引時，串流中畫面會突然重置成首幀（p.16）</figcaption></figure>
+      <div class="cite">App. D, Fig. 7, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">一窗一起滾，一錨定全片</h2>
+      <p class="end__sub">Rolling Forcing — Rolling Forcing: Autoregressive Long Video Diffusion in Real Time（ICLR 2026）· arXiv 2509.25161 · kunhao-liu.github.io/Rolling_Forcing_Webpage</p>
+      <div class="end__next">明日（週四）：計算加速 —— Attention、Kernel、硬體</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
