@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAEP · Modality-Aware Expert Pruning (NeurIPS 2026)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週五 · 模型壓縮 / 效率（量化 · 蒸餾 · Pruning）</div>
+      <h1 class="title">MAEP：依 modality 拆開評分的 MoE Expert Pruning</h1>
+      <div class="sub">Training-free · 一次 forward 算出重要性 · 文字分數保留、低注意力視覺分數剪除 · 全域跨層排名</div>
+      <div class="authors">Donggeun Kim · Nota Inc.</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">arXiv 2026-11-04</span></div>
+      <p class="note">論文：<i>Modality-Aware Expert Pruning for MoE-Based Multimodal Large Language Models</i> · arXiv 2611.05927 · 程式碼 github.com/nota-github/MAEP</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">MoE-MLLM 的 expert 佔模型 <b>93–94%</b>，卻全部得常駐記憶體。MAEP 發現同一個 expert 對文字與視覺 token 的角色不同，於是用 <b>ΔH</b> 分別評分：<b>text 高 → 保留、低注意力 vision 高 → 剪除</b>。50% expert 剪除、三個模型平均保留率 <b>91.2 / 88.3 / 86.7%</b>，皆優於 REAP 與 HC-SMoE。</p>
+      <div class="cite">Abstract, p.1；§6.2 Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 記憶體瓶頸</div>
+      <h2 class="head">每 token 只用 8/128 experts，但 expert 佔了 90% 以上的權重</h2>
+      <div class="scorebox"><span class="score score--hi">54 GB / ~58 GB</span><span class="score score--hi">93–94%</span><span class="score score--lo">~27 GB (47%)</span></div>
+      <ul class="bullets"><li>三個數字依序：BF16 的 expert 權重 / 總權重（InternVL3.5-30B-A3B、Qwen3-VL-30B-A3B）、expert 佔比、剪 50% expert 可省的 routed-expert 權重</li><li>Sparse routing 省的是<b>算力</b>，不是<b>常駐記憶體</b>：所有 expert 都得在 GPU 上</li><li>剪 50% 後 BF16 權重約低於單張 40 GB GPU 的名目容量，讓 58 GB 模型能上較小的卡</li></ul>
+      <div class="cite">Abstract / §1, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 前人缺陷</div>
+      <h2 class="head">現有 expert 壓縮把所有 token 當同一種</h2>
+      <ul class="bullets"><li>Merging（HC-SMoE 等）、pruning（REAP、DiEP 等）、分解/量化多為 text-only MoE LLM 設計，<b>統計量跨所有 token 一視同仁聚合</b></li><li>MoDES 同樣注意到 modality-dependent expert utility，但做法是 inference 時 skip expert——<b>expert 參數仍佔 GPU 記憶體</b></li><li>Vision token 本身高度冗餘；頻率式重要性可能被非關鍵 token 主導（§2.1, p.2）</li><li>MAEP 的定位：<b>永久剪除 routed experts</b>，用 modality 分解後的重要性決定誰走</li></ul>
+      <div class="takeaway">核心問句：shared expert pool 裡，expert 的重要性對 text 與 vision 是同一個排名嗎？</div>
+      <div class="cite">§1–2.2, p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">兩個元件，全程 training-free</h2>
+      <ol class="numbered"><li><b>ΔH（Delta-H Output）</b>：移除 expert j 並做 routing redistribution 後，MoE 層輸出的平方 L2 變化；可按 token 子集拆成 per-modality 分數</li><li><b>低注意力 vision token</b> 作為視覺端訊號：expert 排名跨資料集穩定，而 full / high-attention vision 不穩</li><li><b>非對稱組合 + 全域排名</b>：text 當保留訊號、low-attn vision 當剪除訊號，跨層一起排序剪最低分</li></ol>
+      <p class="note">只需小型校準集（預設 1K ShareGPT4V），一次 forward、無梯度、無權重更新（§1, p.2；§5, p.4）。</p>
+      <div class="cite">§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">動機 · 為什麼要 modality-aware</div>
+      <h2 class="head">Text 與 vision 的 expert 重要性排名幾乎不相關</h2>
+      <ul class="bullets"><li>同層以 ΔH 排名，text vs vision 的 Spearman ρ 在特定層落在 <b>−0.11 ~ 0.05</b>（§4.1, p.3–4；Appendix F）</li><li>移除 expert 時，LM-head 輸出分佈在 vision token 位置的偏移<b>最多是 text 位置的 29×</b>——模型對視覺端更敏感</li><li>直接量 KL 要 N×L 次 forward（InternVL3.5-30B-A3B：128×48 = <b>6,144</b> passes / 樣本）→ 改用 ΔH 當便宜的 proxy</li></ul>
+      <div class="takeaway">所以好的指標要同時：便宜、可按 modality 拆。</div>
+      <div class="cite">§4.1, p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 全貌</div>
+      <h2 class="head">Pipeline：拆 modality → 算 ΔH → 正規化 → 非對稱組合 → 全域剪</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure1_p4.jpg" alt=""><figcaption>Figure 1：MAEP pipeline。藍＝text 保留（+），橘＝低注意力 vision 剪除（−）（p.4）</figcaption></figure>
+      <div class="cite">§5 Figure 1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · ΔH 指標</div>
+      <h2 class="head">ΔH：移除 expert 後，剩下的 expert 吸收不了多少輸出變化？</h2>
+      <div class="formula">ΔH<sup>(l,j)</sup> = E<sub>x∼D</sub> [ (1/|x|) Σ<sub>h∈x</sub> || H<sub>MoE</sub><sup>(l)</sup>(h) − H<sub>MoE</sub><sup>(l,−j)</sup>(h) ||<sub>2</sub><sup>2</sup> ]　（Eq.2）</div>
+      <ul class="bullets"><li>expert j 的 router logit 被 mask，top-k 重選並重新正規化（redistribution）：其餘 expert 權重 w<sub>i</sub><sup>(−j)</sup> = w<sub>i</sub> / (1 − w<sub>j</sub> + w<sub>(k+1)</sub>)</li><li>ΔH 小 → 共同被啟用的 experts 能補上它 → <b>功能冗餘</b>，適合剪</li><li>用固定 top-k counterfactual（第 k+1 名不計算輸出），與 promotion 版本 mean ρ &gt; 0.98；一次 forward 以快取的 top-k 權重與 expert 輸出解析求出全部 counterfactual</li><li>限制：需要 top-k 且 k ≥ 2；含 shared expert 的模型只對 routed experts 評分與剪除</li></ul>
+      <div class="cite">§5.1, p.5；§5 Scope, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 為什麼是 ΔH</div>
+      <h2 class="head">ΔH 出現在平均 KL 的上界裡</h2>
+      <div class="formula">(1/T) Σ<sub>t</sub> D<sub>KL</sub>( p<sub>t</sub> || p<sub>t</sub><sup>(−j)</sup> ) ≤ (L<sub>Φl</sub><sup>2</sup>/4) · (1/T) Σ<sub>t</sub> || h<sub>t</sub> − h<sub>t</sub><sup>(−j)</sup> ||<sub>2</sub><sup>2</sup>　（Eq.3）</div>
+      <ul class="bullets"><li>證明（Appendix B）：後續 block 的 Lipschitz 組合 + log-sum-exp 的 1/2-smoothness</li><li>C<sub>l</sub> = L<sub>Φl</sub><sup>2</sup>/4 <b>隨層而異、與 expert 無關</b> → 層內排名等價於 ΔH 排名，不必估 L<sub>Φl</sub></li><li>實證：ΔH 與真實 KL 的 per-layer Spearman 隨深度上升，深層 vision &gt; 0.8、text ~0.89；<b>淺層較弱</b>（Appendix I）</li><li>作者明講：此界只支持層內排名，不證成跨層正規化、modality 分解或全域排名（§5.1.1, p.5）</li></ul>
+      <div class="cite">§5.1.1 Proposition 1, p.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 視覺端訊號</div>
+      <h2 class="head">低注意力 vision token 的排名最跨資料集穩定</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure5_p21.jpg" alt=""><figcaption>Figure 5：ShareGPT4V vs ChartNet 的跨資料集 Spearman ρ（Appendix G, p.21）</figcaption></figure>
+      <ul class="bullets"><li>跨資料集 ρ（平均各層）：full vision ≈ 0.0 &lt; high-attn（top 20%）≈ 0.2 &lt; text ≈ 0.5 &lt; <b>low-attn ≈ 0.6</b></li><li>high-attention 隨 query 與內容漂移，且混入 visual attention sink（有注意力卻沒語意）</li></ul>
+      <div class="cite">§4.2, p.4；Appendix G Fig.5, p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · Low-Attention Scoring</div>
+      <h2 class="head">怎麼挑：text→vision attention 最低的 2%</h2>
+      <ul class="bullets"><li>每個 vision token 的 attention score = <b>text→vision attention 跨 head 平均</b>（每 token、每層、每樣本一個純量）</li><li>逐樣本逐層取 <b>bottom q = 2%</b> 為 low-attention；逐樣本挑選可適應不同解析度與長寬比</li><li>ΔH<sub>la</sub> 高 = 該 expert 主要服務「非顯著背景」視覺 token → <b>剪除候選</b>；text 端 ΔH 高 = 關鍵 expert → <b>保留</b></li><li>q 掃描 {2,5,10,20,30}%：q 變大，vision 排名向 text 靠攏（ρ 從負相關升到近 0），TextVQA 傾向下降；跨資料集 ρ 在 q=2% 為 0.54，size-matched high-attn（top 2%）為 0.33，full vision ≈ 0</li></ul>
+      <div class="cite">§5.2, p.6；§6.3.1, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 組合與全域剪除</div>
+      <h2 class="head">log + 逐層 z-score，text 加、low-attn 減，全域排名</h2>
+      <div class="formula">z̃<sup>(l,j)</sup> = ( log(ΔH<sup>(l,j)</sup> + ε) − μ<sub>l</sub> ) / σ<sub>l</sub>，　s(l,j) = (1 − α)·z̃<sub>text</sub> − α·z̃<sub>la</sub>　（Eq.4, ε=10<sup>−8</sup>）</div>
+      <ul class="bullets"><li>ΔH 跨層量級差 <b>10³–10⁴×</b>、重尾 → log 再逐層 z-score，讓各層分佈形狀可比</li><li><b>全域排名</b>：所有層所有 expert 一起排，剪最低 ⌊r·N<sub>total</sub>⌋ 個，不強迫每層剪一樣多</li><li>α 閉式：α = a/(a+b)，a = ρ̄<sub>t,v</sub> − ρ̄<sub>t,la</sub>、b = ρ̄<sub>v,la</sub>（層平均 Spearman）→ <b>0.75 / 0.33 / 0.08</b>（InternVL3.5 / Qwen3-VL / Gemma4），實際取整 0.8 / 0.3 / 0.1</li></ul>
+      <div class="cite">§5.3, p.6；§6.3.3, p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗設定</div>
+      <h2 class="head">3 個 MoE-MLLM、2 個 baseline、11 個 benchmark</h2>
+      <ul class="bullets"><li>模型：InternVL3.5-30B-A3B、Qwen3-VL-30B-A3B-Instruct、Gemma4-26B-A4B-Instruct（三者 vision/text 共用 expert pool）</li><li>Baseline：<b>HC-SMoE</b>（階層式聚類 merging）、<b>REAP</b>（router-weighted activation norm pruning）</li><li>多模態 8 項：MME、MMBench、MMStar、ChartQA、TextVQA、RealWorldQA、CV-Bench、POPE；文字 3 項：MMLU-Redux、IFEval、ARC-C</li><li>校準：1K 筆 ShareGPT4V（依文字長度挑選）；剪除比例 25% / 50%</li><li>Avg.(%) = 各 benchmark 相對未剪枝模型的保留率，11 項平均</li></ul>
+      <div class="cite">§6.1, p.7；§5 脚註 1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · 平均保留率</div>
+      <h2 class="head">50% 剪除下三個模型 MAEP 都最高</h2>
+      <table class="bench"><thead><tr><th>模型</th><th class="num">剪除比例</th><th class="num">HC-SMoE</th><th class="num">REAP</th><th class="num">MAEP</th></tr></thead><tbody><tr class="win"><td>InternVL3.5</td><td class="num">25%</td><td class="num">91.9</td><td class="num">95.9</td><td class="num best">97.7</td></tr><tr class="win"><td>InternVL3.5</td><td class="num">50%</td><td class="num">74.1</td><td class="num">88.5</td><td class="num best">91.2</td></tr><tr class="win"><td>Qwen3-VL</td><td class="num">25%</td><td class="num">96.0</td><td class="num">94.8</td><td class="num best">96.6</td></tr><tr class="win"><td>Qwen3-VL</td><td class="num">50%</td><td class="num">85.5</td><td class="num">86.6</td><td class="num best">88.3</td></tr><tr><td>Gemma4</td><td class="num">25%</td><td class="num">77.2</td><td class="num best">96.0</td><td class="num best">96.0</td></tr><tr class="win"><td>Gemma4</td><td class="num">50%</td><td class="num">39.3</td><td class="num">80.9</td><td class="num best">86.7</td></tr></tbody></table>
+      <ul class="bullets"><li>數字為 11 項 benchmark 相對未剪枝的平均保留率（%）</li><li>25%：REAP 與 MAEP 差約 2 點內（Gemma4 持平 96.0）；50%：差距拉大到 2–6 點（Gemma4 為 5.8）</li><li>HC-SMoE 在 Gemma4 崩得最兇（25% 77.2、50% 39.3）；論文歸因於 modality-uniform 聚類把不同 modality 角色的 expert 混在一起</li></ul>
+      <div class="cite">§6.2 Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · 細節</div>
+      <h2 class="head">贏在視覺理解與圖表，文字端並非全勝</h2>
+      <table class="bench"><thead><tr><th>InternVL3.5 50%</th><th class="num">ChartQA</th><th class="num">MME</th><th class="num">MMLU-Redux</th><th class="num">IFEval</th></tr></thead><tbody><tr><td>未剪枝</td><td class="num">87.3</td><td class="num">2442.2</td><td class="num">80.9</td><td class="num">78.9</td></tr><tr><td>REAP</td><td class="num">65.3</td><td class="num">2109.6</td><td class="num">53.9</td><td class="num">66.4</td></tr><tr class="win"><td>MAEP</td><td class="num best">76.7</td><td class="num best">2160.3</td><td class="num best">59.8</td><td class="num">64.9</td></tr></tbody></table>
+      <ul class="bullets"><li>同一設定下 ChartQA MAEP 比 REAP 高 11.4；IFEval 則 MAEP 64.9 略低於 REAP 66.4</li><li>Gemma4 50%：MMBench REAP 61.0 → MAEP 78.2（未剪枝 88.9），但 ChartQA MAEP 54.4 輸給 REAP 63.4</li><li>Qwen3-VL 50% 的三項文字題（IFEval 69.3 vs 73.8 等）REAP 較好；論文稱 MAEP 文字端「competitive」且聚合保留率最高</li></ul>
+      <div class="takeaway">「全面勝出」不成立——論文自己的說法是多數多模態 benchmark 勝出、文字端有競爭力。</div>
+      <div class="cite">§6.2 Table 1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · 哪個元件在撐場</div>
+      <h2 class="head">拿掉 modality 分解、換掉視覺訊號，ChartQA 都大跌</h2>
+      <table class="bench"><thead><tr><th>InternVL3.5 · 50%</th><th class="num">MME</th><th class="num">MMStar</th><th class="num">ChartQA</th><th class="num">TextVQA</th></tr></thead><tbody><tr class="win"><td>Default (MAEP)</td><td class="num">2160</td><td class="num best">63.3</td><td class="num best">76.7</td><td class="num">75.6</td></tr><tr><td>w/o modality split</td><td class="num">2034</td><td class="num">51.1</td><td class="num">41.2</td><td class="num">66.0</td></tr><tr><td>w/ high-attn top 20%</td><td class="num best">2226</td><td class="num">55.5</td><td class="num">54.5</td><td class="num">76.1</td></tr><tr><td>w/ full vision</td><td class="num">2152</td><td class="num">48.3</td><td class="num">38.8</td><td class="num">66.9</td></tr><tr><td>uniform per-layer (α=0.5)</td><td class="num">2104</td><td class="num">62.2</td><td class="num">72.1</td><td class="num best">76.5</td></tr></tbody></table>
+      <ul class="bullets"><li>high-attn 取 top {2, 5, 10}% 直接 <b>collapse</b>（平均保留率 &lt; 30%）；top 20% 在近分佈題（MME/TextVQA）持平甚至更高，但 ChartQA −22.2</li><li>全域排名 vs 均勻 per-layer：即使重調 α，全域仍領先 MME 與 ChartQA</li></ul>
+      <div class="cite">§6.3.1 Table 2(a), p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 為什麼 work</div>
+      <h2 class="head">保留靠 text、剪除靠「不重要的視覺」：兩種訊號各司其職</h2>
+      <ol class="numbered"><li><b>Vision 端是敏感面</b>：移除 expert 對 vision 位置的輸出偏移最多達 text 的 29×，vision 品質靠少數關鍵 expert 撐住</li><li><b>full / high-attn vision 當剪除訊號不可靠</b>：跨資料集 ρ ≈ 0.0 / 0.2，換校準集排名就變；low-attn 才穩（≈ 0.6）</li><li><b>asymmetric sign</b>：text 高 = 必留；low-attn vision 高 = 該 expert 把容量花在非顯著內容，剪掉風險低（Appendix I.1 在輸出端驗證）</li><li><b>全域 + z-score</b>：讓冗餘多的層多剪、不強求每層同量</li></ol>
+      <div class="takeaway">思路：不要只問「這個 expert 常被用到嗎」，要問「它被拿去服務哪一種 token」。</div>
+      <div class="cite">§4–5, p.3–6；Appendix I.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">分析 · 校準集</div>
+      <h2 class="head">ChartQA 的弱點來自校準域不匹配，混入圖表資料可補回</h2>
+      <ul class="bullets"><li>ShareGPT4V 偏自然影像對話，圖表/文件 expert 在校準時啟用少 → 被 ΔH 低估 → Qwen3-VL、Gemma4 在 50% 的 ChartQA 偏弱</li><li>混合 700 ShareGPT4V + 300 ChartNet：Qwen3-VL 50% 的 <b>ChartQA +13.9、MMStar +4.1</b>，MME 與 TextVQA 幾乎不變</li><li>校準樣本從 1,000 降到 100，仍保留預設 1K 大部分表現（個別 benchmark 如 ChartQA 有波動）</li><li>實務含義：先知道部署領域，就把該領域資料混進校準集</li></ul>
+      <div class="cite">§6.3.2, p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">分析 · α 敏感度</div>
+      <h2 class="head">α 由校準統計量閉式給出，但各模型容錯範圍不同</h2>
+      <ul class="bullets"><li>InternVL3.5：α 容錯範圍寬</li><li>Qwen3-VL：超過其操作點後<b>急劇退化</b></li><li>Gemma4：α 增大時<b>逐步退化</b></li><li>作者的解釋：模型內 vision 冗餘度（b = ρ̄<sub>v,la</sub>）越高，安全範圍越窄</li><li>α 規則是經驗驗證、非理論最優；layer-wise 的 modality 權重留作未來方向（Appendix A；§6.3.3）</li></ul>
+      <div class="cite">§6.3.3 Table 3, p.10；Appendix A, p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自己列出的邊界</h2>
+      <ul class="bullets"><li><b>一次性固定 mask</b>：不建模互為備援的 expert 聯合移除；兩階段（25% → 重算 ΔH → 50%）反而更差：MME 2160.3 → 1956.7、ChartQA 76.7 → 54.3（mask Jaccard 0.77）</li><li><b>校準域敏感</b>：只限 text 端保留訊號；low-attn vision 訊號跨資料集穩定。不宣稱 domain-invariant</li><li><b>Training-free</b>：LoRA 微調與之正交，可能補回剩餘差距</li><li>需 top-k ≥ 2；shared experts 不處理；記憶體節省只算 routed experts</li><li>50% 剪除下文字任務仍有明顯退化（所有方法皆然）</li></ul>
+      <div class="cite">Appendix A, p.15；§5 Scope, p.4；§6.2, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 · 工程啟發</div>
+      <h2 class="head">對做影像/多模態部署的人，可以拿走什麼</h2>
+      <ul class="bullets"><li><b>壓 MoE-MLLM 的第一步是看 expert 佔比</b>：30B-A3B 級模型 93–94% 是 expert，剪 expert 才是對的槓桿</li><li><b>校準集要像部署分佈</b>：需要圖表/文件能力就混 chart 資料；這是便宜的旋鈕</li><li><b>低注意力 token 當穩定訊號</b>的想法，可延伸到其他 vision token 相關的壓縮評分（此為推測，論文未驗證）</li><li><b>上線前要自己跑</b>：論文留待未來的是 reasoning-heavy 生成型 benchmark，目前結果不涵蓋這類任務（§6.3.2, p.9–10）</li></ul>
+      <div class="cite">§6.3.2, p.9–10；作者個人解讀</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">關鍵段落（英文原文 + 中譯）</h2>
+      <div class="hl"><p class="hl__en">Text-side importance serves as a <b>preservation signal</b> while vision-side importance serves as a <b>pruning signal</b>, and experts are ranked globally across layers.</p><p class="hl__zh">文字端的重要性當作<b>保留訊號</b>，視覺端的重要性當作<b>剪除訊號</b>，並跨層做全域排名。<span class="hl__src">Abstract, p.1</span></p></div>
+      <div class="hl"><p class="hl__en">Existing MoE-MLLM efficiency methods mainly reduce inference-time computation through expert skipping or visual-token pruning; the <b>expert parameters themselves, however, persist in GPU memory</b>.</p><p class="hl__zh">現有 MoE-MLLM 效率方法主要透過 expert skipping 或 visual token pruning 降低推論計算；但<b>expert 參數本身仍留在 GPU 記憶體中</b>。<span class="hl__src">§2.2, p.3</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">關鍵段落 II</h2>
+      <div class="hl"><p class="hl__en">By contrast, low-attention vision tokens (bottom q-th percentile of text-to-vision attention) yield the <b>most stable expert importance rankings across calibration datasets</b>.</p><p class="hl__zh">相反地，低注意力 vision token（text→vision attention 最低的 q 百分位）在不同校準資料集之間給出<b>最穩定的 expert 重要性排名</b>。<span class="hl__src">§4.2, p.4</span></p></div>
+      <div class="hl"><p class="hl__en">This experiment therefore does not isolate interaction effects ... ∆H re-measured after partial pruning <b>no longer reflects the original model's redundancy structure</b>.</p><p class="hl__zh">因此這個實驗並未隔離交互作用……部分剪除後重新量測的 ΔH<b>不再反映原模型的冗餘結構</b>。<span class="hl__src">Appendix A, p.15</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 公式逐步說明</div>
+      <h2 class="head">α 閉式與 Spearman 層平均</h2>
+      <div class="formula">α = a / (a + b)，　a = ρ̄<sub>t,v</sub> − ρ̄<sub>t,la</sub>，　b = ρ̄<sub>v,la</sub></div>
+      <ul class="bullets"><li>ρ̄<sub>x,y</sub> = 各層 Spearman ρ(ΔH<sub>x</sub>, ΔH<sub>y</sub>) 的平均；t / v / la = text / full vision / low-attn vision</li><li>a 大：text 與 full-vision 重疊、與 low-attn 不重疊 → low-attn 對 text 是互補訊號 → α 偏大</li><li>b 大：full-vision 與 low-attn 排名一致 → 偏重 low-attn 增益有限 → α 偏小</li><li>評估的三個模型上 a、b 皆為正，故 α ∈ [0, 1]（§5.3, p.6；Table 8）</li></ul>
+      <div class="cite">§5.3, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">MAEP：問的不是「expert 用得多不多」，而是「它在服務哪種 token」</h2>
+      <p class="end__sub">來源：arXiv 2611.05927 · NeurIPS 2026 · github.com/nota-github/MAEP</p>
+      <div class="end__next">明日預告：週六 · AI Agent 框架 / 多模態系統</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
