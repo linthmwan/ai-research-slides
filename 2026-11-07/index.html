@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AXPO — Agent Explorative Policy Optimization (NeurIPS 2026)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週六 · AI Agent 框架 / 多模態系統</div>
+      <h1 class="title">AXPO：在 tool call 處重抽樣，補回 agentic RL 漏掉的學習訊號</h1>
+      <div class="sub">Thinking-Acting Gap · 固定 thinking prefix、只重抽 tool call 與後續 · 不確定性排序 · 兩路 advantage</div>
+      <div class="authors">Minki Kang, Shizhe Diao, Ryo Hachiuma, Sung Ju Hwang, Pavlo Molchanov, Yu-Chiang Frank Wang, Byung-Kwan Lee · NVIDIA / KAIST</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">arXiv 2026-05-27</span></div>
+      <p class="note">論文：<i>Agent Explorative Policy Optimization for Multimodal Agentic Reasoning</i> · arXiv 2605.28774 · venue 依 NVIDIA Research 官方 publication 頁 · project page byungkwanlee.github.io/AXPO-page</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">用 GRPO 訓練 agentic VLM 時，tool call 只出現在約 <b>30%</b> 的 rollout，而且一旦用了 tool，整組約 <b>40%</b> 的題目全錯，tool-call token 因此拿不到正向 advantage。AXPO 在這些「全錯的 tool-using 子群」上<b>固定 thinking prefix、只重抽 tool call</b>。結果 8B 的 Pass@4 達 <b>75.8</b>，超過 32B Base 的 75.1。</p>
+      <div class="cite">Abstract, p.1；§4.2, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景 · Multimodal Agentic Reasoning</div>
+      <h2 class="head">VLM 自己決定何時繼續想、何時呼叫 tool</h2>
+      <div class="formula">τ = (x, y<sub>1</sub>, …, y<sub>T</sub>, y<sub>ans</sub>)，　y<sub>t</sub> = t<sub>t</sub> a<sub>t</sub> o<sub>t</sub>，　o<sub>t</sub> = exec(a<sub>t</sub>)</div>
+      <ul class="bullets"><li>t<sub>t</sub>：&lt;think&gt; 思考段；a<sub>t</sub>：&lt;tool_call&gt; JSON（tool 類型 + 參數）；o<sub>t</sub>：&lt;tool&gt; 執行結果</li><li>直到輸出 &lt;answer&gt; 或達到 turn 上限（實驗設為 3 turns）</li><li>Tool 共三種：<b>Python interpreter</b>、<b>Tavily web search</b>、<b>image zoom-in</b>，共用同一個 &lt;tool_call&gt; 介面</li><li>標準流程：先用 SFT 學 expert 軌跡，再用 verifiable outcome reward 做 RL（GRPO）</li></ul>
+      <div class="cite">§2.1, p.3；App.A.1, p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · Thinking-Acting Gap</div>
+      <h2 class="head">Thinking 是安全的預設模式，Tool use 是高變異的輔助模式</h2>
+      <div class="two-col"><div><p class="col-hint">Thinking（預設）</p><ul class="bullets"><li>完全在 model 自己的 token 空間內</li><li>錯了可以換一條 chain of thought 修正</li><li>Reasoning model 已經大量 post-train 過</li></ul></div><div><p class="col-hint">Acting / Tool use（輔助）</p><ul class="bullets"><li>一小段 token 就會觸發 model 無法預測的外部回應</li><li>call 只要差一點，結果就可能完全不同（例如 Python 縮排錯）</li><li>post-train 得遠比 thinking 少</li></ul></div></div>
+      <div class="takeaway">SFT 能教會 tool 的「機械操作」，但會繼承 teacher 的失敗模式、停在 teacher 附近 → 需要 RL；而 GRPO 偏偏會餓死 tool call 的訊號。</div>
+      <div class="cite">§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">診斷 · 三個量測</div>
+      <h2 class="head">GRPO 下 tool call 是被 under-train 的分岔點</h2>
+      <figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure3_p4.jpg" alt=""><figcaption>Figure 3：(a) 每題 8 個 rollout 中使用 tool 的分布　(b) 依子群類型的 all-wrong 率　(c) 固定 prefix 重抽 16 次的 tool call 語意群數</figcaption></figure>
+      <ul class="bullets"><li><b>(a) 很少嘗試</b>：rollout 層級的 tool-use rate 在 step 1 約 27%，整個 RL 期間停在 20–35%</li><li><b>(b) 用了就容易整組失敗</b>：tool-using 子群全錯率約 40%，no-tool 子群約 25%</li><li><b>(c) 確實是分岔點</b>：固定 thinking prefix 後，16 個 tool call 平均分成 2.9–3.4 個語意群（tavily 2.87 / zoom 3.22 / python 3.38）</li></ul>
+      <div class="cite">§2.2, p.4–5；Figure 3, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">診斷 · 為什麼訊號會消失</div>
+      <h2 class="head">Group-normalized advantage 在兩種情況下都不給 tool call 正向訊號</h2>
+      <div class="formula">A<sub>i</sub> = ( r<sub>i</sub> − mean({r<sub>j</sub>}<sub>j=1..N</sub>) ) / std({r<sub>j</sub>}<sub>j=1..N</sub>)，　r<sub>i</sub> ∈ {0, 1}</div>
+      <ul class="bullets"><li>advantage 會<b>均勻</b>套到 τ<sub>i</sub> 的每個 token，包含 tool-call token</li><li><b>Mixed group</b>：只有 no-tool rollout 答對 → tool-using rollout 的 r<sub>i</sub>=0 低於平均 → advantage 為<b>負</b></li><li><b>整組全錯</b>：分子 r<sub>i</sub> − mean 直接為 0 → 沒有任何梯度</li><li>結果：在最需要 tool 的題目上，tool call 的有效學習訊號反而被壓掉</li></ul>
+      <div class="cite">§2.1–2.2, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">一個診斷、一個演算法、一組驗證</h2>
+      <ol class="numbered"><li><b>定義 Thinking-Acting Gap</b>，並指出它在 group-based agentic RL 裡的兩個症狀：tool use 約 30%、tool-using 子群約 40% 全錯</li><li><b>AXPO</b>：在全錯的 tool-using 子群中，於不確定的 tool call 處固定 prefix 再重抽；並證明在相同 budget 下，tool-use coverage 一定不低於從頭抽樣（Proposition 1）</li><li><b>驗證</b>：9 個 multimodal benchmark × Qwen3-VL-Thinking 2B/4B/8B 全部勝過 SFT+GRPO；在 Pass@4 上，2B 追平 8B Base、8B 超越 32B Base</li></ol>
+      <div class="cite">§1, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法總覽</div>
+      <h2 class="head">把探索集中在 tool call 這個點上</h2>
+      <figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure2_p2.jpg" alt=""><figcaption>Figure 2：左 GRPO 的全錯 tool-using 子群沒有學習訊號；右 AXPO 固定 reasoning prefix，重抽 tool call 與後續，救回一條正確軌跡</figcaption></figure>
+      <ul class="bullets"><li>失敗的 tool-using 軌跡裡，thinking prefix 常常是對的；從頭重跑只是把預算浪費在不是瓶頸的 prefix 上</li><li>這個操作在純 reasoning 裡沒有對應：只有 agentic 才有「已決定的意圖 → 高變異的 action」這條邊界</li></ul>
+      <div class="cite">§1, p.2–3；Figure 2, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 1 · Tool-call resampling</div>
+      <h2 class="head">Prefix 包含 &lt;tool_call&gt; 開頭標籤，所以續寫必然是 tool call</h2>
+      <div class="formula">y<sub>k</sub><sup>res</sup> ~ π<sub>θ</sub>( · | x, t<sub>1</sub><sup>src</sup> )，　k = 1..K，　τ<sub>k</sub><sup>res</sup> = ( t<sub>1</sub><sup>src</sup>, y<sub>k</sub><sup>res</sup> )</div>
+      <ul class="bullets"><li>τ<sup>src</sup>：GRPO group 中某條 tool-using rollout（source）</li><li>t<sub>1</sub><sup>src</sup>：截到第一個 &lt;tool_call&gt; 開頭標籤為止 → 解碼一定會產生合法的 tool call</li><li>每條 resample 都實際執行 tool、跑到 &lt;answer&gt; 或 turn 上限，用同樣的二元 reward 評分</li><li>隨機性全部集中在「thinking 已經在準備的那個 action」上</li></ul>
+      <div class="cite">§3.1, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 2 · 為什麼划算（Proposition 1）</div>
+      <h2 class="head">Resampling 讓 q→1，把 (1−q) 的浪費因子消掉</h2>
+      <div class="formula">1 − (1 − p(t<sub>1</sub><sup>src</sup>))<sup>N</sup> 　≥　 1 − (1 − q·p<sub>tool</sub>)<sup>N</sup>，　若 p(t<sub>1</sub><sup>src</sup>) ≥ q·p<sub>tool</sub></div>
+      <ul class="bullets"><li>q = Pr[tool use | x]；p<sub>tool</sub> = 一般 tool-using rollout 的成功率；p(t<sub>1</sub>) = 從該 prefix 續寫的成功率</li><li>兩邊都是「組內至少有一條正確 tool-using rollout」的機率；在 GRPO 下，左邊就是 tool-using 子群拿到正梯度的機率</li><li>從頭抽樣時只有 q 比例會用到 tool；從 prefix 抽則 100% 是 tool-using</li><li>門檻 q·p<sub>tool</sub> 低於平均 → 連表現<b>低於平均</b>的 prefix 也值得重抽</li></ul>
+      <div class="cite">§3.1, p.5–6；App.D</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 3 · 候選選擇</div>
+      <h2 class="head">只救「tool call 拿不到正 advantage」的題，且先救最不確定的</h2>
+      <ul class="bullets"><li><b>Trigger</b>：tool-using 子群非空且全錯（no-tool 答對也算）→ 正是 tool-call advantage ≤ 0 的地方，救回一條的梯度提升最大</li><li><b>Budget</b>：額外續寫上限 r·BN（r = 0.25），breadth-first：每題先分到第一名 prefix，才輪到任何一題的第二個</li><li><b>排序</b>：以 τ<sup>src</sup> 在 tool-call token 上的平均 policy probability 當不確定性代理，<b>信心最低的先抽</b></li><li>理由：約 30% 的 prefix 重抽 16 次仍塌成單一語意群，抽了也是白抽</li></ul>
+      <p class="note">K = 4 個續寫 / prefix；confidence vs. predictive entropy 的選擇見 App.B.9（Figure 6）。</p>
+      <div class="cite">§3.2, p.6；App.A.1, p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 4 · 兩路 advantage</div>
+      <h2 class="head">每個 token 只從一個來源更新，避免 prefix 拿到矛盾訊號</h2>
+      <div class="formula">Â<sub>k</sub><sup>res</sup> = ( r<sub>k</sub><sup>res</sup> − mean{r<sub>j</sub><sup>res</sup>}<sub>j=1..K</sub> ) / std{…}　→ 只套用在續寫 y<sub>k</sub><sup>res</sup></div>
+      <div class="formula">r<sub>prefix</sub> = 1[ ∃k : r<sub>k</sub><sup>res</sup> = 1 ]，　替換 source 原本的 0 → 在原 group 重新正規化得 Â<sup>prefix</sup>　→ 只套用在 source 的 prefix</div>
+      <div class="formula">L<sub>AXPO</sub> = L<sub>clip</sub>( t<sub>1</sub><sup>src</sup> ; Â<sup>prefix</sup> ) + Σ<sub>k=1..K</sub> L<sub>clip</sub>( y<sub>k</sub><sup>res</sup> ; Â<sub>k</sub><sup>res</sup> )</div>
+      <ul class="bullets"><li>若把 resample 當成獨立 rollout：prefix 會同時被失敗的 source 懲罰、被成功的 resample 獎勵</li><li>Â<sup>prefix</sup> 對 r<sub>prefix</sub> 單調 → 只要救回一條，prefix 就拿到正 credit，policy 會學著產生「高產」的 prefix</li></ul>
+      <div class="cite">§3.3, Eq.2–5, p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗設定</div>
+      <h2 class="head">Qwen3-VL-Thinking 2B / 4B / 8B，只改 rollout loop</h2>
+      <div class="two-col"><div><p class="col-hint">資料</p><ul class="bullets"><li>SFT：64,274 條正確軌跡（ViRL、fvqa、PyVision-RL），teacher 為 Qwen3-VL-32B-Thinking，約 25% 含 tool call</li><li>RL：15,591 題（去掉 SFT 4/4 全對與 32B 4/4 全錯的題）+ 22K MMFineReason-hard ≈ 37K</li><li>評測：9 個 benchmark，分 Reasoning / Perception / Search；Pass@1、Pass@4，每題 4 rollouts</li></ul></div><div><p class="col-hint">超參數</p><ul class="bullets"><li>PPO-clip + KL β = 1e-3；DAPO 非對稱 clip ε<sub>low</sub> 0.2 / ε<sub>high</sub> 0.4</li><li>temperature 1.0、N = 8、最多 3 turns；ProRL recipe</li><li>AXPO 只多兩個旋鈕：<b>r = 0.25、K = 4</b></li><li>8× A100 80GB；verl + rllm</li></ul></div></div>
+      <div class="cite">§4.1, p.7；App.A.1, p.21–22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果</div>
+      <h2 class="head">8B + AXPO 的 Pass@4 超越 4 倍大的 32B Base</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure1_chart_p1.jpg" alt=""><figcaption>Figure 1：9 個 benchmark 的平均 Pass@1（左）/ Pass@4（右）</figcaption></figure>
+      <ul class="bullets"><li>Pass@4：8B AXPO <b>75.8</b> &gt; 32B Base 75.1；2B AXPO 69.6 ≈ 8B Base 69.6</li><li>Pass@1：8B AXPO 62.3，達 32B Base（62.9）的 99%</li></ul>
+      <div class="cite">Figure 1, p.1；§4.2, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · 平均 Pass@1</div>
+      <h2 class="head">三個尺寸都勝過 SFT+GRPO，而且 gap 隨尺寸變大</h2>
+      <table class="bench"><thead><tr><th>Size</th><th class="num">Base</th><th class="num">GRPO</th><th class="num">SFT</th><th class="num">SFT+GRPO</th><th class="num">SFT+AXPO</th><th class="num">Δ</th></tr></thead><tbody><tr><td>2B</td><td class="num">35.6</td><td class="num">45.4</td><td class="num">46.2</td><td class="num">50.7</td><td class="num best">51.8</td><td class="num">+1.1</td></tr><tr><td>4B</td><td class="num">53.0</td><td class="num">53.6</td><td class="num">57.6</td><td class="num">58.8</td><td class="num best">60.2</td><td class="num">+1.4</td></tr><tr class="win"><td>8B</td><td class="num">54.4</td><td class="num">59.2</td><td class="num">58.5</td><td class="num">60.5</td><td class="num best">62.3</td><td class="num">+1.8</td></tr><tr><td>32B（僅推論）</td><td class="num">62.9</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr></tbody></table>
+      <ul class="bullets"><li>Pass@4 的 Δ：<b>+2.8 / +2.3 / +1.8</b>（2B / 4B / 8B）</li><li>單項最大增益：8B VisualProbe 40.1→45.8（+5.7）、HR-Bench-4K 79.5→83.3（+3.8）；4B VisualProbe +5.6</li><li>也有小幅退步：例如 2B V* −0.4、VisualProbe −1.0；4B DynaMath −0.8、V* −1.3</li></ul>
+      <div class="cite">Table 1, p.8；§4.2, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · 增益落在哪裡</div>
+      <h2 class="head">Tool 決定成敗的地方，收益最大</h2>
+      <div class="scorebox"><span class="score score--hi">Perception +2.9 pp (+4%)</span><span class="score">Search +1.3 pp</span><span class="score score--lo">Reasoning +0.6 pp (+1%)</span></div>
+      <ul class="bullets"><li>8B Pass@1 依類別拆解，比較對象為 SFT+GRPO</li><li>Perception（V*、VisualProbe、HR-Bench）：image zoom-in 直接決定答案是否正確</li><li>Reasoning（MathVision、DynaMath、Math-VR）：瓶頸多半在 thinking，而不在 tool call</li><li>與方法動機一致：AXPO 只動 tool call，所以只在 tool call 是瓶頸的地方明顯加分</li></ul>
+      <div class="cite">§4.2, p.8；App.B.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · 每個元件都有貢獻</div>
+      <h2 class="head">拿掉任何一個元件，就退回到 GRPO 附近</h2>
+      <table class="bench"><thead><tr><th>8B · 4 bench 平均</th><th class="num">P@1</th><th class="num">P@4</th></tr></thead><tbody><tr><td>SFT + GRPO（參考）</td><td class="num">51.9</td><td class="num">68.3</td></tr><tr><td>w/o prefix fix（從頭 rollout）</td><td class="num">52.1</td><td class="num">69.1</td></tr><tr><td>改為 no-tool rollout resampling</td><td class="num">51.7</td><td class="num">65.9</td></tr><tr><td>w/o uncertainty rank（random）</td><td class="num">51.0</td><td class="num">65.8</td></tr><tr><td>w/o prefix credit</td><td class="num">51.4</td><td class="num">67.7</td></tr><tr><td>w/o separated advantage group</td><td class="num">51.2</td><td class="num">67.0</td></tr><tr class="win"><td><b>AXPO (full)</b></td><td class="num best">53.9</td><td class="num best">70.2</td></tr></tbody></table>
+      <ul class="bullets"><li>去掉 prefix fix：(1−q) 的浪費回來了；改成 random 排序：預算浪費在已收斂到錯誤答案的 prefix 上</li><li>去掉 prefix credit：學不出高產 prefix；合併 group：prefix 拿到矛盾的 advantage，且被 no-tool 的成功稀釋</li></ul>
+      <div class="cite">Table 2, p.9；App.B.6, p.31–32</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">對比其他 RL 配方</div>
+      <h2 class="head">收益來自算力「花在哪」，而不是「花多少」</h2>
+      <table class="bench"><thead><tr><th>8B · SFT +</th><th class="num">P@1</th><th class="num">P@4</th></tr></thead><tbody><tr><td>GRPO (baseline)</td><td class="num">51.9</td><td class="num">68.3</td></tr><tr><td>GRPO + tool penalty</td><td class="num">46.0</td><td class="num">59.1</td></tr><tr><td>GRPO + tool bonus</td><td class="num">50.8</td><td class="num">65.6</td></tr><tr><td>GRPO rollout 2×（compute 2×）</td><td class="num">52.4</td><td class="num">68.2</td></tr><tr><td>RLTF</td><td class="num">43.3</td><td class="num">56.0</td></tr><tr><td>CISPO</td><td class="num">47.8</td><td class="num">62.2</td></tr><tr><td>ARPO（post-observation branching）</td><td class="num">51.3</td><td class="num">65.6</td></tr><tr class="win"><td><b>AXPO</b></td><td class="num best">53.9</td><td class="num best">70.2</td></tr></tbody></table>
+      <ul class="bullets"><li>Reward shaping 兩種都低於 GRPO：penalty 全面壓制 tool use，bonus 則不管有沒有幫助都給獎勵</li><li>ARPO 是在 tool <i>觀察之後</i>才分岔 → 當 tool call 本身就是失敗點時救不回來</li><li>+25% 的 resampling budget 比 +100% 的 rollout budget 多 1.1 pp（§1）</li></ul>
+      <div class="cite">Table 3, p.9；App.B.7, p.32</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 訓練動態</div>
+      <h2 class="head">兩個症狀在 AXPO 下都反轉，在 GRPO 下則持平</h2>
+      <figure class="full" style="max-height:30vh; margin-top:.4rem;"><img src="figures/figure4_p10.jpg" alt=""><figcaption>Figure 4：tool-use rate、tool all-wrong rate、各 tool 的 restore rate 隨 RL step 變化</figcaption></figure>
+      <ul class="bullets"><li>GRPO：tool-use 約 30% 持平、all-wrong 約 40% 持平</li><li>AXPO：tool-use 在訓練過程中上升 <b>+28 pp</b>；all-wrong 每一步都比 GRPO 低約 <b>17 pp</b></li><li>每一步約有 <b>12%</b> 的全錯 tool-using 子群被 resampling 翻成至少一條正確</li><li>注意：AXPO 的 all-wrong 是在 resampling <i>之後</i>量的，所以中間 panel 的 gap 本質上就是 restore rate</li></ul>
+      <div class="cite">§4.5, p.9–10；Figure 4, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 測試時的行為</div>
+      <h2 class="head">不只是更常用 tool，tool 也用得更好</h2>
+      <figure class="full" style="max-height:36vh; margin-top:.4rem;"><img src="figures/figure5_p10.jpg" alt=""><figcaption>Figure 5：(a) tool-attempt rate vs. conditional Pass@1　(b) matched-tool 子集的各 tool 品質（8B）</figcaption></figure>
+      <ul class="bullets"><li>(a) 其他階段若不是犧牲頻率換品質（Base→GRPO 或 SFT），就是頻率不動只推品質（SFT→SFT+GRPO）；<b>只有 AXPO 兩軸同時前進</b></li><li>(b) 只看兩邊都有呼叫 tool 的題目：pass@1 Python +1.3 / Zoom-in +3.3 / Search +1.4，pass@4 +7.1 / +2.9 / +3.5</li></ul>
+      <div class="cite">§4.5, p.10；Figure 5, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 遷移到沒訓練過的 tool</div>
+      <h2 class="head">推論時新增 image search，AXPO 更能轉成一次就答對</h2>
+      <table class="bench"><thead><tr><th>MMSearch</th><th class="num">SFT+GRPO</th><th class="num">SFT+AXPO</th></tr></thead><tbody><tr><td>w/o image search · P@1</td><td class="num">44.0</td><td class="num">45.0</td></tr><tr class="win"><td>w/ image search · P@1</td><td class="num">46.8</td><td class="num best">49.6</td></tr><tr><td>w/o image search · P@4</td><td class="num">59.3</td><td class="num">61.0</td></tr><tr><td>w/ image search · P@4</td><td class="num">65.3</td><td class="num">66.7</td></tr></tbody></table>
+      <ul class="bullets"><li>P@1 增益：AXPO <b>+4.6</b> vs GRPO +2.8；P@4 增益相近（+5.7 / +6.0）</li><li>作者的解讀：訓練時接觸到多樣的 tool-call 解法，可以遷移到新的 tool family</li><li>⚠ image search 是用 GPT-5.4 模擬的 proxy；作者自承只是一個 benchmark、一種新 tool</li></ul>
+      <div class="cite">App.B.5, Table 8, p.30–31</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自承的邊界</h2>
+      <ul class="bullets"><li><b>需要二元、可驗證的 outcome reward</b>：trigger（全錯子群）與 Prop.1 的論證都依賴 r ∈ {0,1}；開放式生成需要重新定義「失敗」</li><li><b>只訓練到 8B</b>：32B 只做推論；更大的模型全錯子群比例可能更小，收益未知</li><li><b>只有 3 種 tool</b>：image search 因 API 成本沒有納入訓練；browser / GUI / terminal 這類長延遲 tool、LLM-as-tool 都沒處理</li><li><b>只有一個 base</b>（Qwen3-VL-Thinking），也沒有公開 code（NVIDIA 頁只提供 PDF 與 project page）</li></ul>
+      <div class="cite">§6, p.11；App.E, p.36–37</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 / 啟發</div>
+      <h2 class="head">給做 agent RL 的工程師</h2>
+      <ul class="bullets"><li><b>把 rollout 拆成「意圖」與「動作」兩段</b>：只要能在 action 邊界 checkpoint 住，就能把探索預算集中在高變異的那一段。這個思路可以延伸到 GUI agent 的 click 座標、code agent 的 patch</li><li><b>先量 coverage，再調 reward</b>：tool bonus 反而輸給 GRPO，說明問題出在取樣分布，而不是 reward 設計</li><li><b>Credit assignment 要分流</b>：共享 prefix 的 rollout 只要一起進 GRPO，就會出現矛盾的 advantage；mask + 獨立 group 是乾淨的解法</li><li><b>實作成本低</b>：只多 r、K 兩個超參數與 prefix 續寫；但 verl/rllm 需要支援從中途狀態（含 tool 狀態）續跑</li></ul>
+      <div class="takeaway">核心訊息：agentic RL 的瓶頸常常不在 reward，而在 rollout 有沒有抽到「值得學」的 tool 使用。</div>
+      <div class="cite">綜合 §2–4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文螢光筆</div>
+      <h2 class="head">三句最關鍵的論點</h2>
+      <div class="hl"><p class="hl__en">Re-deriving the full trajectory from scratch <b>wastes budget on prefixes that were not the bottleneck</b>, whereas tool-call resampling concentrates exploration precisely where the Thinking-Acting Gap manifests.</p><p class="hl__zh">從頭重推整條軌跡，<b>預算會浪費在本來就不是瓶頸的 prefix 上</b>；tool-call resampling 則把探索精準集中在 Thinking-Acting Gap 出現的地方。<span class="hl__src">§1, p.3</span></p></div>
+      <div class="hl"><p class="hl__en">The gain therefore comes from <b>where compute is spent, not from how much</b>.</p><p class="hl__zh">因此，收益來自<b>算力花在哪裡，而不是花了多少</b>。<span class="hl__src">§4.4, p.9</span></p></div>
+      <div class="hl"><p class="hl__en"><b>post-observation branching cannot recover when the tool call itself is the failure mode</b>, which is the regime Section 2.2 identifies as binding.</p><p class="hl__zh"><b>當 tool call 本身就是失敗點時，在觀察之後才分岔救不回來</b>；而 §2.2 指出這正是真正卡住的情境。<span class="hl__src">App.B.7, p.32</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 公式逐步說明</div>
+      <h2 class="head">PPO-clip surrogate（GRPO 與 AXPO 共用）</h2>
+      <div class="formula">L<sub>clip</sub>(y; Â) = E<sub>t</sub>[ min( ρ<sub>t</sub>Â, clip(ρ<sub>t</sub>, 1−ε<sub>low</sub>, 1+ε<sub>high</sub>) Â ) − β·D<sub>KL</sub>( pi_theta || pi_ref ) ]</div>
+      <ul class="bullets"><li>ρ<sub>t</sub> = pi_theta(y<sub>t</sub> | x, y<sub>&lt;t</sub>) / pi_old(y<sub>t</sub> | x, y<sub>&lt;t</sub>)：per-token importance ratio</li><li>Â 是 trajectory-level advantage，均勻廣播到 y 的每個 token；AXPO 用 mask 決定每段 token 吃哪一路 Â</li><li>ε<sub>low</sub> = 0.2、ε<sub>high</sub> = 0.4（DAPO 風格的非對稱 clip，鼓勵低機率 token 上升）；β = 1e-3，reference 為 SFT checkpoint</li><li>AXPO 的 Eq.5 針對每個被選中的 prefix 加一次；沒觸發的 group 照常使用 GRPO loss</li></ul>
+      <div class="cite">App.A.1, Eq.6, p.21；§3.3, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">AXPO：失敗的不一定是 thinking，往往是 tool call，那就只重抽 tool call</h2>
+      <p class="end__sub">來源：arXiv 2605.28774 · NeurIPS 2026 · NVIDIA / KAIST</p>
+      <div class="end__next">明日預告：週日 · 火爆 GitHub Repo 或公司技術報告</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
