@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VibeVoice — Long-form Multi-speaker TTS with Next-Token Diffusion (ICLR 2026 Oral)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週日 · 火爆 GitHub Repo / 公司技術報告</div>
+      <h1 class="title">VibeVoice：用 next-token diffusion 一口氣生成 90 分鐘、4 人對話的 podcast</h1>
+      <div class="sub">7.5 Hz 連續 speech tokenizer（3200× 壓縮）· LLM hidden state 驅動 token-level diffusion head · 64K context</div>
+      <div class="authors">Zhiliang Peng, Jianwei Yu, Wenhui Wang, Yaoyao Chang, Yutao Sun, Li Dong, Yi Zhu, Weijiang Xu, Hangbo Bao, Zehua Wang, Shaohan Huang, Yan Xia, Furu Wei · Microsoft Research</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Oral</span><span class="badge date">arXiv 2025-08-26</span><span class="badge">GitHub Trending 2026-11-08 · ⭐56.7K</span></div>
+      <p class="note">論文：<i>VibeVoice Technical Report</i>（arXiv 2508.19205v1）· ICLR 2026 版標題 <i>VibeVoice: Expressive Podcast Generation with Next-Token Diffusion</i>（OpenReview FihSkzyxdv）· github.com/microsoft/VibeVoice</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">把 24 kHz 語音壓到 <b>每秒 7.5 個連續 latent</b>（3200×），讓 90 分鐘音訊塞進 <b>64K context</b>；再用 Qwen2.5 當骨幹、每個 token 接一個小 diffusion head 生 latent。7B 版在 1 小時 podcast 測試上主觀 MOS 平均 <b>3.76</b>，高於 Gemini 2.5 Pro preview TTS 的 3.66 與 ElevenLabs v3 alpha 的 3.40。</p>
+      <div class="cite">Abstract, p.1；Table 1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">為什麼是今天這篇</div>
+      <h2 class="head">今日 trending 的 microsoft/VibeVoice，其 TTS 核心論文是 ICLR 2026 Oral</h2>
+      <ul class="bullets"><li>Repo 今天在 GitHub Python trending 第 6 名（⭐56.7K，單日 +245）；README 的「TTS Report」badge 連到 OpenReview FihSkzyxdv</li><li>Repo 現在是一個語音家族：VibeVoice-TTS（本篇）、VibeVoice-ASR（arXiv 2601.18184）、Realtime、ASR-Streaming、BitNet CPU 推論</li><li>三者共用同一套 <b>7.5 Hz acoustic / semantic tokenizer</b>，所以讀懂 TTS 這篇就讀懂整個家族的地基</li><li><b>來源說明</b>：OpenReview 的 camera-ready PDF 與 reviewer 皆回 HTTP 403，本 deck 所有數字只取自 arXiv v1（8 頁 technical report），不引用 reviewer 分數</li></ul>
+      <div class="cite">GitHub README（2026-11-08 抓取）；arXiv 2508.19205v1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 長篇多說話者對話</div>
+      <h2 class="head">單人短句 TTS 已經很好，但 podcast 等級的長對話還沒解決</h2>
+      <div class="two-col"><div><p class="col-hint">傳統做法：逐句合成再串接</p><ul class="bullets"><li>技術上做得到</li><li>但 <b>turn-taking 不自然</b>：每句獨立合成，不知道上一句的語氣</li><li><b>不看上下文</b>：語調、情緒無法跟著對話內容走</li></ul></div><div><p class="col-hint">近期多說話者長對話模型</p><ul class="bullets"><li>多數<b>未開源</b>（NotebookLM、Park et al. 2024）</li><li>開源者仍受<b>生成長度與穩定性</b>所限（Sesame CSM、MoonCast、MOSS-TTSD、CoVoMix2）</li><li>Figure 1：在 VibeVoice 之前，開源系統最長輸出約 1,000 秒等級</li></ul></div></div>
+      <div class="takeaway">核心矛盾：要長、要多人、要自然，就得讓模型「一次看完整場對話」，序列長度因此成為第一個瓶頸。</div>
+      <div class="cite">§1, p.2；Figure 1, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">定位</div>
+      <h2 class="head">輸出長度一口氣推到 5,000+ 秒，主觀評分同時領先</h2>
+      <figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure1_chart.jpg" alt=""><figcaption>Figure 1：橫軸為發表時間、縱軸為可輸出語音長度（秒）；內嵌長條圖為 Preference / Realism / Richness 主觀評分</figcaption></figure>
+      <ul class="bullets"><li>VALL-E → NaturalSpeech-2 → SpeechSSM（~1,000 s）→ VibeVoice（~5,400 s，對應 90 分鐘）</li><li>內嵌圖的 1.5B 數字（3.43 / 3.58 / 3.58）與 Table 1（3.44 / 3.59 / 3.59）差 0.01，應是四捨五入差異，後面一律以 Table 1 為準</li></ul>
+      <div class="cite">Figure 1, p.1；Table 1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">一個 tokenizer、一個極簡架構、一組長篇結果</h2>
+      <ol class="numbered"><li><b>Causal 連續 speech tokenizer</b>：24 kHz → 7.5 Hz，累積 <b>3200× 下採樣</b>；speech:text token 約 <b>2:1</b>；與 Encodec 相比壓縮率高 <b>80 倍</b>、品質相當</li><li><b>極簡架構</b>：voice prompt latent 與 text script 直接串成一條序列丟進 LLM；LLM hidden state 條件化一個 token-level diffusion head，輸出連續 VAE 特徵</li><li><b>長篇結果</b>：64K context 內最長 90 分鐘、最多 4 位說話者；從 1.5B 擴到 7B，音色更豐富、語調更自然、跨語言遷移更好</li></ol>
+      <div class="cite">Abstract, p.1；§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">架構總覽</div>
+      <h2 class="head">Voice + Text 進、Acoustic latent 出，中間只有一個 LLM</h2>
+      <figure class="full" style="max-height:42vh; margin-top:.4rem;"><img src="figures/figure2_p2.jpg" alt=""><figcaption>Figure 2：使用者輸入（voice prompt + text script）→ VibeVoice（LLM）→ 每個 token 經 Diffusion Head（D）生成 acoustic latent → Acoustic decoder（A）還原波形；生成的語音再經 A + S encoder 回饋</figcaption></figure>
+      <ul class="bullets"><li>方形 = 連續 latent（藍：acoustic，橘：semantic）；圓形 = 離散 text token</li><li>生成段的回饋同時用 acoustic 與 semantic 兩種 latent（圖中的「+」）</li></ul>
+      <div class="cite">Figure 2, p.2；§2.2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 1 · Acoustic tokenizer</div>
+      <h2 class="head">σ-VAE：方差固定不學，避免 autoregressive 下的 variance collapse</h2>
+      <div class="formula">z = μ + σ ⊙ ε，　ε ~ N(0, 1)，　σ ~ N(0, C<sub>σ</sub>)</div>
+      <ul class="bullets"><li>Encoder（參數 φ）只輸出均值 μ；σ 是<b>預先給定的分布</b>，不是一般 VAE 學出來的 σ（沿用 LatentLM 的 σ-VAE）</li><li>為什麼重要：AR 模型要逐步預測 latent，若 VAE 方差塌縮，latent 空間會退化、難以被下游 diffusion 建模</li><li>Encoder / decoder 鏡像對稱，各約 <b>340M</b> 參數；訓練目標沿用 DAC（含 discriminator 與 loss 設計）</li></ul>
+      <div class="cite">§2.1, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 1 · Tokenizer 結構</div>
+      <h2 class="head">沒有 self-attention 的 Transformer block，為 streaming 而設計</h2>
+      <div class="two-col"><div><p class="col-hint">Encoder 結構</p><ul class="bullets"><li><b>7 個 stage</b> 的修改版 Transformer block</li><li>用 <b>1D depth-wise causal convolution</b> 取代 self-attention → 可串流處理</li><li><b>6 個 downsampling 層</b>，累積 3200×</li></ul></div><div><p class="col-hint">Token rate 換算</p><div class="formula">24,000 Hz ÷ 3,200 = <b>7.5 frames/s</b></div><ul class="bullets"><li>90 min = 5,400 s → 約 <b>40,500</b> 個 acoustic frame</li><li>對照 50 Hz codec：同樣 90 分鐘需 270,000 frame（本頁換算）</li></ul></div></div>
+      <div class="takeaway">7.5 Hz 讓「一小時以上的音訊 + 全部文稿」第一次落在一般 LLM 的 64K context 之內。</div>
+      <div class="cite">§2.1, p.3；換算為本 deck 依原文數字計算</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 2 · Semantic tokenizer</div>
+      <h2 class="head">同樣的 encoder 骨架，但用 ASR 當 proxy task 學內容</h2>
+      <ul class="bullets"><li>結構與 acoustic encoder 相同（階層式），但<b>沒有 VAE</b>：目標是確定性的、以內容為中心的特徵</li><li>訓練時輸出接幾層 Transformer decoder，<b>預測文字轉寫</b>（ASR），讓表示對齊文本語意</li><li>預訓練完成後 <b>decoder 丟掉</b>，只留 encoder</li><li>作者表示：在實驗中，<b>把 acoustic 與 semantic 分成兩個 tokenizer</b>對長篇生成有幫助（原文未附 ablation 數字）</li></ul>
+      <p class="note">直覺：acoustic latent 負責「聽起來像誰、音質如何」，semantic latent 負責「剛剛說了什麼」，回饋時兩者相加給 LLM。</p>
+      <div class="cite">§2.1, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 3 · 輸入表示</div>
+      <h2 class="head">把 voice prompt 與文稿直接串成一條序列，不再需要額外的 prior 設計</h2>
+      <div class="formula">X = [Speaker<sub>1</sub>: z<sub>1</sub>, …, Speaker<sub>N</sub>: z<sub>N</sub>] + [Speaker<sub>1</sub>: T<sub>1</sub>, …, Speaker<sub>N</sub>: T<sub>N</sub>]</div>
+      <ul class="bullets"><li>z<sub>k</sub>：第 k 位說話者 voice prompt 的 acoustic latent；T<sub>k</sub>：該角色的文稿；中間以 role identifier 交錯</li><li>生成出來的語音段 s 會再經 <b>acoustic + semantic</b> 兩個 tokenizer 編碼，形成 hybrid 表示，回饋給 AR 迴圈</li><li>作者強調「移除不必要的 prior 設計」：沒有獨立的 duration model、speaker encoder 或對齊模組</li></ul>
+      <div class="cite">§1, p.2；§2.2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 4 · Token-level diffusion head</div>
+      <h2 class="head">LLM 決定「下一個 latent 大概是什麼」，小 diffusion head 負責把它生出來</h2>
+      <ul class="bullets"><li>條件：每個 token 的 LLM hidden state h<sub>i</sub>；目標：乾淨的 acoustic VAE 特徵 z<sub>a,i</sub></li><li>訓練：學習逆轉 forward noising，<b>預測加入的 noise</b>（DDPM 目標）</li><li>推論：從高斯噪聲出發迭代去噪，配合 <b>Classifier-Free Guidance</b>（條件 h<sub>i</sub> 與無條件預測做內插）</li><li>加速：DPM-Solver++；設定 <b>guidance scale 1.3</b>、<b>10 個 denoising step</b>；head 只有 <b>4 層</b></li></ul>
+      <div class="takeaway">這就是 next-token diffusion（LatentLM）：保留 LLM 的自回歸與長 context 能力，但輸出改成連續向量，不必經過 codebook 量化。</div>
+      <div class="cite">§2.2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 5 · 訓練設定</div>
+      <h2 class="head">Tokenizer 凍結，只訓練 LLM 與 diffusion head</h2>
+      <div class="two-col"><div><p class="col-hint">模型</p><ul class="bullets"><li>核心 LLM：<b>Qwen2.5 1.5B</b> 與 <b>7B</b></li><li>Diffusion head：4 層</li><li>Acoustic / semantic tokenizer：預訓練後<b>凍結</b></li></ul></div><div><p class="col-hint">長度課程</p><ul class="bullets"><li>LLM 輸入序列長度由 <b>4,096</b> 逐步增加到 <b>65,536</b> tokens（curriculum learning）</li><li>推論：CFG 1.3、10 step</li></ul></div></div>
+      <p class="note">報告沒有揭露訓練資料量、資料來源與訓練算力；ICLR 版是否補充無法確認（OpenReview 403）。</p>
+      <div class="cite">§2.2, p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 1 · Podcast 評測設定</div>
+      <h2 class="head">8 段長對話、共約 1 小時，24 位標註者每人聽約 6 小時</h2>
+      <ul class="bullets"><li><b>主觀</b>：MOS 三維度：Realism（自然度、韻律、換人是否流暢）、Richness（語氣與情緒的表現力）、Preference（整體喜好）</li><li><b>客觀</b>：WER 由 Whisper-large-v3 與 Nemo ASR 轉寫；SIM 用 WavLM-large 抽 speaker embedding</li><li>用 speech prompt 統一各模型音色；<b>Gemini 2.5 Pro preview TTS 不支援 speech prompt</b>，改用其預設男女聲</li><li>主觀評測共 6 個模型 × 8 段</li></ul>
+      <div class="cite">§3.1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 1 · 結果</div>
+      <h2 class="head">7B 主觀全面第一；1.5B 的 WER 最低</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Realism</th><th class="num">Richness</th><th class="num">Pref.</th><th class="num">Avg</th><th class="num">WER (Whisper)</th><th class="num">WER (Nemo)</th><th class="num">SIM</th></tr></thead><tbody><tr><td>Nari Labs Dia</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">11.96</td><td class="num">10.79</td><td class="num">0.541</td></tr><tr><td>MoonCast</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">2.81</td><td class="num">3.29</td><td class="num">0.562</td></tr><tr><td>Sesame CSM</td><td class="num">2.89</td><td class="num">3.03</td><td class="num">2.75</td><td class="num">2.89</td><td class="num">2.66</td><td class="num">3.05</td><td class="num">0.685</td></tr><tr><td>Higgs Audio V2</td><td class="num">2.95</td><td class="num">3.19</td><td class="num">2.83</td><td class="num">2.99</td><td class="num">5.94</td><td class="num">5.97</td><td class="num">0.543</td></tr><tr><td>ElevenLabs v3 α</td><td class="num">3.34</td><td class="num">3.48</td><td class="num">3.38</td><td class="num">3.40</td><td class="num">2.39</td><td class="num">2.47</td><td class="num">0.623</td></tr><tr><td>Gemini 2.5 Pro TTS</td><td class="num">3.55</td><td class="num">3.78</td><td class="num">3.65</td><td class="num">3.66</td><td class="num">1.73</td><td class="num">2.43</td><td class="num">–</td></tr><tr><td>VibeVoice-1.5B</td><td class="num">3.59</td><td class="num">3.59</td><td class="num">3.44</td><td class="num">3.54</td><td class="num best">1.11</td><td class="num best">1.82</td><td class="num">0.548</td></tr><tr class="win"><td>VibeVoice-7B</td><td class="num best">3.71</td><td class="num best">3.81</td><td class="num best">3.75</td><td class="num best">3.76</td><td class="num">1.29</td><td class="num">1.95</td><td class="num best">0.692</td></tr></tbody></table>
+      <p class="note">主觀分數 ± 約 0.9–1.2（標準差），表中省略；WER 越低越好。</p>
+      <div class="cite">Table 1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 1 · 怎麼讀這張表</div>
+      <h2 class="head">優勢明確，但有幾處要打折</h2>
+      <ul class="bullets"><li>7B 平均 3.76 vs Gemini 3.66：差 0.10，而各項標準差約 1.0、只有 8 段樣本，<b>統計顯著性未報告</b></li><li>Gemini 用的是預設聲音、其他模型用 speech prompt，<b>比較條件並不完全對等</b></li><li>原文說 7B「在所有客觀指標與 SIM 上顯著更好、WER 相當」，但實際 <b>WER 7B（1.29 / 1.95）略高於 1.5B（1.11 / 1.82）</b>；7B 真正大勝的是 SIM（0.692 vs 0.548）</li><li>SIM：7B 0.692 為全表最高，比 Sesame CSM 的 0.685 高</li></ul>
+      <div class="takeaway">Scaling 1.5B → 7B 的收益主要在「像不像本人」（SIM +0.144）與主觀表現力，而不是可懂度。</div>
+      <div class="cite">Table 1, p.4；§3.1, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 2 · 短句泛化（SEED test sets）</div>
+      <h2 class="head">主要以長篇訓練，短句仍有競爭力，且每秒 decode 步數少很多</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Frame rate</th><th class="num">zh CER ↓</th><th class="num">zh SIM ↑</th><th class="num">en WER ↓</th><th class="num">en SIM ↑</th></tr></thead><tbody><tr><td>MaskGCT</td><td class="num">50</td><td class="num">2.27</td><td class="num">0.774</td><td class="num">2.62</td><td class="num">0.714</td></tr><tr><td>Seed-TTS</td><td class="num">–</td><td class="num best">1.12</td><td class="num best">0.796</td><td class="num">2.25</td><td class="num best">0.762</td></tr><tr><td>FireRedTTS</td><td class="num">25</td><td class="num">1.51</td><td class="num">0.635</td><td class="num">3.82</td><td class="num">0.460</td></tr><tr><td>CosyVoice 2</td><td class="num">25</td><td class="num">1.45</td><td class="num">0.748</td><td class="num">2.57</td><td class="num">0.652</td></tr><tr><td>Spark TTS</td><td class="num">50</td><td class="num">1.20</td><td class="num">0.672</td><td class="num best">1.98</td><td class="num">0.584</td></tr><tr class="win"><td>VibeVoice-1.5B</td><td class="num best">7.5</td><td class="num">1.16</td><td class="num">0.744</td><td class="num">3.04</td><td class="num">0.689</td></tr></tbody></table>
+      <ul class="bullets"><li>test-en 約 1,000 句、test-zh 約 2,000 句（CommonVoice）；en 用 Whisper-large-v3、zh 用 Paraformer</li><li>zh CER 1.16 僅次 Seed-TTS；<b>en WER 3.04 是表中第二差</b>，短句英文並非強項</li></ul>
+      <div class="cite">Table 2, p.5；§3.2, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 3 · Tokenizer 重建品質（LibriTTS）</div>
+      <h2 class="head">每秒只有 7.5 個 token，PESQ 與 UTMOS 仍是最好</h2>
+      <table class="bench"><thead><tr><th>Tokenizer</th><th>Nq</th><th class="num">Tok/s</th><th class="num">clean PESQ</th><th class="num">clean STOI</th><th class="num">clean UTMOS</th><th class="num">other PESQ</th><th class="num">other UTMOS</th></tr></thead><tbody><tr><td>Ground truth</td><td>–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">4.056</td><td class="num">–</td><td class="num">3.483</td></tr><tr><td>Encodec</td><td>8</td><td class="num">600</td><td class="num">2.72</td><td class="num">0.939</td><td class="num">3.04</td><td class="num">2.682</td><td class="num">2.657</td></tr><tr><td>DAC</td><td>4</td><td class="num">400</td><td class="num">2.738</td><td class="num">0.928</td><td class="num">3.433</td><td class="num">2.595</td><td class="num">2.945</td></tr><tr><td>SpeechTokenizer</td><td>4</td><td class="num">300</td><td class="num">1.931</td><td class="num">0.878</td><td class="num">3.563</td><td class="num">1.737</td><td class="num">3.018</td></tr><tr><td>WavTokenizer</td><td>1</td><td class="num">75</td><td class="num">2.373</td><td class="num">0.914</td><td class="num">4.049</td><td class="num">2.261</td><td class="num">3.431</td></tr><tr><td>WavTokenizer</td><td>1</td><td class="num">40</td><td class="num">1.703</td><td class="num">0.862</td><td class="num">3.602</td><td class="num">1.662</td><td class="num">3.055</td></tr><tr><td>DAC</td><td>1</td><td class="num">100</td><td class="num">1.246</td><td class="num">0.771</td><td class="num">1.494</td><td class="num">1.245</td><td class="num">1.499</td></tr><tr class="win"><td>Ours (Acoustic)</td><td>1</td><td class="num">7.5</td><td class="num best">3.068</td><td class="num">0.828</td><td class="num best">4.181</td><td class="num best">2.848</td><td class="num best">3.724</td></tr></tbody></table>
+      <p class="note">Nq 對本方法指 VAE（連續、無量化）。STOI 0.828 並非最佳（Encodec 8q 0.939）；UTMOS 4.181 甚至高於 ground truth 的 4.056。</p>
+      <div class="cite">Table 3, p.5；§3.3, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism · 為什麼能做到 90 分鐘</div>
+      <p class="big">長篇語音的瓶頸不是生成品質，而是<b>序列長度</b>。VibeVoice 先用 7.5 Hz 連續 latent 把序列縮短到 LLM 吃得下，再讓 diffusion head 補回量化會丟掉的細節。</p>
+      <div class="scorebox"><span class="score score--hi">3200× 下採樣</span><span class="score score--hi">≈40.5K frames / 90 min</span><span class="score">64K context</span><span class="score">10 denoise steps</span></div>
+      <ul class="bullets"><li><b>連續而非離散</b>：一個 frame 一個 VAE 向量（Nq = 1），沒有 RVQ 多層 codebook，序列不會因為 codebook 數再乘倍</li><li><b>σ-VAE 固定方差</b>：讓 latent 分布對 AR 預測保持「可建模」，避免 variance collapse</li><li><b>Semantic 回饋</b>：每生成一段就重新抽內容特徵餵回 LLM，推測是長篇不漂移的錨點（原文只說有益，未量化）</li></ul>
+      <div class="cite">§1–2, p.2–3；Table 3, p.5；40.5K 為本 deck 依 7.5 Hz × 5,400 s 換算，最後一點為個人推論</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者列出的，加上報告本身的缺口</h2>
+      <div class="two-col"><div><p class="col-hint">作者自述（§4）</p><ul class="bullets"><li>只支援<b>英文與中文</b>，其他語言可能輸出異常</li><li><b>不處理非語音</b>：背景噪音、音樂、音效</li><li><b>不建模重疊說話</b>（插話、同時說）</li><li><b>Deepfake 風險</b>；不建議直接商用，僅供研究</li></ul></div><div><p class="col-hint">報告層缺口</p><ul class="bullets"><li><b>沒有 ablation</b>：兩個 tokenizer、σ-VAE、CFG 1.3 的貢獻都沒有被拆開驗證</li><li>主觀測試只有 8 段、未報告顯著性</li><li>沒有延遲 / RTF / 推論成本數字</li><li>Repo README 註明 TTS 程式碼因 responsible-use 已自 repo 移除（非論文內容）</li></ul></div></div>
+      <div class="cite">§4, p.5–6；GitHub README</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 / 啟發</div>
+      <h2 class="head">給做生成模型的工程師</h2>
+      <ul class="bullets"><li><b>先壓 token rate，再談長度</b>：任何長序列生成（長影片、長音訊）都可以先問「一秒要幾個 token」；7.5 Hz 這個數字把問題從「改架構」變成「直接用現成 LLM」</li><li><b>連續 latent + per-token diffusion head</b> 是 MAR / LatentLM 一路下來的配方，在語音上被證明能 scale 到 64K；影像、影片的 AR 生成可以直接套用</li><li><b>Tokenizer 才是護城河</b>：VibeVoice-ASR、Realtime、ASR-Streaming 全都建在同一組 7.5 Hz tokenizer 上</li><li><b>讀數字要謹慎</b>：文字敘述與 Table 1 有出入（7B WER），主觀差距在一個標準差內，選型時建議自己用目標語料再測</li></ul>
+      <div class="takeaway">核心訊息：長篇生成的解法不一定是更大的 context，而是更省的表示。</div>
+      <div class="cite">綜合 §1–4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文螢光筆</div>
+      <h2 class="head">四句關鍵原文</h2>
+      <div class="hl"><p class="hl__en">we have pioneered the development of a causal speech tokenizer that achieves a <b>3200× compression rate (i.e., 7.5 Hz frame rate)</b>.</p><p class="hl__zh">我們率先開發出一個 causal speech tokenizer，達到 <b>3200 倍壓縮率（即 7.5 Hz frame rate）</b>。<span class="hl__src">§1, p.2</span></p></div>
+      <div class="hl"><p class="hl__en">Notably, variance σ is <b>a pre-defined distribution (N(0, Cσ)) in σ-VAE, rather than a learnable distribution</b> in VAE.</p><p class="hl__zh">值得注意的是，σ-VAE 中的方差 σ 是<b>預先給定的分布 N(0, Cσ)，而不是一般 VAE 裡可學習的分布</b>。<span class="hl__src">§2.1, p.3</span></p></div>
+      <div class="hl"><p class="hl__en">During VibeVoice training, <b>the pre-trained acoustic and semantic tokenizers remained frozen</b>, with only the LLM and diffusion head parameters being learnable.</p><p class="hl__zh">訓練 VibeVoice 時，<b>預訓練好的 acoustic 與 semantic tokenizer 保持凍結</b>，只有 LLM 與 diffusion head 的參數會更新。<span class="hl__src">§2.2, p.3</span></p></div>
+      <div class="hl"><p class="hl__en">our acoustic tokenizer, uniquely operating at an ultra-low 7.5 Hz, <b>achieves leading PESQ and UTMOS scores</b> on both test-clean and test-other.</p><p class="hl__zh">我們的 acoustic tokenizer 是唯一以超低 7.5 Hz 運作者，並<b>在 test-clean 與 test-other 都取得領先的 PESQ 與 UTMOS</b>。<span class="hl__src">§3.3, p.5</span></p></div>
+      <div class="cite">arXiv 2508.19205v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 超參與規格速查</div>
+      <h2 class="head">所有可直接引用的數字</h2>
+      <table class="bench"><thead><tr><th>項目</th><th>數值</th><th>出處</th></tr></thead><tbody><tr><td>輸入取樣率 → frame rate</td><td>24 kHz → 7.5 Hz（3200×）</td><td>§2.1 p.3</td></tr><tr><td>Tokenizer encoder 結構</td><td>7 stages、6 downsampling、causal depth-wise conv</td><td>§2.1 p.3</td></tr><tr><td>Tokenizer encoder / decoder 參數</td><td>各約 340M</td><td>§2.1 p.3</td></tr><tr><td>speech : text token 比</td><td>約 2 : 1</td><td>§1 p.2</td></tr><tr><td>LLM</td><td>Qwen2.5 1.5B / 7B</td><td>§2.2 p.3</td></tr><tr><td>Diffusion head</td><td>4 層；CFG 1.3；10 steps；DPM-Solver++</td><td>§2.2 p.3</td></tr><tr><td>Context 課程</td><td>4,096 → 65,536 tokens</td><td>§2.2 p.3</td></tr><tr><td>最長輸出 / 說話者</td><td>90 分鐘 / 4 人</td><td>Abstract p.1</td></tr><tr><td>Podcast 測試集</td><td>8 段 ≈ 1 小時；24 位標註者</td><td>§3.1 p.4</td></tr></tbody></table>
+      <div class="cite">arXiv 2508.19205v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">VibeVoice：先把語音壓到每秒 7.5 個 latent，長篇對話就變成一般的 LLM 問題</h2>
+      <p class="end__sub">來源：VibeVoice Technical Report · arXiv 2508.19205 · ICLR 2026 Oral · Microsoft Research</p>
+      <div class="end__next">明日預告：週一 · LLM（架構、訓練、對齊）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
