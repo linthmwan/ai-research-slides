@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AuxDPO — Why DPO is a Misspecified Estimator (ICLR 2026 Oral)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週一 · LLM（架構 / 訓練 / 對齊）</div>
+      <h1 class="title">DPO 其實是一個 misspecified estimator —— AuxDPO 怎麼修</h1>
+      <div class="sub">Why DPO is a Misspecified Estimator and How to Fix It</div>
+      <div class="authors">Aditya Gopalan（IISc Bangalore）· Sayak Ray Chowdhury（IIT Kanpur）· Debangshu Banerjee（HP AI Research）</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Oral</span><span class="badge date">arXiv 2510.20413v1 · 2025-10-23</span></div>
+      <p class="note">Venue：ICLR 2026 官方頁列為 Oral（Oral Session 5C · Reinforcement learning II）；arXiv PDF 頁首仍標 Preprint · 選題：daily_discover arXiv API 429 → 以 ICLR 2026 oral 清單 web search 兜底（回溯：非當日新論文） · Reviewer 資料：未抓取</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">DPO 的推導默認 policy 是 <b>tabular</b>。換成參數量 d ≪ |S||A| 的 LLM，最小化 DPO loss 等於把真 reward r* <b>依 preference 次數加權、KL 投影</b>到一個 d 維的 implicit-reward 流形上；r* 不在流形上時，就算資料無限、優化完美，也會出現<b>偏好反轉、reward 低於 base</b>。AuxDPO 在 RLHF 等價類的 <b>null space</b> 加輔助變數 δ，讓投影落回 RLHF 最佳解。</p>
+      <div class="cite">Abstract, p.1；§1 contributions, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景</div>
+      <h2 class="head">DPO 把 RLHF 兩階段壓成一個監督式 loss —— 靠的是 closed form</h2>
+      <div class="formula">π<sub>θ*</sub>(a|s) = π<sub>θ0</sub>(a|s) · exp(r*(s,a)/β) / Z*(s)   ⇔   r*(s,a) = β log [π<sub>θ*</sub>(a|s) / π<sub>θ0</sub>(a|s)] + β log Z*(s)</div>
+      <ul class="bullets"><li>RLHF：BTL reward model → KL-regularized PPO；on-policy、rollout-heavy、β / clip / lr 都敏感</li><li>DPO：用上式把 reward 換成 implicit reward r<sup>β</sup><sub>θ</sub>(s,a) = β log π<sub>θ</sub>(a|s)/π<sub>θ0</sub>(a|s)，一次監督式訓練</li><li>但這個 ⇔ 只在 <b>tabular policy class</b>（能表示任意條件分佈）成立 —— Rafailov et al. 2023 App. A.1 的前提</li><li>LLM 是 d 維參數化 policy，d ≪ m = |S|·|A|：R<sup>β</sup> = {r<sup>β</sup><sub>θ</sub>} ⊊ ℝ<sup>m</sup> 是低維流形</li></ul>
+      <div class="takeaway">問題：在非 tabular 的 policy class 上，最小化 DPO loss 還等價於 RLHF 嗎？若不等價，差在哪、能不能修？</div>
+      <div class="cite">§1, p.1–2；§2, eq.(1)–(2), p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">與前人的差別</div>
+      <h2 class="head">不是資料太少、也不是梯度動力學 —— 是 minimizer 本身就錯</h2>
+      <ul class="bullets"><li><b>Likelihood displacement</b>（Razin 2024、Pal 2024）：分析<b>單步梯度</b>讓 chosen 機率下降</li><li><b>Coverage</b>（Song 2024、Xu 2024b）：沒滿足強 coverage 條件時 DPO 會失敗</li><li><b>Shi 2025</b>：log-linear policy 下 DPO 不動 —— 但依賴退化、對稱的 reward</li><li>本文：看 <b>population loss</b>（無限 BTL 資料）+ <b>oracle optimizer</b>（假設 loss 被精確最小化），仍然出錯；即使 uniform base policy（完全 coverage）也一樣</li></ul>
+      <div class="takeaway">失敗來源 = 模型容量不足造成的幾何 misspecification × pairwise 取樣頻率。</div>
+      <div class="cite">§1 Related work, p.3；§3.1 aspects 3–4, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">三件事：診斷、反例、修法</h2>
+      <ol class="numbered"><li><b>Prop. 1</b>：參數化 policy 下 DPO = 真 reward r* 到 implicit-reward 流形的<b>加權 KL 投影</b>，權重是 preference 收集頻率</li><li><b>Prop. 3</b>：構造反例 —— 乾淨、無限資料下 DPO 仍造成偏好反轉、期望 reward 下降、對資料頻率高度敏感</li><li><b>§4</b>：RLHF 局部幾何 = natural gradient step，誘導 reward 的<b>線性等價類</b>（差一個 null-space 向量）</li><li><b>AuxDPO</b>：在 DPO loss 加上受 null-space 約束的輔助變數 δ；Llama / Qwen 上勝過 DPO、IPO、DPOP</li></ol>
+      <div class="cite">§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心定理 · Prop. 1</div>
+      <h2 class="head">DPO 在做的事：把 r* 投影到 R<sup>β</sup> 上</h2>
+      <div class="formula">r<sup>β</sup><sub>θ<sub>DPO</sub></sub> = argmin<sub>r ∈ R<sup>β</sup></sub>  Σ<sub>s,a,a′</sub> n<sub>s,a,a′</sub> · d<sub>KL</sub>( p<sup>BTL</sup><sub>s,a,a′</sub>(r*) ‖ p<sup>BTL</sup><sub>s,a,a′</sub>(r) )</div>
+      <ul class="bullets"><li>d<sub>KL</sub>：兩個 Bernoulli 間的 KL；n<sub>s,a,a′</sub>：該三元組被收集了幾對比較</li><li><b>Realizable</b>（r* ∈ R<sup>β</sup>）：投影就是 r* 本身 → 與 RLHF 解一致，θ = θ*</li><li><b>Misspecified</b>（r* ∉ R<sup>β</sup>，因 R<sup>β</sup> 只有 d 維，這是常態）：落點由 n 的相對比例決定，對 RLHF 解<b>沒有任何保證</b></li><li>對照：兩階段 RLHF（reward 學對時）在任何 policy class 上期望 reward 都不會下降</li></ul>
+      <div class="cite">§3, Prop. 1, eq.(4), p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">幾何圖像 · Figure 1</div>
+      <h2 class="head">DPO 的解散落在流形上，落在哪取決於資料分佈</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.3rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1：左：r*（黑）被投影到 DPO implicit reward 流形（綠）上，橘點 = 不同資料分佈下的 DPO 解；右：在 r<sub>θ0</sub> 附近線性化，AuxDPO 沿 null-space 方向增加自由度，抵達理想 RLHF 解（藍）（p.2）</figcaption></figure>
+      <div class="cite">Figure 1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局部線性化 · §3.1</div>
+      <h2 class="head">在 θ0 附近，implicit reward 流形 ≈ A<sup>⊤</sup> 的 column space</h2>
+      <div class="formula">r<sup>β</sup><sub>θ</sub>(s,a) ≈ β ∇log π<sub>θ0</sub>(a|s)<sup>⊤</sup>(θ − θ0)   ⇒   r<sup>β</sup><sub>θ</sub> = β A<sub>θ0</sub><sup>⊤</sup>(θ − θ0),   R<sup>β</sup> ≈ C(A<sub>θ0</sub><sup>⊤</sup>)</div>
+      <ul class="bullets"><li>A<sub>θ0</sub>：d × m 矩陣，第 (s,a) 欄 = ∇log π<sub>θ0</sub>(a|s)（base policy 的 score function）</li><li>線性近似與 β 無關，只由 policy class 和 base policy 決定</li><li>Remark 2 / Prop. 8：β 夠大（policy 只能在 π<sub>θ0</sub> 附近移動）時，近似誤差可壓到任意 ε 以下</li><li>所以結論嚴格成立的範圍是 <b>local / large-β regime</b></li></ul>
+      <div class="cite">§3.1, Remark 2, p.5；Prop. 8, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">反例 · Prop. 3 設定</div>
+      <h2 class="head">3 個回應、1 維參數：最小的 misspecified 世界</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:46vh;"><img src="figures/figure2_p5.jpg" alt=""><figcaption>Figure 2：紅線 = C(A<sub>θ0</sub><sup>⊤</sup>)；橘色區 = 依 n<sub>1,2</sub>、n<sub>2,3</sub>、n<sub>3,1</sub> 比例 DPO 可能投影到的所有 reward（p.5）</figcaption></figure></div><div><ul class="bullets"><li>r* = [2, 3, 1] → 偏好 a2 ≻ a1 ≻ a3；BTL 下等價於 [1, 2, 0]</li><li>π<sub>θ</sub> = [e<sup>θ</sup>, e<sup>−θ</sup>, 1] / Z，θ0 = 0（uniform base）</li><li>A<sub>θ0</sub> = [1, −1, 0] → R<sup>β</sup> ≈ span([1, −1, 0])：只能把 a1、a2 往相反方向推</li><li>資料嚴重不平衡：n<sub>3,1</sub> ≫ max{n<sub>1,2</sub>, n<sub>2,3</sub>}</li></ul></div></div>
+      <div class="cite">§3.1, Prop. 3 proof, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">反例 · 三種失敗</div>
+      <h2 class="head">最常被比較的一對（a1 vs a3）綁架了整個解</h2>
+      <ul class="bullets"><li>投影被迫擬合 p(a1 ≻ a3)，在 span([1,−1,0]) 上只能得到 r<sup>β</sup><sub>θ</sub> ≈ [α, −α, 0] → θ = O(α) > 0</li><li><b>(i) 偏好反轉</b>：π<sub>θ</sub>(a1) > π<sub>θ</sub>(a2)，policy 偏好次佳回應</li><li><b>(ii) 比 likelihood displacement 更極端</b>：最佳回應 a2 機率下降、次佳 a1 上升（不是兩者同升同降）</li><li><b>(iii) reward 下降</b>：π<sub>θ</sub><sup>⊤</sup>r* = (e<sup>α</sup> + 2e<sup>−α</sup>) / (1 + e<sup>α</sup> + e<sup>−α</sup>) < 1 = π<sub>θ0</sub><sup>⊤</sup>r*</li><li><b>(iv) 資料敏感</b>：若改成 n<sub>1,2</sub> 主導，DPO 就學到正確的 [−α, α, 0] —— 同一個 r*，結果取決於誰被比較得多</li></ul>
+      <div class="takeaway">Remark 4：此例 base policy 滿足 global coverage（C = 3），DPO 依然失敗 → coverage 不是充分條件。</div>
+      <div class="cite">§3.1, Prop. 3, p.5–6；Remark 4, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">RLHF 的局部幾何 · §4.1</div>
+      <h2 class="head">RLHF 的最佳解是一步 natural policy gradient</h2>
+      <div class="formula">J(θ; r*) ≈ E[r*] + (θ−θ0)<sup>⊤</sup>A<sub>ρ,θ0</sub> r* − (β/2)(θ−θ0)<sup>⊤</sup>F<sub>ρ,θ0</sub>(θ−θ0)   ⇒   θ* = θ0 + (1/β) F<sup>†</sup><sub>ρ,θ0</sub> A<sub>ρ,θ0</sub> r*</div>
+      <ul class="bullets"><li>期望 reward 一階展開、KL 二階展開；F<sub>ρ,θ0</sub> = E[∇log π ∇log π<sup>⊤</sup>] 是 Fisher information</li><li>A<sub>ρ,θ0</sub> = A<sub>θ0</sub>D<sub>ρ,θ0</sub>：每欄乘上 ρ(s)π<sub>θ0</sub>(a|s)</li><li>eq.(5) 是 tabular 關係式 eq.(2) 對參數化 policy class 的推廣（Kakade 2001 natural PG 形式）</li></ul>
+      <div class="cite">§4.1, eq.(5), p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">等價類 · Lemma 6 / Prop. 7</div>
+      <h2 class="head">很多 reward 對 RLHF 來說是「同一個」</h2>
+      <div class="formula">R<sup>β</sup><sub>eq</sub>(θ) = { r ∈ ℝ<sup>m</sup> : A<sub>ρ,θ0</sub> r = β F<sub>ρ,θ0</sub>(θ − θ0) }</div>
+      <ul class="bullets"><li><b>Lemma 6</b>：r1、r2 導出同一個 RLHF policy θ ⇔ r1 − r2 ∈ N(A<sub>ρ,θ0</sub>)</li><li>也就是 null space 方向的 reward 差異<b>對 policy 沒影響</b>；tabular 時等價類退化成單點</li><li><b>Prop. 7</b>：DPO 的線性化 implicit reward βA<sub>θ0</sub><sup>⊤</sup>(θ−θ0) = 該等價類中 ‖·‖<sub>D</sub>（Mahalanobis）<b>範數最小</b>的代表</li><li>→ DPO 只在「最小範數代表」構成的 d 維子空間中找，而 r* 通常帶有 null-space 分量</li></ul>
+      <div class="cite">§4.1, eq.(6), Lemma 6, Prop. 7, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">★ 機制核心 · 為什麼加 δ 就能修</div>
+      <p class="big">r* = r<sup>β</sup><sub>θ*</sub> + δ，δ ∈ N(A<sub>ρ,θ0</sub>)。DPO 被迫用 θ 去擬合 r* 的<b>全部</b>，包括那段本來就不影響 policy 的 null-space 分量 δ —— 擬合不了，就由 preference 次數決定怎麼妥協。給 δ 一個專屬變數吸收掉，θ 只需要學「有效分量」；由 rank–nullity，(θ, δ) 合起來可覆蓋整個 ℝ<sup>m</sup>，r* 不再 misspecified。</p>
+      <p class="note">Prop. 9：在 Prop. 1 的假設下、β 足夠大時，AuxDPO 目標 (7) 的最小值落在 θ = θ*（誤差 O(ε)），即 RLHF 的最佳 policy。</p>
+      <div class="cite">§4.2, Prop. 9, p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">AuxDPO · Figure 3</div>
+      <h2 class="head">δ 讓投影沿著 null-space 平移，落進 RLHF 等價類</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:48vh;"><img src="figures/figure3_p8.jpg" alt=""><figcaption>Figure 3：藍 = R<sub>eq</sub>(θ*)；紅 = C(A<sub>θ0</sub><sup>⊤</sup>)；綠 = 固定 θ 時 δ ∈ N(A<sub>ρ,θ0</sub>) 的可行域（p.8）</figcaption></figure></div><div><ul class="bullets"><li>DPO：只能沿紅線找 → 落點 = 橘色區某處</li><li>AuxDPO：每個 θ 多一條綠線（平行平移）的自由度</li><li>KL 投影被推進藍線（RLHF 等價類）→ 誘導出最佳 policy π<sub>θ*</sub></li><li>N(A<sub>θ0</sub>) 與 N(A<sub>ρ,θ0</sub>) 同維度，搜尋空間從 ≤ d 維擴到 m 維</li></ul></div></div>
+      <div class="cite">§4.2, Figure 3, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">AuxDPO · 經驗損失</div>
+      <h2 class="head">每筆樣本兩個 offset，加一個 null-space 懲罰</h2>
+      <div class="formula">L<sub>D</sub>(θ, δ) = −(1/n) Σ<sub>i</sub> log σ( r<sup>β</sup><sub>θ</sub>(s,a<sub>w</sub>) − r<sup>β</sup><sub>θ</sub>(s,a<sub>l</sub>) + δ(s,a<sub>w</sub>) − δ(s,a<sub>l</sub>) )  +  λ ‖ (1/2n) Σ<sub>i</sub> [ δ(s,a<sub>w</sub>)∇log π<sub>θ0</sub>(a<sub>w</sub>|s) + δ(s,a<sub>l</sub>)∇log π<sub>θ0</sub>(a<sub>l</sub>|s) ] ‖²</div>
+      <ul class="bullets"><li>δ ∈ ℝ<sup>2n</sup>：每個 (prompt, chosen) 與 (prompt, rejected) 各一個純量 offset</li><li>約束 A<sub>ρ,θ0</sub>δ = E[δ(s,a)∇log π<sub>θ0</sub>(a|s)] = 0 用 Monte-Carlo 估、改成 λ 懲罰</li><li>可訓練參數 d + 2n；作者指出通常 n ≪ d，所以仍是 O(d)</li><li>直覺：δ<sub>w</sub> − δ<sub>l</sub> 吸收掉「θ 表達不了、但也不影響最佳 policy」的 margin</li></ul>
+      <div class="cite">§4.2, empirical AuxDPO loss, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實作 · App. B.2</div>
+      <h2 class="head">小 d 用正交基、大 d 用 batchwise 懲罰</h2>
+      <div class="two-col"><div><ul class="bullets"><li><b>小 d（LoRA / PEFT）</b>：對 A<sub>θ0</sub> 做 thin SVD 取 N(A<sub>θ0</sub>) 正交基 Γ，δ = Γc —— 約束精確成立，A 可在初始化時預算</li><li><b>大 d（full FT）</b>：每個 batch 建 A<sub>θ0,B</sub>（只對 response token 取梯度），損失加 −λ<sub>null</sub>‖A<sub>θ0,B</sub>δ<sub>B</sub>‖² + λ<sub>amp</sub>‖δ<sub>B</sub>‖²，並維持 ‖δ<sub>B</sub>‖ > 0 避免平凡解</li><li>TRL DPOTrainer 的輕量擴充；collator 帶上樣本 index 以定址 δ</li></ul></div><div><table class="bench"><thead><tr><th>AuxDPO knob（8B）</th><th class="num">值</th></tr></thead><tbody><tr><td>λ<sub>null</sub></td><td class="num">1.0</td></tr><tr><td>λ<sub>amp</sub></td><td class="num">0.01</td></tr><tr><td>delta_cap（tanh 上界）</td><td class="num">1.0</td></tr><tr><td>aux_lr</td><td class="num">5×10<sup>−3</sup></td></tr><tr><td>batch / epochs</td><td class="num">4 / 1</td></tr><tr><td>精度</td><td class="num">FP32 權重 + bf16 autocast</td></tr></tbody></table></div></div>
+      <div class="cite">App. B.2, p.17–18；Table 3, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">合成實驗 · App. B.4</div>
+      <h2 class="head">Prop. 3 實測：DPO / IPO / DPOP 都反轉，AuxDPO 沒有</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">θ</th><th>π<sub>θ</sub></th><th class="num">π<sub>θ</sub><sup>⊤</sup>r*</th></tr></thead><tbody><tr><td>Base</td><td class="num">0</td><td>[0.33, 0.33, 0.33]</td><td class="num">1.000</td></tr><tr><td>DPO</td><td class="num">0.40</td><td>[0.47, 0.21, 0.32]</td><td class="num">0.895</td></tr><tr><td>IPO</td><td class="num">0.10</td><td>[0.37, 0.30, 0.33]</td><td class="num">0.969</td></tr><tr><td>DPOP</td><td class="num">0.10</td><td>[0.37, 0.30, 0.33]</td><td class="num">0.969</td></tr><tr class="win"><td>AuxDPO</td><td class="num">−0.50</td><td>[0.19, 0.51, 0.30]</td><td class="num best">1.199</td></tr></tbody></table>
+      <ul class="bullets"><li>不平衡資料 n<sub>12</sub> = 5、n<sub>23</sub> = 5、n<sub>31</sub> = 50；r* = [1, 2, 0]</li><li>DPO / IPO / DPOP 的 policy 排序變成 a1 ≻ a3 ≻ a2，期望 reward 都<b>低於 base</b></li><li>平衡資料（各 10 對，Table 5）：DPO 1.17、IPO 1.03、AuxDPO 1.20 —— DPO 這時沒壞，印證「對資料分佈敏感」</li></ul>
+      <p class="note">Base 列為編者依 θ0 = 0（uniform）計算，原表只寫出 base 期望 reward 的定義。</p>
+      <div class="cite">App. B.4, Table 4–5, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LLM 實驗設定 · §5</div>
+      <h2 class="head">UltraFeedback 訓練，RewardBench v2 與 MMLU-Pro 評測</h2>
+      <ul class="bullets"><li>訓練：UltraFeedback（Dong et al. 2024 預處理 binarized 版）；模型 Llama3.1-8B、Llama3.2-1B、Qwen3-0.6B，<b>full finetune</b></li><li>評測：RewardBench v2（~1.87K prompts）；MMLU-Pro（12K 題、10 選項）→ 正解當 chosen、任一錯解當 rejected</li><li><b>ID</b>：各評測集 80/20 自切訓練 / 評測；<b>OOD</b>：在 UltraFeedback 訓練、直接評在兩個 preference set</li><li>指標：chosen 的 logit 是否高於 rejected（Table 1 報<b>相對 base policy 的 % 變化</b>）</li><li>基線：DPO、IPO（Azar 2023）、DPOP（Pal 2024）</li></ul>
+      <div class="cite">§5, p.8–9；App. B.3, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主結果 · Table 1</div>
+      <h2 class="head">12 組設定中 AuxDPO 拿下 11 組最佳，OOD 差距最大</h2>
+      <table class="bench"><thead><tr><th>Model · Dataset</th><th class="num">DPO</th><th class="num">AuxDPO</th><th class="num">IPO</th><th class="num">DPOP</th></tr></thead><tbody><tr><td>Llama3.1-8B · MMLU-Pro ID</td><td class="num">57.14</td><td class="num">63.26</td><td class="num">59.18</td><td class="num">61.22</td></tr><tr><td>Llama3.1-8B · RB v2 OOD</td><td class="num">14.31</td><td class="num">32.44</td><td class="num">20.17</td><td class="num">19.87</td></tr><tr><td>Llama3.2-1B · RB v2 ID</td><td class="num">77.21</td><td class="num">86.37</td><td class="num">69.72</td><td class="num">71.21</td></tr><tr><td>Llama3.2-1B · RB v2 OOD</td><td class="num">14.11</td><td class="num">43.27</td><td class="num">20.42</td><td class="num">18.76</td></tr><tr><td>Llama3.2-1B · MMLU-Pro OOD</td><td class="num">6.25</td><td class="num">12.52</td><td class="num">14.58</td><td class="num">4.16</td></tr><tr><td>Qwen3-0.6B · MMLU-Pro OOD</td><td class="num">11.34</td><td class="num">22.22</td><td class="num">15.56</td><td class="num">17.78</td></tr><tr class="win"><td>Qwen3-0.6B · RB v2 OOD</td><td class="num">−8.16</td><td class="num best">18.36</td><td class="num">−8.23</td><td class="num">−6.25</td></tr></tbody></table>
+      <ul class="bullets"><li>數值 = 相對 base 的 % 變化（越高越好）；完整 12 列見論文 p.9</li><li>唯一例外：Llama3.2-1B MMLU-Pro OOD 由 IPO 勝出（14.58 vs 12.52）</li><li>Qwen3-0.6B RewardBench OOD：DPO / IPO / DPOP 都<b>比 base 更差</b>，只有 AuxDPO 為正</li></ul>
+      <div class="cite">Table 1, §5, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">生成式準確率 · Table 2</div>
+      <h2 class="head">Llama3.1-8B MMLU-Pro：OOD 從 27.06 拉到 39.26</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">OOD overall</th><th class="num">ID overall</th><th class="num">Math OOD</th><th class="num">Law OOD</th></tr></thead><tbody><tr><td>Base</td><td class="num">25.37</td><td class="num">25.37</td><td class="num">11.77</td><td class="num">27.25</td></tr><tr><td>DPO</td><td class="num">27.06</td><td class="num">46.60</td><td class="num">16.51</td><td class="num">23.61</td></tr><tr><td>IPO</td><td class="num">31.73</td><td class="num">47.17</td><td class="num">17.99</td><td class="num">27.88</td></tr><tr><td>DPOP</td><td class="num">32.64</td><td class="num">48.25</td><td class="num">20.28</td><td class="num">30.43</td></tr><tr class="win"><td>AuxDPO</td><td class="num best">39.26</td><td class="num best">51.95</td><td class="num best">22.26</td><td class="num best">34.50</td></tr></tbody></table>
+      <ul class="bullets"><li>這裡比的是<b>模型生成答案</b>是否等於正解（不是 logit 比較）</li><li>Law OOD：DPO 23.61 低於 base 27.25 —— 對齊後反而變差的實例</li><li>10 個科目中 AuxDPO 在 OOD 與 ID 皆最高（論文以粗體標示）</li></ul>
+      <p class="note">Base 欄 OOD / ID 共用同一數值（原表 Base 只有一欄）。</p>
+      <div class="cite">Table 2, p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation · App. B.1</div>
+      <h2 class="head">容量越小，DPO 越 misspecified，AuxDPO 優勢越大</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:54vh;"><img src="figures/figure4_p15.jpg" alt=""><figcaption>Figure 4：Qwen3-0.6B / Llama3.2-1B 在 MMLU-Pro、RewardBench v2 上，DPO（藍）vs AuxDPO（橘）隨可訓練參數比例變化；虛線 = base（p.15）</figcaption></figure></div><div><ul class="bullets"><li>可訓練比例 25 / 50 / 75 / 100%（解凍最後 k% 的 block）；ID 另加 LoRA r=4、Last Layer</li><li>每點 20 個 random seed 的平均 ± 1 std</li><li>作者觀察：AuxDPO 多數設定優於 DPO；<b>OOD 增益 > ID</b>；LoRA r=4、Last Layer 這種低容量下差距最明顯</li><li>Qwen3-0.6B RewardBench OOD：DPO 全程低於 base（49%），AuxDPO 52–59%（圖讀值）</li></ul></div></div>
+      <div class="cite">App. B.1, Figure 4–5, p.15–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">成本</div>
+      <h2 class="head">參數量 O(d)，但記憶體不是免費的</h2>
+      <table class="bench"><thead><tr><th>8B full FT（GPU1–6）</th><th class="num">DPO</th><th class="num">AuxDPO</th></tr></thead><tbody><tr><td>allocated (GiB)</td><td class="num">16.25</td><td class="num">17.4</td></tr><tr><td>reserved (GiB)</td><td class="num">25.94</td><td class="num">81.2</td></tr><tr><td>device-used, ROCm SMI (GiB)</td><td class="num">29.4</td><td class="num">82.4</td></tr></tbody></table>
+      <ul class="bullets"><li>硬體：8 張 ~192 GiB GPU（ROCm）；權重 + 梯度 + Adam 理論上 ~119.6 GiB / replica</li><li>allocated 幾乎一樣，但 reserved / device-used 約 3×（batchwise 建 A<sub>θ0,B</sub> 需要逐樣本 reference 梯度）</li><li>δ ∈ ℝ<sup>2n</sup> 是 per-example 變數，隨資料量線性成長</li></ul>
+      <div class="cite">Table 3, App. B.2, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限與編者觀察</div>
+      <h2 class="head">理論漂亮，實驗證據還偏薄</h2>
+      <ul class="bullets"><li>理論只在 <b>local / large-β</b> 下嚴格成立；常見 DPO 設定 β ≈ 0.1，policy 離 base 不近（<i>編者觀察</i>）</li><li>大模型改用 batchwise 軟懲罰近似 null-space，已離開 Prop. 9 的保證範圍</li><li>Table 1 只給相對 % 變化，沒有 seed 數與標準差；主文最大 8B</li><li>評測以 logit 比較為主，缺少 AlpacaEval / MT-Bench 類的生成 win-rate</li><li>arXiv v1 仍有筆誤（Llama-2.3-1B、n<sub>13</sub>/n<sub>31</sub>）</li></ul>
+      <div class="takeaway">對工程的啟發：DPO 結果「隨資料配比亂跳」不一定是 bug 或噪音 —— 可能是 misspecification；檢查 preference pair 的比較頻率分佈，低容量（LoRA / 小模型）時尤其要注意。</div>
+      <div class="cite">綜合 §3–5、App. B；編者觀察已標示</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">問題陳述與核心命題</h2>
+      <div class="hl"><p class="hl__en">The design of DPO rests on the idealized assumption that the policy class is <b>tabular</b>, i.e., it includes every possible input-output conditional probability distribution.</p><p class="hl__zh">DPO 的設計建立在一個理想化假設上：policy class 是 <b>tabular</b> 的，亦即包含所有可能的輸入—輸出條件機率分佈。<span class="hl__src">§1, p.2</span></p></div>
+      <div class="hl"><p class="hl__en">DPO loss minimization is equivalent to a <b>weighted KL-projection</b> of the true reward function r* onto the (parametric, lower-dimensional) manifold of reward functions induced by the policy class.</p><p class="hl__zh">最小化 DPO loss 等價於把真 reward r* <b>加權 KL 投影</b>到 policy class 誘導出的（參數化、低維）reward 流形上。<span class="hl__src">§1 contribution 1, p.2</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">失敗的根源與修法</h2>
+      <div class="hl"><p class="hl__en">We show that failure modes arise due to the <b>inherent misspecified geometry</b> induced by the lack of model capacity, interacting with the frequencies of pairwise sampling.</p><p class="hl__zh">我們證明這些失敗來自模型容量不足所造成的<b>內在 misspecified 幾何</b>，再與 pairwise 取樣頻率交互作用。<span class="hl__src">§3.1, p.6</span></p></div>
+      <div class="hl"><p class="hl__en">If we allow the search in the reward space to utilize additional degrees of freedom δ along this nullspace, then r* is <b>no longer misspecified</b> in this augmented representation.</p><p class="hl__zh">若允許在 reward 空間的搜尋沿此 null space 多用一組自由度 δ，則在這個擴增表示中 r* <b>不再是 misspecified</b>。<span class="hl__src">§4.2, p.8</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">DPO 錯的不是優化，是搜尋空間</h2>
+      <p class="end__sub">來源：arXiv 2510.20413 · ICLR 2026 Oral · Why DPO is a Misspecified Estimator and How to Fix It</p>
+      <div class="end__next">明日預告：週二 · 圖像生成 / 理解（Diffusion、VLM、CLIP）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
