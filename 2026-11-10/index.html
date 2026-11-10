@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decoupled Mode Connectivity for Base-to-Novel Generalization in Vision-Language Models</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">AI Research Daily · 2026-11-10 · 週二 圖像生成 / 理解</div>
+      <h1 class="title">Decoupled Mode Connectivity for Base-to-Novel Generalization in Vision-Language Models</h1>
+      <div class="authors">Imad Eddine Marouf, Khalid Oublal, Enzo Tartaglione, Stéphane Lathuilière<br>Télécom Paris · École Polytechnique · CNR-ISASI · Inria</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026 (accepted)</span><span class="badge date">2026-11-10</span><span class="badge">arXiv 2611.09655</span></div>
+      <div class="cite">arXiv:2611.09655v1 [cs.CV], 6 Nov 2026 · Code: github.com/IemProg/DMC</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">單一 prompt 同時背 CE 與 cosine 正則，梯度在收斂點必然對立。DMC 不改 loss，改<b>參數化</b>：兩個 prompt、各管一個目標，用文字特徵空間的 LMC corridor 耦合。</p>
+      <div class="sub">推論成本 = 單一 prompt；CoOp 平均 HM 比 MERGETUNE +0.78（Abstract, p1；§4.2, p7）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題設定</div>
+      <h2 class="head">CLIP prompt learning：base 專精 vs. novel 泛化的張力</h2>
+      <ul class="bullets"><li>CLIP 以 ℓ2 正規化的圖文特徵做 cosine 分類；prompt learning 只學一個共享的 c ∈ R<sup>N×D</sup>，encoder 凍結（§3.1, p3）</li><li>協定：每個資料集類別切 base / novel 兩半；16-shot base 訓練，報 Base、Novel 與 HM = 2·B·N/(B+N)（§4.1, p6）</li><li>既有解法（cosine 懲罰、self-distillation、LMC 路徑）形式不同，但都是<b>單一 prompt + (CE + 正則)</b>（§1, p1）</li><li>作者主張：瓶頸不是正則項的選擇，而是這個共享結構本身</li></ul>
+      <div class="cite">§1 Introduction p1–2；§3.1 p3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">前人缺陷</div>
+      <h2 class="head">單 prompt 的梯度衝突：8/8 配對 ρ &lt; 0</h2>
+      <figure class="full" style="max-height:46vh; margin-top:.3rem;"><img src="figures/figure4_p10.jpg" alt=""><figcaption>Fig.4：收斂點 ρ = cos(∇L<sub>CE</sub>, ∇R)，CoOp 與 KgCoOp 各四個資料集皆為負；Flowers102 最強（CoOp ρ≈−0.95）</figcaption></figure>
+      <div class="takeaway">收斂點滿足 ∇L<sub>CE</sub> = −λ∇R，所以調 λ 只是在同一條折衷線上移動（Fig.4, p10；Lemma 1, p4）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">理論：Pareto 駐點</div>
+      <h2 class="head">Lemma 1：單 prompt 解必為 bi-objective Pareto-stationary</h2>
+      <div class="formula">L(c) = L<sub>CE</sub>(c) + λ·R(c, f<sub>w1</sub>),&nbsp;&nbsp; R = 1 − (1/C) Σ<sub>k</sub> cos(f<sub>k</sub>, f<sub>w1,k</sub>)</div>
+      <ul class="bullets"><li>stationary ⇒ ∇L<sub>CE</sub> = −λ∇R：沒有任何方向能一階同時降低兩個目標（Lemma 1, p4）</li><li>純量玩具模型：一個參數、兩個二次目標 → 任何加權都落在 a、b 之間，兩者皆非最小；各給一個參數則各達最小，插值可還原所有單參數折衷（§3.1, p4；Appendix C）</li><li>誠實註記：Lemma 1 並未證明「兩 prompt 一定更好」，這點由實驗驗證</li></ul>
+      <div class="cite">§3.1 p4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實證：只改 loss 不夠</div>
+      <h2 class="head">7 種 single-prompt 變體，皆未明顯勝過重調 λ</h2>
+      <ul class="bullets"><li>含 Fisher 加權正則、self-distillation 等 7 種變體，在 Caltech101 / Flowers102 上至多 <b>+0.40 HM</b>，與重調 λ 同級，且未在兩資料集同時明確勝出（§4.3, p9；Appendix E）</li><li>對照：同設定下 DMC 較 cosine baseline <b>+0.86 HM</b>（Flowers102, seed 1, best α），為該資料集最佳單 prompt 增益（+0.36）的兩倍以上（Table 22, p10）</li><li>training-free 合併（TIES / DARE）反而降低 HM：CoOp −5.34 / −1.07、KgCoOp −4.45 / −1.84、MMA −10.46 / −8.06（§4.2, p7）</li></ul>
+      <div class="takeaway">兩端點必須「聯合訓練」讓中間路徑低 loss，事後插值不行</div>
+      <div class="cite">§4.2 p7；§4.3 p9–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">三項貢獻</h2>
+      <ol class="numbered"><li><b>DMC</b>：specialization prompt c<sub>spec</sub> 與 generalization prompt c<sub>gen</sub> 各負責一個目標，以 text-feature 空間的 LMC corridor 耦合，推論成本同單 prompt（§3）</li><li><b>CPI 原則</b>：正則項應 class-permutation invariant；理想化模型下違反 CPI 會使 novel acc 下降至少 I(c;Y<sub>base</sub>)/log|Y<sub>novel</sub>|（Prop. 1）；據此設計 <b>Visual Anchor</b></li><li><b>實驗</b>：11 資料集平均 HM 超過 MERGETUNE +0.78（CoOp）、+0.33（KgCoOp）；interpolation 曲線越過單 prompt operating point（§4, Fig.2）</li></ol>
+      <div class="cite">§1 Contributions, p2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 1/4 · 幾何直覺</div>
+      <h2 class="head">Fig.1：corridor 落在單 prompt 線性路徑碰不到的低 loss 谷</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.3rem;"><img src="figures/figure1_p3.jpg" alt=""><figcaption>Flowers102 的 joint CE loss landscape（CLIP 文字特徵空間 2D 平面；構造見 Appendix G）。左：單 prompt 沿線性路徑；中：兩 prompt 自 ŵ2 出發後分離；右：收斂後 corridor，星號為 α=0.20</figcaption></figure>
+      <div class="cite">Fig.1, p3；§3.2 p5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 2/4 · 兩個 prompt + corridor</div>
+      <h2 class="head">各管一個目標，corridor 是唯一耦合</h2>
+      <div class="formula">f~(α) = ℓ2( f<sub>gen</sub> + α ( f<sub>spec</sub> − f<sub>gen</sub> ) ),&nbsp; α ∈ [0,1]&nbsp;&nbsp;(Eq.3)</div>
+      <div class="formula">L<sub>DMC</sub> = L<sub>CE</sub>(f<sub>spec</sub>) + λ<sub>VA</sub>·L<sub>VA</sub> + λ<sub>gen</sub>·R(f<sub>gen</sub>, f<sub>w1</sub>) + β·E<sub>α~U[0,1]</sub> L<sub>CE</sub>( f~(α) )&nbsp;&nbsp;(Eq.4)</div>
+      <ul class="bullets"><li>c<sub>spec</sub>、c<sub>gen</sub> 皆由微調 checkpoint ŵ2 初始化；c<sub>gen</sub> 是<b>可學習</b>端點，非固定的 f<sub>w1</sub>（§3.2, p4）</li><li>corridor 在文字特徵空間做（分類分數 v<sup>T</sup>f<sub>k</sub>，而 T 非線性，prompt 空間的線性路徑≠分類器的線性路徑）；每步抽 α 訓練整段（p5）</li></ul>
+      <div class="cite">§3.2 p4–5, Eq.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 3/4 · Visual Anchor 與 CPI</div>
+      <h2 class="head">c<sub>spec</sub> 的正則：label-free 的 KL 錨</h2>
+      <div class="formula">L<sub>VA</sub> = E<sub>x</sub> KL( σ(γ·f<sub>w1</sub>·v<sub>a</sub> / τ) || σ(γ·f<sub>spec</sub>·v<sub>b</sub> / τ) )&nbsp;&nbsp;(Eq.5)</div>
+      <ul class="bullets"><li>teacher = 零樣本 CLIP（view a），student = c<sub>spec</sub>（view b）；保留每張圖對所有類別的相似度<b>分佈</b>，不看 label（p5–6）</li><li>CPI：R(Πf, Πf<sub>w1</sub>) = R(f, f<sub>w1</sub>) 對任意類別置換 Π 成立；排列 class 時兩個分佈同步置換，KL 不變，故 VA 滿足 CPI（Def.1, p5–6）</li><li>Prop. 1（理想化四假設）：違反 CPI ⇒ novel acc 至少下降 I(c;Y<sub>base</sub>)/log|Y<sub>novel</sub>|；實測 Fisher 加權 cosine 無超出重調 λ 的增益，且「CPI 本身不保證可遷移」（p5；Appendix I）</li></ul>
+      <div class="cite">§3.2 p5–6, Def.1, Prop.1, Eq.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 4/4 · 演算法與超參</div>
+      <h2 class="head">推論只算一次合併特徵：成本 = 單 prompt</h2>
+      <ol class="numbered"><li>初始化：c<sub>spec</sub> ← ŵ2，c<sub>gen</sub> ← ŵ2；encoder 凍結</li><li>每個 mini-batch：L<sub>CE</sub>、L<sub>VA</sub> 來自 f<sub>spec</sub>；R 來自 f<sub>gen</sub>；抽 α~U[0,1] 算 L<sub>LMC</sub></li><li>推論：f~ = ℓ2(f<sub>gen</sub> + α<sub>fix</sub>(f<sub>spec</sub> − f<sub>gen</sub>))，α<sub>fix</sub> = 0.20（偏向 f<sub>gen</sub>，利於 novel）</li></ol>
+      <ul class="bullets"><li>λ<sub>gen</sub>=8, λ<sub>VA</sub>=0.5, β=4, τ=2；CLIP ViT-B/16；每 prompt 4×512 ≈ 2K 參數，總可訓練 4,096（Alg.1 p6；§4.1 p7）</li><li>Flowers102 100 epochs：15 分 34 秒、峰值 5.9 GB（單張 A100）（§4.1, p7）</li></ul>
+      <div class="cite">Algorithm 1 p6；§4.1 p7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 1/3 · 主結果</div>
+      <h2 class="head">11 資料集平均 HM（Table 1）</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">Avg HM</th><th class="num">對照 MERGETUNE</th></tr></thead><tbody><tr><td>CLIP (zero-shot)</td><td class="num">71.70</td><td class="num">—</td></tr><tr><td>CoOp + MERGETUNE (ICLR 26)</td><td class="num">76.45</td><td class="num">—</td></tr><tr class="win"><td>CoOp + DMC</td><td class="num best">77.23</td><td class="num best">+0.78</td></tr><tr><td>KgCoOp + MERGETUNE</td><td class="num">76.43</td><td class="num">—</td></tr><tr class="win"><td>KgCoOp + DMC</td><td class="num best">76.76</td><td class="num best">+0.33</td></tr><tr><td>MMA + MERGETUNE</td><td class="num">72.58</td><td class="num">—</td></tr><tr class="win"><td>MMA + DMC</td><td class="num best">73.16</td><td class="num best">+0.58</td></tr></tbody></table>
+      <p class="note">MERGETUNE 與 DMC 為 3 seeds 平均（α=0.20）。CoOp 增益出現於 9/11 資料集、KgCoOp 8/11；最大增益（CoOp）：EuroSAT +2.30、FGVCAircraft +1.90、StanfordCars +1.83（§4.2, p7–8）</p>
+      <div class="cite">Table 1 p8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 2/3 · 逐資料集（CoOp 底座）</div>
+      <h2 class="head">增益集中在 zero-shot 較弱的資料集，也有退步</h2>
+      <table class="bench"><thead><tr><th>資料集</th><th class="num">MERGETUNE</th><th class="num">DMC</th><th class="num">Δ</th></tr></thead><tbody><tr class="win"><td>EuroSAT</td><td class="num">73.45</td><td class="num best">75.75</td><td class="num best">+2.30</td></tr><tr class="win"><td>FGVCAircraft</td><td class="num">33.33</td><td class="num best">35.23</td><td class="num best">+1.90</td></tr><tr class="win"><td>StanfordCars</td><td class="num">73.38</td><td class="num best">75.21</td><td class="num best">+1.83</td></tr><tr class="win"><td>UCF101</td><td class="num">78.42</td><td class="num best">80.07</td><td class="num best">+1.65</td></tr><tr><td>SUN397</td><td class="num">77.85</td><td class="num">78.75</td><td class="num">+0.90</td></tr><tr><td>Caltech101</td><td class="num">96.27</td><td class="num">96.41</td><td class="num">+0.14</td></tr><tr><td>OxfordPets</td><td class="num">96.13</td><td class="num">96.04</td><td class="num">−0.09</td></tr><tr><td>DTD</td><td class="num">64.26</td><td class="num">63.53</td><td class="num">−0.73</td></tr></tbody></table>
+      <p class="note">論文：所有 CoOp/KgCoOp 的退步都在 seed 變異內（§4.2, p7）。差值為依 Table 1 兩欄相減；DMC 平均 HM 仍低於 published PromptSRC 79.97、MMA 79.87、CoPrompt 80.48（Table 1, p8）。</p>
+      <div class="cite">Table 1 p8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 3/3 · 突破單 prompt 前緣</div>
+      <h2 class="head">interpolation 曲線：shift，而非 trade</h2>
+      <ul class="bullets"><li>Fig.2：DMC 曲線在 Caltech101、SUN397、UCF101、EuroSAT 四個 panel 皆位於 MERGETUNE 單 prompt 點的東北方；operating point 較其 ΔHM = +0.37 / +0.95 / +1.80 / +2.43（Fig.2, p7）</li><li>CoOp 上 9/11 資料集 Base 與 Novel <b>同時</b>提升（Pareto shift）；KgCoOp 僅 4/11，增益主要來自 Base（§4.2, p7）</li><li>與 Lemma 1 一致：單 prompt 只能在 Pareto-stationary 集合上移動（p8）</li></ul>
+      <div class="takeaway">註：Fig.2 的 ΔHM 為種子平均曲線讀值，與 Table 1 可差至 0.23 HM（Fig.2 caption, p7）</div>
+      <div class="cite">Fig.2 p7；§4.2 p7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation 1/3 · 元件</div>
+      <h2 class="head">R 才是 decoupling 能運作的關鍵（Table 2）</h2>
+      <table class="bench"><thead><tr><th>方法（4 資料集平均）</th><th class="num">Avg HM</th><th class="num">Δ vs 上一列</th></tr></thead><tbody><tr><td>CoOp</td><td class="num">79.52</td><td class="num">—</td></tr><tr><td>MERGETUNE w/o R</td><td class="num">79.26</td><td class="num">−0.26</td></tr><tr><td>MERGETUNE</td><td class="num">81.48</td><td class="num">+2.22</td></tr><tr><td>DMC w/o R</td><td class="num">78.07</td><td class="num">−3.42</td></tr><tr><td>DMC w/o VA</td><td class="num">81.84</td><td class="num">+3.77</td></tr><tr class="win"><td>DMC (Ours)</td><td class="num best">81.95</td><td class="num">+0.11</td></tr></tbody></table>
+      <p class="note">Δ 為相對上一列（同 Table 2）。無 R 時兩 prompt 塌縮到同一 base 專精解、DMC 低於 MERGETUNE 於所有四資料集；VA 只是小幅精修（4 中 2 個正向）（§4.3, p8–9）。注意 Table 2 batch size 128，與 Table 1（32）數值不同。</p>
+      <div class="cite">Table 2 p9；§4.3 p8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation 2/3 · 端點</div>
+      <h2 class="head">learned f<sub>gen</sub> 優於 fixed f<sub>w1</sub></h2>
+      <figure class="full" style="max-height:40vh; margin-top:.3rem;"><img src="figures/figure3_p9.jpg" alt=""><figcaption>Fig.3：兩者同樣重訓 c<sub>spec</sub>（CE+VA+LMC），僅 generalization 端點不同</figcaption></figure>
+      <ul class="bullets"><li>α=0.20 時 learned f<sub>gen</sub> 的 HM 勝出：Flowers102 +2.5、StanfordCars +1.8、EuroSAT +7.4（Caltech101 差距較小）（§4.3, p9）</li><li>容量控制：單一 CoOp N<sub>ctx</sub>=16（8K 參數）仍落後 CoOp+DMC 1.07–5.07 HM（Table 7, p8）</li></ul>
+      <div class="cite">Fig.3 p9；§4.3 p8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation 3/3 · 機制</div>
+      <h2 class="head">訓練動態：f<sub>gen</sub> 回 zero-shot，f<sub>spec</sub> 被推開</h2>
+      <figure class="full" style="max-height:38vh; margin-top:.3rem;"><img src="figures/figure5_p10.jpg" alt=""><figcaption>Fig.5：兩 prompt 皆由 ŵ2 出發（單 seed、含 VA）</figcaption></figure>
+      <ul class="bullets"><li>cos(f<sub>gen</sub>, f<sub>w1</sub>) 在 10 epochs 內升至 0.95–0.98；cos(f<sub>gen</sub>, f<sub>spec</sub>) 由約 1.0 降至 0.50–0.67（Fig.5, p10）</li><li>R 只作用於 c<sub>gen</sub>、CE 只作用於 c<sub>spec</sub>，直接衝突被移除；兩者只透過 corridor 互動（§4.3, p9）</li></ul>
+      <div class="cite">Fig.5 p10；§4.3 p9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Insight · 為什麼有效</div>
+      <h2 class="head">把「訓練時選 λ」變成「測試時選 α」</h2>
+      <ul class="bullets"><li><b>解耦</b>：兩目標不再爭同一組參數，各自走到自己的最優；插值回收所有單參數折衷，且高維空間中路徑不必沿單 prompt 路徑，可到達單 prompt 到不了的點（§3.1, p4）</li><li><b>corridor 當訓練目標</b>：每個 α 的混合分類器都被直接優化，部署時用的 α=0.20 本身就是被訓練過的（§3.2, p5）</li><li><b>為何 α 取小</b>：小 α 貼近 f<sub>gen</sub>（接近 zero-shot），有利 novel；α 由 Flowers102 + Caltech101 選定，55 個兩資料集組合中 47 個選到 [0.15, 0.25]（§4.1, p7）</li></ul>
+      <div class="takeaway">貢獻本質是參數化的改變，而非更巧妙的正則項</div>
+      <div class="cite">§3.1–3.2 p4–5；§4.1 p7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限（論文自述）</div>
+      <h2 class="head">DMC 在哪裡不 work</h2>
+      <ul class="bullets"><li><b>MMA（adapter）</b>：兩端點特徵幾乎重合（cos 平均 0.996，10 個資料集中 9 個 &gt;0.99），corridor 近乎無效；R 與 VA 的增益被移除或反轉；MMA+DMC 仍低於 published MMA（§4.2, p8；Appendix H）</li><li><b>near-ceiling 資料集</b>：兩 prompt 收斂到相近特徵，HM 增益小（Conclusion, p10）</li><li><b>α 離線固定</b>：8 個 held-out 資料集上平均比 per-dataset oracle 低 0.18 HM（p7, p10）</li><li><b>理論</b>：Prop. 1 僅在理想化假設下成立（Appendix I.5）；多出一個約 2K 參數的 prompt</li></ul>
+      <div class="cite">§4.2 p8；Conclusion p10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 / 工程啟發</div>
+      <h2 class="head">對做圖像理解 / VLM 微調的人</h2>
+      <ul class="bullets"><li><b>可借鏡的設計原則</b>：當一個參數集合要滿足相反的目標時，先檢查梯度夾角 ρ；若 ρ&lt;0 且調權重無效，拆參數 + 用路徑耦合，比再發明新正則更有望（解讀，依 Fig.4 與 Lemma 1 推論）</li><li><b>成本面</b>：訓練多 4,096 個參數、推論零額外成本，易於套在既有 CoOp / KgCoOp checkpoint 上（§4.1, p7）</li><li><b>需保留的懷疑</b>：相對 MERGETUNE 的增益僅 +0.33~0.78 HM、且仍低於多個 published 方法（Table 1）；α=0.20 是離線選定，換到分佈差很大的下游任務未被驗證（解讀）</li></ul>
+      <div class="cite">作者個人解讀，事實部分見 Table 1 p8、§4.1 p7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照 1</div>
+      <div class="hl"><p class="hl__en">At a converged single prompt, the gradients of the two terms point in opposing directions on all eight dataset–baseline pairs we measure (four datasets, CoOp and KgCoOp; Figure 4).</p><p class="hl__zh">在收斂的單一 prompt 上，兩個損失項的梯度在我們量測的全部八組資料集 × 基線配對中方向相反（四個資料集，CoOp 與 KgCoOp；圖 4）。<span class="hl__src">§1, p2</span></p></div>
+      <div class="hl"><p class="hl__en">Training-free merging therefore cannot replace the trained corridor.</p><p class="hl__zh">因此，免訓練的合併無法取代經過訓練的 corridor。<span class="hl__src">§4.2, p7</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照 2</div>
+      <div class="hl"><p class="hl__en">DMC helps only if the two endpoints stay apart. If f<sub>gen</sub> ≈ f<sub>spec</sub>, every f~(α) is the same classifier.</p><p class="hl__zh">只有兩個端點保持分離，DMC 才有幫助。若 f<sub>gen</sub> ≈ f<sub>spec</sub>，則每個 f~(α) 都是同一個分類器。<span class="hl__src">§4.2, p8</span></p></div>
+      <div class="hl"><p class="hl__en">The anchor R is what makes decoupling work: without it, both prompts collapse to the same base-specialized solution.</p><p class="hl__zh">錨 R 才是讓解耦成立的關鍵：沒有它，兩個 prompt 會塌縮到同一個 base 專精解。<span class="hl__src">§4.3, p8</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">謝謝</h2>
+      <p class="end__sub">Decoupled Mode Connectivity for Base-to-Novel Generalization in Vision-Language Models<br>arXiv 2611.09655 · NeurIPS 2026</p>
+      <div class="end__next">明日預告：週三 · 影片生成 / 時序模型</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
