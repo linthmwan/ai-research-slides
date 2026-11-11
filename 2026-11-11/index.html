@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Streaming Autoregressive Video Generation via Diagonal Distillation</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週三 · 影片生成 / 時序模型</div>
+      <h1 class="title">Streaming Autoregressive Video Generation via Diagonal Distillation</h1>
+      <div class="authors">Jinxiu Liu, Xuanming Liu, Kangfu Mei, Yandong Wen, Ming-Hsuan Yang, Weiyang Liu</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">2026-11-11</span><span class="badge">arXiv 2603.09488</span></div>
+      <div class="cite">Streaming Autoregressive Video Generation via Diagonal Distillation · arXiv 2603.09488 · ICLR 2026 · SphereLab.ai/diagdistill</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">前面的 chunk 多花幾步，後面的 chunk 少花幾步：5 秒影片 2.61 秒生成（最高 31 FPS）。</p>
+      <div class="sub">相對未蒸餾的 Wan2.1 加速 277.3×，VBench Total 84.48 不輸 Self-Forcing 的 84.31。</div>
+      <p class="note">來源：Abstract / Table 1（p.7）</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">影片蒸餾多半從圖像方法移植，忽略時間維度</h2>
+      <ul class="bullets"><li>雙向注意力的 DiT 需一次生成整段影片，無法串流（遊戲模擬、機器人學習需要即時）</li><li>AR + diffusion 的混合模型（CausVid、Self-Forcing）每個 chunk 仍要多步去噪</li><li>壓到更少步數會明顯退化：動作變弱、長序列誤差累積、過飽和（oversaturation）</li><li>論文歸因兩點：<b>步數縮減時沒用到時間脈絡</b>；<b>預測下一 chunk 隱含預測下一個噪聲等級（exposure bias）</b></li></ul>
+      <div class="cite">Abstract；§1 Introduction（pp.1–2）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">關鍵觀察</div>
+      <h2 class="head">下一 chunk 預測 ＝ 隱含的下一噪聲等級預測</h2>
+      <figure class="full" style="max-height:46vh; margin-top:.4rem;"><img src="figures/figure2_p3.jpg" alt=""><figcaption>Figure 2（p.3）：以含噪幀為條件時，即使單步預測，影像仍逐漸變清晰</figcaption></figure>
+      <div class="takeaway">早期 chunk 已建立結構先驗，後面的 chunk 就能用更少步數得到相對清晰的幀。</div>
+      <div class="cite">§1（p.2）· Figure 2（p.3）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">三個組件</h2>
+      <ol class="numbered"><li><b>Diagonal Denoising</b>：早期 chunk 多步、後期 chunk 逐步變少（第 1–3 個 chunk 用 5/4/3 步，之後固定 2 步）</li><li><b>Diagonal Forcing</b>：訓練時以受控加噪模擬對角去噪路徑，用含噪的前一 chunk 當 KV cache 條件，緩解誤差累積</li><li><b>Flow Distribution Matching</b>：把運動（flow）分布對齊加進蒸餾損失，補回少步時衰減的動作幅度</li></ol>
+      <div class="cite">§1 contributions（pp.2–3）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① 對角去噪</div>
+      <h2 class="head">Diagonal Denoising：逐 chunk 縮減步數</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.4rem;"><img src="figures/figure3_p4.jpg" alt=""><figcaption>Figure 3（p.4）：Chunk 1 用 5 步，逐步降至 Chunk 7 的 2 步；k≥4 重用前一 chunk 最後含噪幀的 KV cache</figcaption></figure>
+      <div class="cite">§3.2（p.5）· Figure 3（p.4）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① 公式</div>
+      <h2 class="head">步數排程與條件訊號</h2>
+      <div class="formula">k = 1, 2, 3：X<sub>k</sub> = D<sub>s<sub>k</sub></sub>(Z<sub>k</sub> | X̃<sub>&lt;k</sub>)，s<sub>k</sub> = 5, 4, 3</div>
+      <div class="formula">k ≥ 4：C<sub>k</sub> = T(X̃<sub>k−1</sub>)，X<sub>k</sub> = D<sub>2</sub>(D<sub>1</sub>(Z<sub>k</sub> | C<sub>k</sub>) | C<sub>k</sub>)</div>
+      <ul class="bullets"><li>X̃<sub>&lt;k</sub>：先前已加噪的 chunk；T 為條件模組；D<sub>1</sub>、D<sub>2</sub> 為兩個去噪步</li><li>5 秒影片在其設定下共 7 個 chunk（chunk 大小 3 幀）</li></ul>
+      <div class="cite">Eq.(4)(5)，§3.2（p.5）；§4.1、§4.3（pp.7–9）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ② 對角強制</div>
+      <h2 class="head">Diagonal Forcing：用含噪的前一 chunk 當條件</h2>
+      <div class="formula">X̃<sub>k−1</sub> = √α<sub>k−1</sub> · X<sub>k−1</sub> + √(1 − α<sub>k−1</sub>) · ε，ε ~ N(0, I)</div>
+      <ul class="bullets"><li>維持軌跡 X<sub>k</sub> → X̃<sub>k−1</sub> → X<sub>k−1</sub>，X̃<sub>k−1</sub> 作為 chunk k 的 KV cache 輸入</li><li>讓訓練條件貼近推論時實際看到的條件，縮小 train / inference 落差、減少過飽和</li><li>消融：KV cache 加噪的時間步 100 表現最佳；太高（接近純噪）模糊結構先驗、動作變小；太低則退化成隱含噪聲預測、過度去噪而過飽和</li></ul>
+      <div class="cite">Eq.(6)，§3.2（p.5）；§4.3（p.8）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ③ 運動對齊</div>
+      <h2 class="head">Flow Distribution Matching</h2>
+      <div class="formula">L<sub>Total</sub> = λ<sub>spatial</sub>·L<sub>DMD</sub> + L<sub>reg</sub> + γ(λ<sub>flow</sub>·L<sub>DMD</sub><sup>flow</sup> + L<sub>reg</sub><sup>flow</sup>)，λ<sub>spatial</sub> = λ<sub>flow</sub> = 4</div>
+      <ul class="bullets"><li>少步去噪的動作衰減來自被截斷的噪聲估計路徑；把 DMD 的 reverse KL 從空間擴展到運動（flow）分布</li><li>運動特徵 F(·) 自成一體：先取相鄰 latent 幀差，經卷積抽局部運動，再接 MLP；不依賴外部光流估計器</li><li>學生可訓練，教師端以 EMA 更新</li></ul>
+      <div class="cite">Eq.(7)–(12)，§3.3（pp.5–6）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗設定</div>
+      <h2 class="head">基底與評測</h2>
+      <ul class="bullets"><li>基底：Wan2.1-T2V-1.3B（Flow Matching），832×480、16 FPS；prompt 取自過濾並以 LLM 擴寫的 VidProM</li><li>速度：單張 H100 + tiny VAE；rolling KV cache 保留最近 4 個 chunk，記憶體固定 17.5 GB</li><li>品質：VBench（Temporal / Frame Quality、Text Alignment，皆為子維度平均）</li><li>長影片：MovieGenBench 前 50 個 prompt 的使用者研究（93 位參與者、每對模型 150 次比較）</li></ul>
+      <div class="cite">§4.1、§4.4（pp.6–9）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">主要結果</div>
+      <h2 class="head">與 SOTA 比較（VBench）</h2>
+      <table class="bench"><thead><tr><th>Model</th><th class="num">Throughput</th><th class="num">首幀延遲</th><th class="num">Speedup</th><th class="num">Total</th><th class="num">Quality</th><th class="num">Semantic</th></tr></thead><tbody><tr><td>Wan2.1</td><td class="num">0.78</td><td class="num">103</td><td class="num">1.0×</td><td class="num">84.26</td><td class="num">85.30</td><td class="num">80.09</td></tr><tr><td>SkyReels-V2</td><td class="num">0.49</td><td class="num">112</td><td class="num">0.91×</td><td class="num">82.67</td><td class="num">84.70</td><td class="num">74.53</td></tr><tr><td>MAGI-1</td><td class="num">0.19</td><td class="num">282</td><td class="num">0.36×</td><td class="num">79.18</td><td class="num">82.04</td><td class="num">67.74</td></tr><tr><td>CausVid</td><td class="num">17.0</td><td class="num">0.69</td><td class="num">149.3×</td><td class="num">81.20</td><td class="num">84.05</td><td class="num">69.80</td></tr><tr><td>Self-Forcing</td><td class="num">17.0</td><td class="num">0.69</td><td class="num">149.3×</td><td class="num">84.31</td><td class="num">85.07</td><td class="num">81.28</td></tr><tr class="win"><td>DiagDistill (Ours)</td><td class="num best">31.0</td><td class="num best">0.37</td><td class="num best">277.3×</td><td class="num best">84.48</td><td class="num">85.26</td><td class="num best">81.73</td></tr></tbody></table>
+      <div class="takeaway">相對 Self-Forcing 延遲 1.53× 改善；Quality 85.26 與 Wan2.1 的 85.30 相當。</div>
+      <div class="cite">Table 1，§4.2（p.7）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">質化比較</div>
+      <h2 class="head">短影片：動作與紋理更穩</h2>
+      <figure class="full" style="max-height:56vh; margin-top:.4rem;"><img src="figures/figure4_p6.jpg" alt=""><figcaption>Figure 4（p.6）：與 Self-Forcing、CausVid 對比（1s / 3s / 5s）</figcaption></figure>
+      <div class="cite">§4.2（p.7）· Figure 4（p.6）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 ①</div>
+      <h2 class="head">兩個組件缺一不可</h2>
+      <table class="bench"><thead><tr><th>Variant</th><th class="num">Temporal</th><th class="num">Frame</th><th class="num">Text Align.</th><th class="num">Total</th></tr></thead><tbody><tr><td>Without Diagonal Forcing</td><td class="num">92.1</td><td class="num">60.1</td><td class="num">26.9</td><td class="num">83.58</td></tr><tr><td>Without Flow Loss</td><td class="num">92.5</td><td class="num">60.8</td><td class="num">27.8</td><td class="num">84.18</td></tr><tr><td>Without Diagonal Denoising</td><td class="num">95.1</td><td class="num">63.2</td><td class="num">28.6</td><td class="num">84.46</td></tr><tr class="win"><td>Full Method (Ours)</td><td class="num">94.9</td><td class="num best">63.4</td><td class="num best">28.9</td><td class="num best">84.48</td></tr></tbody></table>
+      <ul class="bullets"><li>拿掉 Diagonal Denoising 品質相近（84.46 vs 84.48），但失去 1.53× 加速（回到 Self-Forcing 的推論成本）</li><li>Flow loss 主要幫助少步區間，向多步基線看齊；多步設定下增益有限</li></ul>
+      <div class="cite">Table 2，§4.3（pp.8–9）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 ②</div>
+      <h2 class="head">步數配置：品質 vs 吞吐量</h2>
+      <table class="bench"><thead><tr><th>Steps</th><th class="num">Temporal</th><th class="num">Frame</th><th class="num">Text</th><th class="num">NFEs</th><th class="num">Latency (s)</th><th class="num">FPS</th></tr></thead><tbody><tr class="win"><td>4322222（採用）</td><td class="num">94.9</td><td class="num">63.4</td><td class="num">28.9</td><td class="num">34</td><td class="num">0.23</td><td class="num best">31.0</td></tr><tr><td>5433333</td><td class="num">95.1</td><td class="num">63.2</td><td class="num">29.3</td><td class="num">48</td><td class="num">0.34</td><td class="num">23.3</td></tr><tr><td>5432222</td><td class="num">94.8</td><td class="num">63.1</td><td class="num">29.0</td><td class="num">40</td><td class="num">0.23</td><td class="num">29.7</td></tr><tr><td>5333333</td><td class="num">95.0</td><td class="num">63.9</td><td class="num">29.1</td><td class="num">46</td><td class="num">0.34</td><td class="num">22.5</td></tr><tr><td>4333333</td><td class="num">95.0</td><td class="num">63.7</td><td class="num">28.5</td><td class="num">44</td><td class="num">0.34</td><td class="num">23.5</td></tr><tr><td>4222222</td><td class="num">93.4</td><td class="num">62.3</td><td class="num">27.8</td><td class="num">32</td><td class="num">0.23</td><td class="num">32.0</td></tr></tbody></table>
+      <div class="takeaway">5333333 品質最高、4222222 吞吐最大；作者取 4322222 作折衷（NFEs 第二低）。</div>
+      <div class="cite">Table 3，§4.3（p.9）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">長影片</div>
+      <h2 class="head">45 秒生成：基線飽和失真，本法維持細節</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure8_p9.jpg" alt=""><figcaption>Figure 8（p.9）：人類偏好率與品質隨時間變化</figcaption></figure>
+      <ul class="bullets"><li>使用者研究對五個基線的偏好率圖中，Ours 側為 54.2%–66.1%（皆過半）</li><li>支援 dynamic prompting：可在時間軸任意點插入新提示（Figure 9）</li></ul>
+      <div class="cite">§4.4（p.9）· Figure 8（p.9）· Figure 9（p.10）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀</div>
+      <h2 class="head">對工程的啟發與局限</h2>
+      <ul class="bullets"><li>步數預算不必在 chunk 間均分：早期 chunk 決定全局外觀與動作，值得多投資</li><li>含噪 KV cache 是一個可調旋鈕（本文最佳在時間步 100），可作為其他 AR diffusion 蒸餾的 drop-in 技巧</li><li>速度數字依賴 H100 + tiny VAE；Table 1 的 1.0× 基線為 Wan2.1 全步模型，比較時須留意設定</li><li>自動指標（VBench）差距小（84.48 vs 84.31），主要優勢在延遲與長影片穩定性</li></ul>
+      <div class="cite">個人整理，依據 §4（pp.6–9）</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Diagonal Distillation</h2>
+      <p class="end__sub">把計算花在最關鍵的早期 chunk，讓串流影片生成更快也更穩</p>
+      <div class="end__next">明日預告（週四）：計算加速 — Attention / Kernel / 硬體</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
