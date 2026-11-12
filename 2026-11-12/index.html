@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LongCA-bench — Long-Context Attention Benchmark</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週四 · 計算加速（Attention / Kernel / 分散式）</div>
+      <h1 class="title">LongCA-bench：長上下文 Attention 從 Kernel 到 Context Parallel 的統一評測</h1>
+      <div class="sub">7 dense + 5 sparse kernel · 5 種 context parallel · 14 種 mask · 最長 512K / 96 張 H100</div>
+      <div class="authors">Tao Bu*, Qiangang Wang*, Bowen Zeng, Hanwen Sun, Yunpeng Huang, Chun Cao, Jingwei Xu† · Nanjing University / Zhejiang University / Peking University</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Poster</span><span class="badge date">arXiv 2025-10-19</span></div>
+      <p class="note">論文：<i>Long-Context Attention Benchmark: From Kernel Efficiency to Distributed Context Parallelism</i> · arXiv 2510.17896 · 程式碼 github.com/NJUDeepEngine/LongCA-bench<br>選題說明：今日 arXiv 清單的頂會 accepted 論文都不是計算加速主題；首選的 NeurIPS 2026 poster〈The Kernel Reality Check〉抓不到 PDF（OpenReview 403、無 arXiv 版），所以改選這篇 ICLR 2026 poster · Reviewer 資料：未取得</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">選長上下文 attention，<b>mask 形狀與硬體</b>比演算法名氣更關鍵：FA3 在 Hopper 上最快，但不支援 6 種 heterogeneous mask；sparse kernel 在 block size、backward、GQA 上各缺一角；分散式方面，<b>USP / LoongTrain 這類 hybrid</b> 在 96 GPU 仍能維持穩定吞吐。</p>
+      <div class="cite">Abstract, p.1；§3, p.6–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">為什麼需要一個統一 benchmark</h2>
+      <ul class="bullets"><li>Context window 從 4K 長到 128K、1M、10M，attention 的 O(S²) 計算與記憶體成為長上下文訓練的主瓶頸</li><li><b>Kernel 層</b>：各 kernel 支援的 mask 差很多，同一 kernel 換個 mask 效能也差很大，卻沒有統一比較</li><li><b>Module 層</b>：context parallel（CP）實作綁在 DeepSpeed、InternEvo 等框架裡，難以重用或公平比較</li><li>結果是研究者看不清 trade-off，工程師選型也缺可靠參考</li></ul>
+      <div class="cite">§1, p.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">三件事</h2>
+      <ol class="numbered"><li><b>統一 benchmarking</b>：一致的資料準備流程，dense、sparse、分散式三類都用同一套輸入</li><li><b>模組化元件</b>：dense 與 sparse kernel 統一在 input representation interface 下；5 種 CP 在同一框架內重建並最佳化</li><li><b>深入分析</b>：沿 mask 種類（最多 14 種）與 context 長度 / 分散式規模（最長 512K、96 GPU）兩個維度找出影響效率的關鍵因素</li></ol>
+      <div class="cite">§1, p.2；§2, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">架構</div>
+      <h2 class="head">Data / Kernel / Module 三個元件</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure1_p3.jpg" alt=""><figcaption>Figure 1：LongCA-bench 架構，全部跑在 NVIDIA H100 80GB HBM3（p.3）</figcaption></figure>
+      <div class="cite">§2, Fig.1, p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mask 分類</div>
+      <h2 class="head">14 種 mask：12 種 static，2 種 dynamic</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure2_p3.jpg" alt=""><figcaption>Figure 2：Regular / Heterogeneous / Dynamic 三類 mask（p.3）</figcaption></figure>
+      <ul class="bullets"><li><b>Regular</b>（F、C、FSW、CSW、FD、CD）：預訓練、sequence packing、sliding window</li><li><b>Heterogeneous</b>：SQ（reward model 共用問題）、CB（in-context learning）、GS、PLC/PLD（prefix LM）、BCD（多模態）</li><li><b>Dynamic</b>：uniform 與 variable block sparse，依輸入內容選 block</li></ul>
+      <div class="cite">§2.1.1, p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">資料取樣</div>
+      <h2 class="head">讓 benchmark 的輸入貼近真實訓練</h2>
+      <div class="two-col"><div><p class="col-hint">Dense 取樣</p><ul class="bullets"><li>分析 Pile、ProLong64K/512K、SlimPajama、OpenWebText、C4 的長度分布</li><li>≤8K 用 <b>Pile</b>，≤64K 用 <b>ProLong64K</b>，≤512K 用 <b>ProLong512K</b></li><li>DOCUMENT 類 mask 每次重新取樣，取 30 次 run 的中位數</li></ul></div><div><p class="col-hint">Sparse 取樣</p><ul class="bullets"><li>Block 分格 → 打分 → 每個 query block 取 top-k key block</li><li>只測 kernel，所以<b>打分改用亂數</b>，直接生成目標稀疏度 0.2 / 0.5 / 0.8</li><li>長度 32K–128K（每 32K 一檔，參考 VBench / RULER），block 64×64 與 128×128</li></ul></div></div>
+      <div class="cite">§2.1.2, p.4；A.2, p.21；A.4, p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Dense kernel</div>
+      <h2 class="head">支援度：FA 系列與 cuDNN 不支援任何 heterogeneous mask</h2>
+      <table class="bench"><thead><tr><th>Mask</th><th>Naive / SDPA</th><th>FA2 / FA3</th><th>cuDNN</th><th>FlexAttn</th><th>FlashMask</th></tr></thead><tbody><tr><td>F / C / FSW / CSW / FD / CD</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>SQ / CB / GS / PLC / PLD / BCD</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td></tr></tbody></table>
+      <ul class="bullets"><li>Naive / SDPA 建完整 2D mask，什麼都能算，但記憶體是二次方</li><li>FlexAttention：依每個位置的 boolean 函式編譯出專用 kernel，可吃任意 mask</li><li>FlashMask：用 column-wise 表示法處理 heterogeneous mask，但覆蓋不到所有情況</li></ul>
+      <div class="cite">Table 1, p.5；§2.2, p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Sparse kernel</div>
+      <h2 class="head">五個 block-sparse kernel，各缺不同的一角</h2>
+      <table class="bench"><thead><tr><th>Kernel</th><th>Mask</th><th>Fwd/Bwd</th><th>Block</th><th>GQA</th><th>GPU</th><th>效能</th><th>記憶體</th></tr></thead><tbody><tr class="win"><td>VSA</td><td>Uniform</td><td>Both</td><td>64</td><td>✗</td><td>≥sm90</td><td>High</td><td>Low</td></tr><tr><td>Triton VSA</td><td>Uniform</td><td>Both</td><td>64</td><td>✗</td><td>≥sm80</td><td>Medium</td><td>Low</td></tr><tr><td>FA2 Sparse</td><td>Uniform</td><td>Fwd</td><td>128</td><td>✓</td><td>≥sm80</td><td>Medium</td><td>Low</td></tr><tr><td>FlexAttention</td><td>Both</td><td>Both</td><td>任意</td><td>✓</td><td>≥sm80</td><td>Low</td><td>High</td></tr><tr><td>FlashInfer</td><td>Both</td><td>Fwd</td><td>任意</td><td>✓</td><td>≥sm80</td><td>Medium</td><td>Medium</td></tr></tbody></table>
+      <p class="note">VSA 是給 video diffusion 用的 ThunderKittens kernel；FlashInfer 把 block sparse 轉成 page size 1 的 paged attention 格式。</p>
+      <div class="cite">Table 2, p.5；A.3, p.21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Context parallel</div>
+      <h2 class="head">三種分散式 attention 設計</h2>
+      <ul class="bullets"><li><b>All-to-all（Ulysses）</b>：同時切 sequence 與 head，用 All-to-All 切換平行維度；簡單、數值精確，但能用的 GPU 數受 head 數限制</li><li><b>Ring（P2P / All-Gather）</b>：環狀傳 KV，可疊 compute–communication；擴展性好，但效率較低、數值誤差會累積</li><li><b>Hybrid（USP / LoongTrain）</b>：節點內 Ulysses、節點間 Ring；LoongTrain 另加 DoubleRing 兩層 sliding window</li></ul>
+      <p class="note">重建時加上的最佳化：TransformerEngine 式 head-to-tail 重排達成負載平衡、double buffering、multi-stream、varlen 輸入加上預先計算 metadata；backend 用 FA3 / cuDNN。CP 目前只支援 F / C / FD / CD 四種 mask。</p>
+      <div class="cite">§2.3, p.5–6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">評測設定</div>
+      <h2 class="head">怎麼量</h2>
+      <ul class="bullets"><li>指標：<b>TFLOPs/s</b> 與<b>峰值記憶體（GB）</b>；全部在 H100 80GB HBM3 上跑</li><li>Dense：1K–48K、BF16、head dim 128、GQA (64:8) 與 MHA (64:64)，fwd 與 bwd</li><li>每組先 5 步 warm-up，再跑 20 步 kernel 計算，取中位數</li><li>CP：每張卡 8K，從 8 GPU 擴到 96 GPU（12 台），總長 64K–512K，統一用 FA3 backend</li></ul>
+      <div class="cite">§3, p.6；§3.1, p.6；§3.3, p.8；A.4, p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 1 · Dense</div>
+      <h2 class="head">Regular mask：FA3 稱霸；Heterogeneous mask：只剩 Flex / FlashMask</h2>
+      <figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure3_p7.jpg" alt=""><figcaption>Figure 3：8K、GQA (64:8) 的 forward TFLOPs；✗ 表示不支援（p.7）</figcaption></figure>
+      <ul class="bullets"><li>FA3 針對 Hopper 最佳化，在 F / C 上最高（讀圖約 700+ TFLOPs）</li><li>SDPA 在 F / C 上與 Flex 相當，可當成沒有硬體專屬最佳化的 fused 基準線</li></ul>
+      <div class="cite">§3.1, Fig.3, p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 1 · Dense（續）</div>
+      <h2 class="head">硬體專用 kernel 有條件限制，Naive/SDPA 很快就吃不下</h2>
+      <ul class="bullets"><li>cuDNN fused 支援多種架構，但資料限制較嚴：<b>GQA (64:8) + FSW 不支援</b>；padding 可以繞過，代價是額外開銷</li><li>FA2、cuDNN 在 H100 上落後，但作者強調選型應<b>依目標硬體</b></li><li>Naive 與 SDPA 的 forward 只撐到約 <b>16K</b>，backward 約 <b>8K</b>（記憶體二次方）</li><li>Kernel 效能大約在序列長度 16K 後趨於穩定</li></ul>
+      <div class="formula">Attention activation 記憶體 = 11·b·s·h·d + 5·b·h·s<sup>2</sup> + 2·b·s·h·d</div>
+      <p class="note">s² 項來自 attention 矩陣；tensor parallel 與 data parallel 都消不掉這項，只有沿 sequence 切的 context parallel 能分攤（A.4.2）。</p>
+      <div class="cite">§3.1, p.7；A.4.1–A.4.2, p.22, p.35</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 2 · Sparse</div>
+      <h2 class="head">專用 kernel 勝過通用 kernel，但功能都不完整</h2>
+      <figure class="full" style="max-height:36vh; margin-top:.4rem;"><img src="figures/figure4_p8.jpg" alt=""><figcaption>Figure 4：sparsity 50% 時各 sparse kernel 的 TFLOPs；✗ 為不支援（p.8）</figcaption></figure>
+      <ul class="bullets"><li>Block 64：VSA 勝過 Triton VSA 與 FlashInfer；Block 128：FlashInfer 勝過 FA2 Sparse</li><li>Forward 達到的理論 TFLOPs 比例一律高於 backward；MHA 與 GQA 速度差不多，GQA 較省記憶體</li><li>FlexAttention 的 mask 表示會退化成 O(S²)，嚴重 OOM，所以從主比較中排除</li></ul>
+      <div class="cite">§3.2, Fig.4, p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 2 · Sparse 數字</div>
+      <h2 class="head">Block 大小影響很大：FlashInfer 從 64 換到 128 約快 2 倍</h2>
+      <table class="bench"><thead><tr><th>Kernel（GQA 64:8 fwd）</th><th>Seqlen</th><th class="num">B64 · SR0.5</th><th class="num">B128 · SR0.5</th></tr></thead><tbody><tr class="win"><td>FlashInfer</td><td>16K</td><td class="num">236.30</td><td class="num best">449.79</td></tr><tr><td>FlashInfer</td><td>64K</td><td class="num">210.82</td><td class="num">427.77</td></tr><tr><td>FlashInfer</td><td>128K</td><td class="num">195.61</td><td class="num">396.90</td></tr><tr><td>FA2 Sparse</td><td>64K</td><td class="num">✗</td><td class="num">329.88</td></tr><tr><td>FA2 Sparse</td><td>128K</td><td class="num">✗</td><td class="num">317.11</td></tr></tbody></table>
+      <ul class="bullets"><li>FA2 Sparse 平均約 300+ TFLOPs，因為沒有針對 Hopper 最佳化</li><li>FlexAttention（16K、GQA 4:1、SR 0.2）：B64 fwd/bwd 只有 <b>29.05 / 57.22</b>，B128 為 <b>339.74 / 299.43</b>（預設 block 是 128）</li></ul>
+      <div class="cite">Table 3 & 5, p.50；A.5.1, p.48</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 3 · Context parallel</div>
+      <h2 class="head">Hybrid（USP / LoongTrain）在 96 GPU 仍維持穩定</h2>
+      <figure class="full" style="max-height:42vh; margin-top:.4rem;"><img src="figures/figure5_p8.jpg" alt=""><figcaption>Figure 5：FULL DOCUMENT 下 forward TFLOPs 隨 GPU 數的變化；✗ 為 Ulysses 無法整除（p.8）</figcaption></figure>
+      <ul class="bullets"><li>Ulysses 只在 GPU 數能整除 head 數時可用（8 / 16 / 32 / 64）</li><li>Ring P2P 在 DOCUMENT 下波動，96 GPU 時掉到約 230（讀圖）；USP / LoongTrain 約 500–550</li></ul>
+      <div class="cite">§3.3, Fig.5, p.8–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 ★</div>
+      <h2 class="head">為什麼 hybrid 贏：把重通訊留在節點內</h2>
+      <ul class="bullets"><li>Ulysses：All-to-All 完全<b>沒被計算蓋住</b>，但它是 collective、開銷低，且依 head 切分，負載完全平衡</li><li>Ring P2P：每輪固定傳 <b>D/N</b>，與 mask 無關，所以效能完全取決於每張卡的計算量能不能蓋住通訊；FULL 最好，CAUSAL 計算減半就蓋不住</li><li>Hybrid：節點內 A2A 量從 <b>D·(N−1)/N</b> 降到 <b>D·(8−1)/N</b>；節點間 P2P 的計算量從 D/N 增加到 <b>D/K</b>（K 為節點間通訊群組大小），比較容易蓋住通訊</li></ul>
+      <div class="takeaway">節點間通訊才是主瓶頸，先在節點內按 head 切，再跨節點走 ring。</div>
+      <div class="cite">§3.3, p.8–9；A.6, p.53</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 · 細節</div>
+      <h2 class="head">LoongTrain forward 較快，backward 沒有優勢</h2>
+      <ul class="bullets"><li>USP 的 Ring backward 反向旋轉，可以直接接續 forward 結束時的 KV 狀態，不用額外通訊</li><li>LoongTrain 用 DoubleRing 預取下一個 inter-window，吃滿節點間頻寬 → <b>forward 勝過 USP</b></li><li>但它的 backward 不能沿用 forward 的最終狀態：每張卡要另存初始 KV，每個 inter-window 結束時多一次 P2P 加梯度同步 → <b>backward 約與 USP 持平</b></li><li>Ring 一環中只要有一張卡變慢就會拖住整個拓樸；作者照實回報 8 節點時的退化</li></ul>
+      <div class="cite">§3.3, p.9；A.6, p.53–54</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實務指引</div>
+      <h2 class="head">照論文結論整理成選型表</h2>
+      <table class="bench"><thead><tr><th>情境</th><th>論文的發現</th></tr></thead><tbody><tr><td>Hopper + regular mask</td><td>FA3 最快；cuDNN 次之，但要留意 GQA + FSW 不支援</td></tr><tr><td>Heterogeneous mask（SQ / PLC / BCD…）</td><td>只能用 Flex / FlashMask；FlashMask 較快但覆蓋較窄</td></tr><tr><td>要訓練的 block sparse</td><td>只有 VSA / Triton VSA 有 backward（block 64、不支援 GQA）</td></tr><tr><td>推論端 block sparse</td><td>FlashInfer（block 越大越快，block 小時注意 OOM）</td></tr><tr><td>跨節點 CP</td><td>USP / LoongTrain；Ulysses 受 head 數整除限制</td></tr></tbody></table>
+      <div class="cite">§3.1–3.3, p.6–9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自己點出的限制與未涵蓋的部分</h2>
+      <ul class="bullets"><li>Sparse mask 用亂數模擬，沒有真實的 importance 打分，只測 kernel 本身</li><li>Ring All-Gather 因資源限制<b>暫未提供結果</b>；CP 只支援 F / C / FD / CD 四種 mask</li><li>FA2 Sparse 與 FlashInfer 只有 forward，trainable sparse attention 的比較不完整</li><li>全部只在 H100 上量；沒有端到端訓練吞吐或模型品質的結果</li></ul>
+      <div class="takeaway">Backward 是 sparse kernel 的共同短板，也是作者點名最急迫的優化方向。</div>
+      <div class="cite">§2.3, p.6；§3.2, p.8；§3.3 註 3, p.8；§5, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">對做訓練或推論系統的工程師（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li>在換 mask（packing、prefix LM、多模態 block causal）之前，先確認手上的 kernel 是否支援；FA3 不支援的 mask 會直接退回 Flex 這類通用 kernel</li><li>Sparse attention 論文報的加速多半只量 forward；要訓練時，backward kernel 的成熟度才是真門檻</li><li>CP 的 group 配置（例如節點內 8、節點間 12 = 3×4）會直接影響頻寬利用率，值得當成超參數來調</li></ul>
+      <p class="note">此頁為編者推論，與論文內容分開標示。</p>
+      <div class="cite">綜合 §3、A.6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">關鍵段落（英文原文 + 中譯）</h2>
+      <div class="hl"><p class="hl__en">Attention operators differ significantly in their support for mask patterns, and <b>even the same operator can exhibit substantial performance variation across masks</b>.</p><p class="hl__zh">各 attention 運算子支援的 mask 差異很大，而且<b>同一個運算子在不同 mask 下效能也可能差很多</b>。<span class="hl__src">§1, p.2</span></p></div>
+      <div class="hl"><p class="hl__en">Performance in block sparse attention is significantly improved through specialization ... Meanwhile, <b>the backward pass remains a major bottleneck</b>.</p><p class="hl__zh">Block sparse attention 的效能靠專門化才大幅提升……同時，<b>backward 仍是主要瓶頸</b>。<span class="hl__src">§3.2, p.8</span></p></div>
+      <div class="hl"><p class="hl__en">Ring P2P communication is mask-independent, always transferring in a fixed ratio of D/N ... meaning <b>performance depends entirely on the amount of computation workload</b>.</p><p class="hl__zh">Ring P2P 的通訊與 mask 無關，每輪固定傳 D/N……所以<b>效能完全取決於計算量</b>。<span class="hl__src">§3.3, p.9</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 記憶體</div>
+      <h2 class="head">Naive / SDPA 的二次方記憶體牆</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure16_p41.jpg" alt=""><figcaption>Figure 16：Static regular mask 的峰值記憶體（p.41）</figcaption></figure>
+      <div class="cite">A.4.2, Fig.16, p.35–41</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">LongCA-bench：先看 mask 與硬體，再選 attention</h2>
+      <p class="end__sub">來源：<i>Long-Context Attention Benchmark: From Kernel Efficiency to Distributed Context Parallelism</i> · arXiv 2510.17896 · ICLR 2026 · github.com/NJUDeepEngine/LongCA-bench</p>
+      <div class="end__next">明日預告：週五 · 模型壓縮 / 效率</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
