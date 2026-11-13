@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTQ Robustness & Training Dynamics</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週五 · 模型壓縮 / 效率（量化）</div>
+      <h1 class="title">量化好不好做，看的是訓練動態，而不是資料量</h1>
+      <div class="sub">6 個開源 LLM 家族的數百個 checkpoint（最大 32B / 15T tokens）＋ 自訓 100B tokens 控制實驗 ＋ Hessian 分析</div>
+      <div class="authors">Albert Catalan-Tatjer, Niccolò Ajroldi, Jonas Geiping · ELLIS Institute Tübingen / MPI-IS & Tübingen AI Center / OpenEuroLLM</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026</span><span class="badge date">arXiv 2510.06213v2 · 2026-01-30</span></div>
+      <p class="note">論文：<i>Training Dynamics Impact Post-Training Quantization Robustness</i> · arXiv 2510.06213<br>選題說明：discovery 腳本遇 arXiv API 429，改用 web search 從 ICLR 2026 proceedings 選出 · Reviewer 資料：未取得</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">PTQ 誤差在 <b>learning rate 開始衰減</b>時才暴增，與看過多少 token 關係不大。先前「資料越多越難量化」的 scaling 結論，主要是被 LR schedule 混淆。<b>大一點的 LR、weight averaging、大一點的 weight decay</b> 都能讓模型更好量化，共同的解釋是收斂到更平的極小值。</p>
+      <div class="cite">Abstract, p.1；§4–6, p.6–10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">先前的說法：訓練越久，PTQ 越不可行</h2>
+      <ul class="bullets"><li>Kumar et al. (2024)、Ouyang et al. (2024) 推出量化 scaling law：<b>token / 參數比越高，量化退化越嚴重</b></li><li>推論：資料規模只會越來越大，PTQ 對未來模型可能不再可行；undertrained 模型量化起來反而比較划算</li><li>但小而 overtrained 的模型正在流行，加大資料又是提升效能的主要手段，這兩件事互相衝突</li><li>本文認為缺了一塊：<b>訓練超參數與訓練動態</b>對可量化性的影響</li></ul>
+      <div class="cite">§1, p.1；§2.3, p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">關鍵觀察</div>
+      <h2 class="head">SmolLM3：stable 期 11T tokens 量化誤差幾乎持平，LR 一衰減就飆升</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>Figure 1：SmolLM3 的 4-bit 量化誤差（左）與 validation loss（右）；虛線為 LR（p.2）</figcaption></figure>
+      <ul class="bullets"><li>Stable 期 η = 2e-4，量化誤差只在訓練最初快速上升，之後約持平</li><li>LR 衰減時 FP validation loss 下降，<b>量化誤差同時急升</b>，升幅超過訓練中任何時候</li></ul>
+      <div class="cite">§3.1, Fig.1, p.2–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">四個部分</h2>
+      <ol class="numbered"><li><b>野外觀測</b>：在 6 個開源 LLM 訓練軌跡的數百個中間 checkpoint 上量 PTQ 誤差，對齊訓練階段與 LR schedule（§3）</li><li><b>控制實驗</b>：自訓模型證實 LR schedule 調控量化誤差；其他條件不變時，LR 越大量化誤差越小（§4）</li><li><b>介入手段</b>：最佳化 LR schedule、weight averaging、weight decay 都能降低量化誤差（§5）</li><li><b>幾何解釋</b>：loss landscape 與 Hessian 分析，指向「更平的極小值」（§6）</li></ol>
+      <div class="cite">§1, p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">設定</div>
+      <h2 class="head">怎麼量「量化誤差」</h2>
+      <div class="two-col"><div><p class="col-hint">量化方法</p><ul class="bullets"><li>主實驗用 <b>GPTQ 3-bit / 4-bit</b>，C4 calibration、group size 128</li><li>附錄用 AWQ、BitsAndBytes（LLM.int8）複驗，趨勢相同</li><li>GPTQ 這類方法最小化 reconstruction error ||XW<sup>T</sup> − XŴ<sup>T</sup>||，需要 calibration data</li></ul></div><div><p class="col-hint">指標</p><ul class="bullets"><li>Relative CE：CE(Ŵ) / CE(W) − 1（loss 越低，同樣增量越貴）</li><li>δ<sub>PTQ</sub> = CE(Ŵ) − CE(W)（複製 Kumar et al. 時用）</li><li>下游：12 個 benchmark 5-shot 平均，relative drop = (Acc(W) − Acc(Ŵ)) / (1 − Acc(W))</li></ul></div></div>
+      <div class="cite">§2.1, p.3；§3.1–3.2, p.4–5；App. A, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3 野外觀測</div>
+      <h2 class="head">分析的開源訓練軌跡</h2>
+      <table class="bench"><thead><tr><th>模型家族</th><th>參數量</th><th>訓練 tokens</th><th>LR schedule 特色</th></tr></thead><tbody><tr><td>OLMo</td><td>1B / 7B</td><td>2.5–3T</td><td>—</td></tr><tr><td>OLMo2</td><td>1B / 7B / 13B / 32B</td><td>4–6T</td><td>cosine → 短而陡的 linear decay，最終 model soup</td></tr><tr><td>SmolLM3</td><td>3B</td><td>11T</td><td>WSD；另含 post-training 各階段</td></tr><tr><td>Apertus</td><td>8B</td><td>15T</td><td>WSD</td></tr><tr><td>Open-science</td><td>1.3B</td><td>1T</td><td>WSD，多種 token budget</td></tr><tr><td>Amber</td><td>7B</td><td>1.3T</td><td>—</td></tr></tbody></table>
+      <p class="note">全部以 GPTQ 量化到 3 / 4 bit；完整結果見 Appendix B。</p>
+      <div class="cite">§3, p.4；App. B, p.18–19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3 OLMo2</div>
+      <h2 class="head">Cosine 期緩升，陡峭 linear decay 期急升；model soup 最好量化</h2>
+      <figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure2_p4.jpg" alt=""><figcaption>Figure 2：OLMo2 1B–32B 的 3-bit 量化誤差；⋆ 為 model soup（p.4）</figcaption></figure>
+      <ul class="bullets"><li>四個尺寸用同一套訓練流程：先 4–6T tokens cosine，再用多種高品質資料「ingredients」做短 linear decay</li><li>Model soup（平均不同 ingredient 的模型）的 PTQ 誤差<b>低於任何單一 ingredient</b></li></ul>
+      <div class="cite">§3.1, Fig.2, p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3 Post-training 階段</div>
+      <h2 class="head">SmolLM3：每個訓練階段對量化的影響不同</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure3_p5.jpg" alt=""><figcaption>Figure 3：SmolLM3 各階段的 3-bit validation loss 退化（左）與準確率退化（右）（p.5）</figcaption></figure>
+      <ul class="bullets"><li>Long-context 訓練<b>降低</b>退化；mid-training <b>大幅放大</b>；SFT 與 APO 再逐步降低</li><li>發布版 = 0.9 × APO + 0.1 × mid-training 的線性 merge，退化比兩者都低，又一個「平均有助量化」的例子</li></ul>
+      <div class="cite">§3.2, Fig.3, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4 控制實驗</div>
+      <h2 class="head">不同 token budget，cooldown 後的量化誤差差不多</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure4_p6.jpg" alt=""><figcaption>Figure 4：160M 模型以 WSD 訓練到 100B tokens，另在 12B/28B/46B/64B/82B 做 cooldown（p.6）</figcaption></figure>
+      <ul class="bullets"><li>Pythia-160M、FineWebEdu、峰值 LR 3e-3、cooldown 佔 10%、衰減到 0</li><li>訓練長度從 10B 到 100B，cooldown 後的量化誤差相近，<b>誤差尖峰跟著訓練動態走，不跟著 token 數走</b></li><li>常數 LR 期也並非完全不受影響，量化誤差會小幅上升</li></ul>
+      <div class="cite">§4.1, Fig.4, p.6；App. C, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4 重新檢驗 scaling law</div>
+      <h2 class="head">先前的趨勢主要來自 cosine schedule</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure5_p7.jpg" alt=""><figcaption>Figure 5：70M / 160M 模型，cosine vs WSD；右為 δ<sub>PTQ</sub>（p.7）</figcaption></figure>
+      <ul class="bullets"><li>照 Kumar et al. 的設定用 <b>cosine</b>：δ<sub>PTQ</sub> 隨 token budget 明顯上升，與原論文一致</li><li>換成相當的 <b>WSD</b>：validation loss 更低，δ<sub>PTQ</sub> 在 70M 上升得較慢，在 160M <b>不再上升</b></li></ul>
+      <div class="takeaway">推導量化 scaling law 時，應只取 LR 退火完成後的 checkpoint，否則會把 schedule 效應誤當成資料量效應。</div>
+      <div class="cite">§4.2, Fig.5, p.6–7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5 介入 ①</div>
+      <h2 class="head">Learning rate 越大，量化誤差越小</h2>
+      <figure class="full" style="max-height:36vh; margin-top:.4rem;"><img src="figures/figure6_p7.jpg" alt=""><figcaption>Figure 6：LR ∈ {3e-4, 1e-3, 3e-3, 1e-2}；(b)(c) 為 FP 對量化後 validation loss，越貼近 x=y 越好（p.7）</figcaption></figure>
+      <ul class="bullets"><li>量化誤差曲線一致地依 LR 大小反向排序：LR 越大，曲線越低</li><li>LR 1e-3 與 3e-3 的 FP loss 相近，但 <b>3e-3 的 low-bit 量化明顯更好</b>，沒有看到代價</li><li>在 OLMo2-7B 的 300B token 預訓練上複驗（Fig.23）</li></ul>
+      <div class="cite">§5.1, Fig.6, p.7；Fig.23, p.24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5 Schedule 形狀</div>
+      <h2 class="head">Cosine vs WSD：不只看當下的 LR 大小</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure22_p24.jpg" alt=""><figcaption>Figure 22：WSD 與 cosine decay 的比較（p.24）</figcaption></figure>
+      <ul class="bullets"><li>Cosine 的峰值 LR 高很多，雖然衰減快，量化誤差與 validation loss 仍優於這裡的 WSD → 量化表現取決於整段訓練動態</li><li>但 3-bit 下 cosine 在<b>訓練末端急劇上翹</b>：末段 LR 極小且不受峰值控制，WSD 對末端 LR 較好掌控</li></ul>
+      <div class="cite">§5.1, Fig.22, p.7, p.24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5 介入 ②</div>
+      <h2 class="head">Weight averaging：FP 輸給 cooldown，3-bit 反而贏</h2>
+      <figure class="full" style="max-height:36vh; margin-top:.4rem;"><img src="figures/figure7_p8.jpg" alt=""><figcaption>Figure 7：160M、100B tokens、常數 LR；LAWA vs 各 cooldown（p.8）</figcaption></figure>
+      <ul class="bullets"><li>LAWA（LAtest Weight Averaging）：每 500 步存一次 checkpoint，對最近 5 個做均勻平均</li><li>全精度下 LAWA 比常數 LR 好，但追不上 cooldown（與先前研究一致）</li><li><b>3-bit 量化後</b>，LAWA 的 validation loss 低於所有 cooldown；在 OLMo-1B 釋出的 checkpoint 上平均也有改善（Fig.24）</li></ul>
+      <div class="cite">§5.2, Fig.7, p.8；App. C, p.20；Fig.24, p.24</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5 介入 ③</div>
+      <h2 class="head">Weight decay：λ 大一點也有幫助，但效果比 LR 小</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure19_p22.jpg" alt=""><figcaption>Figure 19：固定訓練配方，只改 weight decay λ（p.22）</figcaption></figure>
+      <ul class="bullets"><li>使用 LR 與 λ 解耦的 AdamW 實作，單獨掃 λ</li><li>FP loss 相近的模型中，<b>λ 越大，4-bit / 3-bit 量化誤差越低</b>，與 Ahmadian et al. (2023) 的觀察一致</li><li>與 Fig.6 相比，λ 對量化誤差的影響小於 LR</li></ul>
+      <div class="cite">§5.3, Fig.19, p.8, p.22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§6 機制 ①</div>
+      <h2 class="head">Loss landscape：LR 越大，盆地越平</h2>
+      <figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure8_p9.jpg" alt=""><figcaption>Figure 8：由 Θ<sub>K</sub>（最終）、Θ<sub>K−1</sub>（前一步）、Θ̂<sub>K</sub>（4-bit 量化）張成的 2D 切面（p.9）</figcaption></figure>
+      <ul class="bullets"><li>LR 越小，Θ<sub>K−1</sub> 與 Θ<sub>K</sub> 越近，Θ<sub>K</sub> 與 Θ̂<sub>K</sub> 也越近</li><li>但小 LR 的盆地很陡，量化後的 Θ̂<sub>K</sub> 雖然離得近，仍落在<b>更高的 loss 等高線</b>；3-bit 擾動更大時更明顯（Fig.25）</li><li>量化方向（y 軸）的地形結構與訓練方向（x 軸）相似：量化後模型的幾何跟訓練造成的幾何密切相關</li></ul>
+      <div class="cite">§6.1, Fig.8, p.9；Fig.25, p.25</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§6 機制 ②</div>
+      <h2 class="head">Hessian：LR 一衰減，sharpness 與 trace 就跳升</h2>
+      <figure class="full" style="max-height:38vh; margin-top:.4rem;"><img src="figures/figure9_p10.jpg" alt=""><figcaption>Figure 9：sharpness（左上）、Hessian trace（右上）、前 25 個 eigenvalue（下）（p.10）</figcaption></figure>
+      <ul class="bullets"><li>用 PyHessian：Hutchinson 估 trace、power iteration 估最大 eigenvalue</li><li>Stable 期只有 top eigenvalue 短暫上升；decay 期<b>整個譜一起上升</b>，trace 的走勢與 Fig.4 的量化誤差相似</li><li>LAWA 的 trace 一直最低，代表更寬的極小值；大 LR 也得到較低的 sharpness 與 trace（Fig.26）</li></ul>
+      <div class="cite">§6.2, Fig.9, p.9–10；App. G, p.25</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">統一解釋（作者假說）</div>
+      <p class="big">LR 衰減讓模型走進 loss landscape <b>更陡的區域</b>，對量化這類權重擾動更敏感；大 LR、weight averaging、model soup 都導向<b>更平的極小值</b>，因此更耐量化。</p>
+      <p class="note">這是相關性觀察加上的假說，論文沒有給出因果證明。</p>
+      <div class="cite">§6.2, p.10；§7, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實務指引</div>
+      <h2 class="head">照論文結論整理</h2>
+      <table class="bench"><thead><tr><th>情境</th><th>論文的發現</th></tr></thead><tbody><tr><td>兩個 LR 的 FP 效果差不多</td><td>選大的；量化後更好，論文中沒觀察到代價</td></tr><tr><td>Release 前要做 cooldown</td><td>Cooldown 會推高 PTQ 誤差；可另外評估 LAWA / model soup 的量化版本</td></tr><tr><td>推導量化 scaling law</td><td>只取 LR 退火完成的 checkpoint，避免把 schedule 效應算到資料量頭上</td></tr><tr><td>Weight decay 的選擇</td><td>FP 相近時，λ 大一點較好量化（效果比 LR 小）</td></tr><tr><td>超參數搜尋流程</td><td>把 PTQ 誤差當成例行監控的指標之一</td></tr></tbody></table>
+      <div class="cite">§5, p.7–8；§7, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者點出的限制與尚未涵蓋的部分</h2>
+      <ul class="bullets"><li>只研究 LR、schedule、weight decay；optimizer 選擇與 schedule-free 方法留待後續（App. H）</li><li>只分析 dense、quadratic attention 的模型；作者預期 sparse / sub-quadratic 架構結論類似，但沒驗證</li><li>控制實驗主要在 Pythia-160M（另有 OLMo2-7B 300B tokens 一項複驗）</li><li>Apertus 從一開始就有大幅波動的量化誤差、Amber 有一次 loss spike 後退化急升，原因作者無法確定（App. B）</li></ul>
+      <div class="takeaway">「更平的極小值」是貫穿全文的解釋，但仍停在相關性層次。</div>
+      <div class="cite">App. H, p.25；App. B, p.18；§5.1, p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">對做部署與量化的工程師（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li>同一個架構、不同 checkpoint 的量化難度可以差很多；挑要量化的 checkpoint 時，pre-decay 或平均過的版本值得一起比較</li><li>Model merge 不只是為了任務效能，也可能是便宜的「量化友善化」手段</li><li>論文全部用 weight-only GPTQ / AWQ / LLM.int8；activation 或 KV-cache 量化是否有相同趨勢，需要自行驗證</li></ul>
+      <p class="note">此頁為編者推論，與論文內容分開標示。</p>
+      <div class="cite">綜合 §3、§5、§6</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">關鍵段落（英文原文 + 中譯）</h2>
+      <div class="hl"><p class="hl__en">Specifically, <b>once learning rates decay, validation loss and quantization error diverge</b>, largely independent of training data scale.</p><p class="hl__zh">具體來說，<b>一旦 learning rate 開始衰減，validation loss 與量化誤差就分道揚鑣</b>，而且大致與訓練資料量無關。<span class="hl__src">Abstract, p.1</span></p></div>
+      <div class="hl"><p class="hl__en">We argue that these works did not sufficiently control for a key confounder, namely <b>the optimization dynamics induced by the learning rate schedule</b>.</p><p class="hl__zh">我們認為這些研究沒有充分控制一個關鍵混淆因子，也就是<b>LR schedule 造成的最佳化動態</b>。<span class="hl__src">§4.2, p.6</span></p></div>
+      <div class="hl"><p class="hl__en">We hypothesize that, as the learning rate decays, <b>the model traverses a sharper region of the loss landscape</b>, making it more sensitive to perturbations such as quantization.</p><p class="hl__zh">我們假設 LR 衰減時，<b>模型會進入 loss landscape 更陡的區域</b>，因而對量化這類擾動更敏感。<span class="hl__src">§6.2, p.10</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 訓練設定</div>
+      <h2 class="head">控制實驗的超參數</h2>
+      <table class="bench"><thead><tr><th>項目</th><th>設定</th></tr></thead><tbody><tr><td>模型</td><td>Pythia-160M（另有 70M）</td></tr><tr><td>資料</td><td>FineWebEdu，最多 100B tokens</td></tr><tr><td>硬體</td><td>最多 8× A100-80GB</td></tr><tr><td>序列長度 / batch</td><td>2048 / 0.5M tokens</td></tr><tr><td>Optimizer</td><td>AdamW，β1 = 0.9、β2 = 0.95、weight decay 0.1、grad clip 1</td></tr><tr><td>Schedule（Fig.4）</td><td>WSD，峰值 3e-3，warmup 1900 步，cooldown 佔 10%，衰減到 0</td></tr><tr><td>LAWA</td><td>每 500 步收 checkpoint，窗口 5，均勻平均</td></tr><tr><td>Validation</td><td>RefinedWeb held-out split；下游用 LM-eval-harness + vLLM</td></tr></tbody></table>
+      <div class="cite">App. C–D, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 其他量化後端</div>
+      <h2 class="head">AWQ、LLM.int8 也看到相同趨勢</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.4rem;"><img src="figures/figure10_p18.jpg" alt=""><figcaption>Figure 10：不同 4-bit 量化後端下的量化誤差（p.18）</figcaption></figure>
+      <div class="cite">App. A, Fig.10, p.18</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">量化穩健性是訓練時就決定的</h2>
+      <p class="end__sub">來源：<i>Training Dynamics Impact Post-Training Quantization Robustness</i> · Catalan-Tatjer, Ajroldi, Geiping · arXiv 2510.06213 · ICLR 2026</p>
+      <div class="end__next">明日預告：週六 · AI Agent 框架 / 多模態系統</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
