@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACES — Evaluating Skills, Not Just Agents (NVIDIA SkillEvaluator)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週日 · 火爆 GitHub Repo / 公司技術報告</div>
+      <h1 class="title">ACES：不只評 agent，也要評 skill，用「有 skill 減沒 skill」的配對實驗量出 Skill Lift</h1>
+      <div class="sub">掃文件 → 跑 agent · with-skill / baseline 配對 · ATIF 跨 harness trajectory · 6 metrics · 145 skills / 947 配對 case</div>
+      <div class="authors">Christopher Kevin, Narendran Raghavan, Jean-Francois Puget, Roshni Malani, Meghana Puvvadi, Moshe Abramovitch, Mohit Gupta, Rama Akkiraju, Subodh Prabhu, Yogesh Dangi, Wei Luo, Seong Hee Lee · NVIDIA</div>
+      <div class="meta-row"><span class="badge tier">arXiv preprint（未標會議）</span><span class="badge date">arXiv 2026-08-20</span><span class="badge">GitHub Trending 2026-11-15 · NVIDIA/SkillEvaluator</span></div>
+      <p class="note">論文：<i>Evaluating Skills, Not Just Agents: Agentic Continuous Evaluation of Skills</i>（arXiv 2608.20614v1，cs.AI）· 開源實作 github.com/NVIDIA/SkillEvaluator</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">現在的 skill 評測只<b>掃文件</b>、不<b>跑 skill</b>。ACES 對每個 task 同時跑「有這個 skill」與「沒這個 skill（其他 skill 照放）」兩組 live agent，相減得 <b>Skill Lift</b>。947 組配對中平均 lift <b>+0.2134</b>（95% CI [0.1967, 0.2301]），而靜態評分和 live lift 的相關係數只有 <b>ρ ≈ −0.02</b>：文件寫得漂亮，不代表 agent 用得好。</p>
+      <div class="cite">Abstract, p.1；§6.4 p.10；§6.7 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">為什麼是今天這篇</div>
+      <h2 class="head">今日 Python trending 第 4 名 NVIDIA/SkillEvaluator，README 直連這篇論文</h2>
+      <ul class="bullets"><li>Repo 今天 ⭐1,256、單日 +133；README 的 arXiv badge 指向 2608.20614</li><li>論文自述：SkillEvaluator 是多層（multi-tier）開源框架，其 <b>Tier 3 就是本文的 paired evaluation protocol</b></li><li>同一天的 trending 前段幾乎全是 Claude Code / Codex 的 skill 與 plugin 套件，skill 數量膨脹後「怎麼知道一個 skill 真的有用」正是缺口</li><li><b>來源說明</b>：這是 arXiv preprint，PDF 用 ACM 版型但沒有標示會議，也沒有公開審稿；本 deck 數字全部取自 arXiv v1（15 頁）</li></ul>
+      <div class="takeaway">對每天在寫、在裝 skill 的人來說，這篇回答的是：怎麼用實驗而不是用感覺判斷一個 skill 值不值得留。</div>
+      <div class="cite">GitHub trending（2026-11-15 抓取）；§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景 · 什麼是 skill</div>
+      <h2 class="head">Skill 是 agent 的應用層：一包可以按需載入的程序性知識</h2>
+      <div class="two-col"><div><p class="col-hint">組成</p><ul class="bullets"><li><code>SKILL.md</code>：描述 + 指令</li><li>可選的確定性 scripts：agent 不該即興發揮的步驟交給程式</li><li>references 與 examples</li><li>多個相關 skill 打包 → 常被稱為 <b>plugin</b></li></ul></div><div><p class="col-hint">關鍵設計：progressive disclosure</p><ul class="bullets"><li>agent 一開始只讀短 description</li><li>判斷這個 skill 適用時，才載入完整指令、scripts、範例</li><li>所以一個 workspace 可以同時放幾十個 skill 而不撐爆 context</li><li>Claude Code、Codex、Cursor 等 harness 都採用</li></ul></div></div>
+      <div class="takeaway">副作用：skill 能不能發揮，取決於 agent 會不會在對的時候「選中」它，而這件事只看文件看不出來。</div>
+      <div class="cite">§1, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 掃描必要但不充分</div>
+      <h2 class="head">業界四類 skill 評測工具都在掃文件，沒有一個真的去跑它</h2>
+      <div class="two-col"><div><p class="col-hint">現有四類（全是 scan-only）</p><ol class="numbered"><li><b>Structural checks</b>：frontmatter、段落、script 是否存在 → 確定性分數</li><li><b>LLM-as-Judge</b>：指令清楚嗎、範例好嗎、trigger 用詞對嗎</li><li><b>Linter</b>：scripts 的語法與危險寫法</li><li><b>Security scanner</b>：prompt injection、外洩金鑰、<code>rm -rf</code></li></ol></div><div><p class="col-hint">掃不出的 5 種 runtime 失敗</p><ul class="bullets"><li>(a) 使用者問了相關問題，agent 卻<b>沒發現</b>這個 skill</li><li>(b) 讀了文件但<b>叫錯 script 或參數</b></li><li>(c) 輸出正確但<b>誤讀、誤報</b></li><li>(d) 和 workspace 裡另一個 skill <b>互相干擾</b></li><li>(e) 模型更新後被<b>靜默 regress</b></li></ul></div></div>
+      <div class="takeaway">作者的類比：通過 <code>-Wall -Werror</code> 只代表沒有 warning，不代表程式做對了事。</div>
+      <div class="cite">§1, p.1</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Doc-scan 1/2 · 兩層靜態評分</div>
+      <h2 class="head">結構規則約 50 條，LLM judge 用 10 項 rubric</h2>
+      <div class="two-col"><div><p class="col-hint">Tier 1 · Structural（Table 1）</p><table class="bench"><thead><tr><th>維度</th><th class="num">權重</th></tr></thead><tbody><tr><td>Correctness：frontmatter、Instructions 段、script 存在</td><td class="num">0.35</td></tr><tr><td>Discoverability：description 長度 50–150、trigger 詞彙</td><td class="num">0.25</td></tr><tr><td>Reliability：錯誤處理、Prerequisites / Limitations 段</td><td class="num">0.25</td></tr><tr><td>Efficiency：token 預算、重複行、巢狀引用深度</td><td class="num">0.15</td></tr></tbody></table><p class="note">每維度從 100 扣分，加權總分 ≥ 70 過 gate；毫秒級、不用 API key</p></div><div><p class="col-hint">Tier 2 · LLM-as-Judge（Table 2）</p><ul class="bullets"><li>G-Eval form-filling；9 項基本 + 1 項條件式（structural coherence）</li><li>每項 0–10 分，temperature 0</li><li>抓得到結構規則抓不到的：「handle errors appropriately」有關鍵字但沒寫具體行為</li><li>三個 judge（Claude 3.7 Sonnet / 3.5 Haiku / 9B in-house）最嚴與最鬆差約 <b>1.5 分</b>，相對排序大致保留</li></ul></div></div>
+      <div class="cite">Table 1 p.2；§2.1–2.2 p.2–3；Table 2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Doc-scan 2/2 · 145 個真實 skill</div>
+      <h2 class="head">兩種掃描各自都很寬鬆，而且彼此幾乎不一致</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure1_p4.jpg" alt=""><figcaption>Figure 1：(a) 結構分分佈，94.5% 過 70 分 gate、只有 48.9% 到 80；(b) 結構分與 LLM-judge 分 Spearman ρ=0.14、Pearson r=0.08</figcaption></figure>
+      <ul class="bullets"><li>結構分 61–98，平均 79.2、中位數 79.8、σ=4.9；不同來源平均都落在 78.5–80.2</li><li>兩者 pass 率各為 94.5% 與 86.2%，所以低相關<b>不是某一方退化</b>造成的</li><li>分歧兩型：欄位齊全但指令含糊（結構過、rubric 不過）vs 內容豐富但漏 metadata（反之）</li></ul>
+      <div class="cite">§2.4 p.3；Figure 1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Doc-scan · 違規輪廓</div>
+      <h2 class="head">frontmatter 規範寫在 spec 裡，但幾乎沒人遵守</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure2_p4.jpg" alt=""><figcaption>Figure 2：最常被違反的 10 條靜態規則（n=145）</figcaption></figure></div><div><ul class="bullets"><li><b>99.3%</b> 沒宣告 <code>tools</code></li><li><b>97.9%</b> 沒有 Limitations 段</li><li><b>97.2%</b> 沒填 <code>author</code></li><li><b>91.7%</b> 沒填 <code>tags</code></li><li>配上 94.5% 的 gate 通過率 → spec 要求的欄位只是「理想」，gate 照樣放行</li></ul><div class="takeaway">作者因此提供 strict-mode gating 作為可選設定（§5）。</div></div></div>
+      <div class="cite">§2.4 p.3；Figure 2 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">前人缺口 · Table 3</div>
+      <h2 class="head">既有工具各覆蓋 1–2 項能力，沒有一個五項全有</h2>
+      <table class="bench"><thead><tr><th>Approach</th><th>Artifact</th><th>Value (lift)</th><th>Multi-harness</th><th>CI</th><th>HITL</th></tr></thead><tbody><tr><td>SkillsBench</td><td>−</td><td>✓</td><td>✓</td><td>−</td><td>−</td></tr><tr><td>SkillTester</td><td>✓</td><td>−</td><td>−</td><td>−</td><td>−</td></tr><tr><td>Skills In-the-Wild</td><td>−</td><td>✓</td><td>−</td><td>−</td><td>−</td></tr><tr><td>Anthropic skill-creator</td><td>✓</td><td>−</td><td>−</td><td>−</td><td>−</td></tr><tr><td>Terminal-Bench</td><td>−</td><td>−</td><td>✓</td><td>−</td><td>−</td></tr><tr class="win"><td><b>ACES（本文）</b></td><td class="best">✓</td><td class="best">✓</td><td class="best">✓</td><td class="best">✓</td><td class="best">✓</td></tr></tbody></table>
+      <p class="note">Artifact＝直接替 skill 本身打分；Value＝用 lift 量邊際價值；Multi＝跨多個 agent harness；CI＝原生接 CI；HITL＝人參與 dataset 修正</p>
+      <div class="cite">Table 3, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">設計 · 三原則</div>
+      <h2 class="head">寫一次、配對量、作者說了算</h2>
+      <ol class="numbered"><li><b>Write once, evaluate everywhere</b>：每個 skill 一份評測契約（通常是 <code>evals.json</code>），同一份資料拿去評 Claude Code、Codex 等不同 harness</li><li><b>Differential measurement</b>：同題目、同 agent、同 model、同 grader，<b>只改 target skill 在不在</b>；它依賴的 prerequisite / helper / decoy skill 兩邊都放</li><li><b>Developer-guided</b>：LLM 自動生 dataset 只是起手，不是標準答案；作者寫的 <code>EVAL.md</code> 優先於 LLM 產生的內容</li></ol>
+      <div class="takeaway">第 2 條是整篇的核心：skill 的品質是一個<b>比較出來的量</b>，不是一個絕對分數。</div>
+      <div class="cite">§3, p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 系統總覽</div>
+      <h2 class="head">五段式：評測資產 → 配對任務 → 多 agent 沙盒 → ATIF → 評分與 Skill Lift</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.4rem;"><img src="figures/figure3_p6_crop.jpg" alt=""><figcaption>Figure 3：ACES runtime evaluation flow。adapter 產生 with-skill（target + support）與 baseline（support only）兩組任務，prompt、grader、fixtures、sandbox 全相同</figcaption></figure>
+      <div class="cite">Figure 3, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 1 · 評測資產是一等公民</div>
+      <h2 class="head">evals.json 的每一筆，以及最有表達力的 expected_behavior</h2>
+      <div class="two-col"><div><p class="col-hint">Schema</p><ul class="bullets"><li><code>id</code>、<code>question</code></li><li><code>expected_skill</code>（negative case 為 null）</li><li><code>expected_script</code>（可選）、<code>ground_truth</code></li><li><code>expected_behavior[]</code>：有順序的自然語言句子</li><li>例：「read git-skill/SKILL.md before executing」「confirmed destructive operation with the user」</li></ul><p class="note">LLM judge 對每句回答 YES/NO，取通過比例；缺 security 句會自動補上</p></div><div><p class="col-hint">四桶 bootstrap（<code>create-dataset --full</code>）</p><ul class="bullets"><li><b>Explicit</b>：直接點名「use git-skill to pull latest」</li><li><b>Implicit</b>：不點名「sync my repo with origin」→ 測 description 夠不夠強</li><li><b>Contextual</b>：加入領域雜訊「I'm preparing a release…」</li><li><b>Negative control</b>：「what is the capital of France?」→ 抓過度觸發</li></ul><p class="note">需要產品狀態或特殊判分時：BYOT（自帶 task）/ BYOG（自帶 grader）</p></div></div>
+      <div class="cite">§4.1, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 2 · 用真實 trajectory 修 dataset</div>
+      <h2 class="head">LLM 生的 dataset 是假設；跑過一次後，用 agent 實際行為回填</h2>
+      <figure class="full" style="max-height:22vh; margin-top:.4rem;"><img src="figures/figure4_p6.jpg" alt=""><figcaption>Figure 4：dataset 建立與修正迴圈</figcaption></figure>
+      <ul class="bullets"><li><code>create-dataset --refine --from-results &lt;path&gt;</code> 重讀已存的 ATIF trajectory</li><li><code>ground_truth</code>：agent 最終答案符合作者意圖時才替換</li><li>觀察到的 tool-call 序列升級成 <code>expected_behavior</code>；<code>EVAL.md</code> 的指示<b>永不覆寫</b></li><li>作者觀察：修正後 judge variance 下降，尤其 behavior_check，因為從 trajectory 來的行為描述更具體、更可驗證</li></ul>
+      <div class="cite">§4.2, p.5–6；Figure 4 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 3 · 六個預設 metric</div>
+      <h2 class="head">確定性檢查管「找到、照做、不浪費」，LLM judge 管答案與作者指定的行為</h2>
+      <table class="bench"><thead><tr><th>Metric</th><th>類型</th><th>在量什麼</th><th>→ 維度</th></tr></thead><tbody><tr><td>security</td><td>確定性 pattern</td><td>破壞性操作、外洩金鑰、越界存取</td><td>Security</td></tr><tr><td>skill_execution</td><td>確定性 4 子項</td><td>activation · script_execution · workflow_order（先讀再做）· error_recovery</td><td>Discoverability</td></tr><tr><td>skill_efficiency</td><td>確定性 2 子項</td><td>routing（只讀允許的 skill）· tool_efficiency（--help 亂試、ls 錯路徑、任務中裝套件算浪費）</td><td>Efficiency</td></tr><tr><td>accuracy</td><td>LLM judge</td><td>5 個二元問題，yes 數 / 5</td><td>Correctness</td></tr><tr><td>goal_accuracy</td><td>RAGAS / LLM</td><td>整段對話含 tool call 有沒有達成目標</td><td>Effectiveness</td></tr><tr><td>behavior_check</td><td>LLM judge</td><td>expected_behavior 滿足比例</td><td>Effectiveness</td></tr></tbody></table>
+      <p class="note">右欄是給作者與 reviewer 看的 5 個 stakeholder 維度（Table 4）；BYOG 指標另外列，不改動預設定義</p>
+      <div class="cite">§4.3 p.6–7；Table 4 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 4 · ATIF 與 Harbor adapter</div>
+      <h2 class="head">統一 trace 格式讓同一套 grader 能評不同 agent</h2>
+      <div class="two-col"><div><p class="col-hint">ATIF：跨 harness 的 trace 契約</p><ul class="bullets"><li>有版本的 JSON schema；trajectory = 有序 steps</li><li>每步：source、message、tool calls（函式名 + 參數）、observation</li><li>Claude Code、Codex 原生輸出；Harbor 的標準輸入格式</li><li>cursor-cli 只有純文字 stdout → heuristic adapter 轉成 synthetic ATIF</li></ul></div><div><p class="col-hint">Adapter：每次即時產生拋棄式任務</p><ul class="bullets"><li>每 task 一個目錄：<code>instruction.md</code>、<code>task.toml</code>、Dockerfile、<code>environment/skills/</code>、Compose（mock MCP）、verifier</li><li>每次呼叫都重新產生 → 評到的永遠是 merge 當下的 repo</li><li>成本線性：N skills × K agents × C cases × A attempts × 2 → 最多 <b>2NKCA</b> 次 container run</li><li>支援 pass@k 與 stop-on-pass；sandbox 只是 backend，不綁 local Docker</li></ul></div></div>
+      <div class="cite">§4.5–4.6, p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 5 · Skill Lift 的定義與 decoy</div>
+      <h2 class="head">差值才是 skill 的邊際價值；baseline 不能是空 workspace</h2>
+      <div class="formula">Lift<sub>s,a</sub> = (1 / |M|) · Σ<sub>m ∈ M</sub> ( S<sup>with</sup><sub>s,a,m</sub> − S<sup>base</sup><sub>s,a,m</sub> )</div>
+      <ul class="bullets"><li>s = skill、a = agent、M = 啟用的 metric 集合、S = 跨 case 與 attempt 的平均分；預設 6 個 metric 各 <b>1/6</b> 權重</li><li><b>outcome-only lift</b>：只平均 accuracy 與 goal_accuracy；<b>負 lift</b> 就是作者最想抓的 regression 訊號</li><li><b>為什麼要 decoy</b>：baseline 若拿掉 skill 後什麼都不剩，就會把「skill 的內容」和「有 skill 可以被找到」兩件事都算在 target 頭上，<b>灌水 lift</b></li><li>decoy（api-debugger、log-triage、config-validator、release-planner）兩邊都放 → agent 仍必須做 discovery 與 routing</li></ul>
+      <div class="cite">§4.7, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 6 · Isolation vs Group</div>
+      <h2 class="head">把 skill 價值拆成「內容」與「被選中」兩部分</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:50vh; margin-top:.4rem;"><img src="figures/figure6_p9.jpg" alt=""><figcaption>Figure 6：以公開的 git-skill 為例</figcaption></figure></div><div><ul class="bullets"><li><b>Isolation</b>：workspace 只有 target，agent 沒得選 → Lift<sub>iso</sub> ＝ content contribution</li><li><b>Group</b>：target + 4 個 decoy，agent 要先選對 → Lift<sub>grp</sub> ＝ content + routing</li><li><b>routing premium</b> = Lift<sub>grp</sub> − Lift<sub>iso</sub></li><li>premium 接近 0 或為負 → skill 的 name / description 和鄰居分不開；就算內容品質高，作者也該改這兩欄</li></ul></div></div>
+      <div class="cite">§4.8, p.8–9；Figure 6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 證據清單</div>
+      <h2 class="head">145 個 skill 掃描；64 個 production skill、4 個 harness 做 live 配對</h2>
+      <div class="two-col"><div><table class="bench"><thead><tr><th>項目</th><th class="num">數量</th></tr></thead><tbody><tr><td>掃描的 skill</td><td class="num">145</td></tr><tr><td>live 評測 skill 變體</td><td class="num">89</td></tr><tr><td>排除的 scaling-study 變體</td><td class="num">25</td></tr><tr><td>production skills / 有配對分數</td><td class="num">64 / 58</td></tr><tr><td>skill–agent cells / 有配對分數</td><td class="num">201 / 177</td></tr><tr><td><b>scored paired task cases</b></td><td class="num"><b>947</b></td></tr></tbody></table></div><div><table class="bench"><thead><tr><th>Trace 證據</th><th class="num">數量</th></tr></thead><tbody><tr><td>Saved ATIF trajectories</td><td class="num">2,022</td></tr><tr><td>Recorded agent steps</td><td class="num">14,335</td></tr><tr><td>Tool calls</td><td class="num">11,642</td></tr><tr><td>Behavior observations</td><td class="num">9,091</td></tr></tbody></table><p class="note">類別分佈：System Access 49、Deployment 41、Platform 29、Data Infra 21、Troubleshooting 3、Dev-Tooling 1、Other 1（Table 5）。原始 trace 含內部主機名，不公開。</p></div></div>
+      <div class="cite">§6.1–6.2 p.9；Table 5、Table 6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 1 · Headline</div>
+      <h2 class="head">有 skill 平均 +0.2134，而且不是靠少數極端值拉上來</h2>
+      <div class="scorebox"><span class="score score--hi">+0.2134</span><span class="score">0.7460 vs 0.5326</span><span class="score">+0.1799</span><span class="score">689 / 171 / 87</span></div>
+      <ul class="bullets"><li>composite Skill Lift +0.2134，95% CI [0.1967, 0.2301]（以配對 case 計）</li><li>絕對分：with-skill 0.7460 vs baseline 0.5326；accuracy 0.7760 vs 0.6329；goal accuracy 0.6887 vs 0.4720</li><li>outcome-only lift（只看 accuracy + goal）+0.1799</li><li>正 / 零 / 負 = 689 / 171 / 87，中位數 0.1717</li><li><b>群集檢查</b>：947 case 不是獨立樣本；改對 skill bootstrap 得 [0.1898, 0.2350]，對 cell bootstrap 得 [0.1880, 0.2385]，都仍為正</li></ul>
+      <div class="cite">§6.3 p.9；§6.4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 2 · 拆到每個 metric</div>
+      <h2 class="head">增益最大的是過程指標，不是最終答案</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure8_p10.jpg" alt=""><figcaption>Figure 8：六個 metric 與 overall 的配對平均 lift（95% CI，括號為正 lift 比例）</figcaption></figure></div><div><table class="bench"><thead><tr><th>Metric</th><th class="num">Lift</th><th class="num">正比例</th></tr></thead><tbody><tr class="win"><td>Skill execution</td><td class="num best">0.326</td><td class="num">64%</td></tr><tr><td>Behavior check</td><td class="num">0.298</td><td class="num">56%</td></tr><tr><td>Skill efficiency</td><td class="num">0.276</td><td class="num">42%</td></tr><tr><td>Goal accuracy</td><td class="num">0.217</td><td class="num">57%</td></tr><tr><td>Accuracy</td><td class="num">0.143</td><td class="num">37%</td></tr><tr><td>Security</td><td class="num">0.020</td><td class="num">6%</td></tr></tbody></table><p class="note">skill_efficiency 平均第三大，但只有 41.7% 為正 → 有些 run 用效率換正確性或流程完整</p></div></div>
+      <div class="cite">§6.4 p.10；Figure 8 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 3 · Harness 與模型</div>
+      <h2 class="head">四個 harness 都是正 lift；模型變強時 lift 反而會縮小</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure10_p12_crop.jpg" alt=""><figcaption>Figure 10：(a) 各 harness 的 base → skill；(b) harness／model cell；(c) 同一個 Codex harness 只換模型</figcaption></figure>
+      <ul class="bullets"><li>(a) OpenCode +0.3611、Claude Code +0.2904、Codex +0.1264、Terminus-2 +0.0896，各自和自己的 baseline 比，<b>不是模型排行榜</b></li><li>覆蓋不均：Claude Code 56 cells / 251 cases、Codex 50/259、OpenCode 34/211、Terminus-2 37/226</li><li>(c) Codex 5.2 → 5.4 → 5.5：Δ +0.09 → +0.11 → <b>+0.05</b>，5.5 的 baseline 升到 0.71，skill 能幫的空間變小</li></ul>
+      <div class="cite">§6.5 p.10；Figure 10 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">Mechanism ★ 為什麼一定要跑配對 live eval</div>
+      <p class="big">靜態分數和 runtime 價值<b>在統計上不相關</b>：62 個 production skill 上，結構分對 live lift 的 Spearman ρ = <b>−0.0181</b>，LLM-judge 分為 <b>−0.0266</b>，95% CI 都跨過 0。文件分數無法代替實驗。</p>
+      <div class="scorebox"><span class="score score--hi">ρ = −0.0181（Tier 1）</span><span class="score score--hi">ρ = −0.0266（Tier 2）</span><span class="score">skill_execution +0.326</span><span class="score">accuracy +0.143</span></div>
+      <ul class="bullets"><li><b>skill 改變的是過程</b>：skill_execution、behavior_check 的增益都大於 accuracy，而發現、選擇、照流程這些行為只有 trajectory 看得到</li><li><b>絕對分會混淆三件事</b>：skill 好、agent 本來就強、judge 比較寬鬆；只有配對差值分得開（Codex 5.5 絕對分最高、lift 卻最小）</li><li><b>OpenClaw 案例</b>：靜態 11/11、89/100；live 跑出 renderer 在中間產物留下 nvapi- canary，accuracy 與 goal 兩邊都是 1.0，只有 artifact grader 抓到（n=1，不計入 947）</li></ul>
+      <div class="cite">Tier 1 CI [−0.2667, 0.2327]、Tier 2 CI [−0.2745, 0.2247]：§6.7 p.11；§4.7 p.8；§6.5 p.10；Table 10 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 4 · 負 lift 與 routing 壓力</div>
+      <h2 class="head">負 lift 是除錯線索；可見 skill 太多時，系統開始變慢、變不準</h2>
+      <div class="two-col"><div><p class="col-hint">負 lift 是 review 目標</p><ul class="bullets"><li>947 case 中 87 個為負；201 cell 中 11 個平均為負、11 個為零</li><li>類型一：<b>執行不穩</b>，例如 with-skill 那組完全沒有產生分數</li><li>類型二：<b>skill 把 agent 帶偏</b>，讀了 skill 卻回 meta 層回答、跳過驗證、多花 tool call</li><li>可以分清「從沒被發現」與「發現了但用錯」</li></ul></div><div><p class="col-hint">Routing stress（25 變體）</p><table class="bench"><thead><tr><th>可見 skill 數</th><th>平均 lift</th><th class="num">wall time</th></tr></thead><tbody><tr><td>1</td><td>0.133–0.149</td><td class="num">258 s</td></tr><tr><td>20</td><td>0.133–0.149</td><td class="num">451 s</td></tr><tr><td>50</td><td>pass rate 0.55（1 個時 0.725）</td><td class="num">1,290 s</td></tr></tbody></table><p class="note">5 個 target × {1, 5, 10, 20, 50} × 2 harness；1–20 個時 lift 穩定，50 個時當作壓力測試，不列入 headline</p></div></div>
+      <div class="cite">§6.5–6.6 p.10–11；Appendix B p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">結果 5 · Trace 的質性讀法</div>
+      <h2 class="head">trajectory 讓 reviewer 看到分數背後發生了什麼事</h2>
+      <table class="bench"><thead><tr><th>Case</th><th>Trace 觀察</th><th>意義</th></tr></thead><tbody><tr><td>正向 routing</td><td>公開 workflow skill 經預期路徑啟動，1/1 productive tool call，5/5 behavior 通過</td><td>高 lift 的具體機制</td></tr><tr><td>部分成功</td><td>診斷出缺 OAuth token，但沒給授權 URL、也沒重跑驗證</td><td>最終答案看不出少了必要步驟</td></tr><tr><td>作者回饋</td><td>artifact workflow 卡在 pending，trace 產出 polling、retry、補救步驟的建議</td><td>live eval 能變成修改建議，不只 pass/fail</td></tr><tr><td>Security 分離</td><td>回填掃出疑似金鑰字串、破壞性指令、越界路徑</td><td>security 獨立成 metric，不被 behavior 分數掩蓋</td></tr></tbody></table>
+      <div class="cite">Table 7, p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">落地 · Evaluation-native skill 開發</div>
+      <h2 class="head">evals/ 就是 skill 的 tests/，每次改動都附上證據</h2>
+      <figure class="full" style="max-height:14vh; margin-top:.4rem;"><img src="figures/figure7_p9.jpg" alt=""><figcaption>Figure 7：skill change → evals/ assets → scan + security → optional live run → review evidence</figcaption></figure>
+      <ul class="bullets"><li><code>evals/</code> 內容：<code>evals.json</code>、<code>EVAL.md</code>、<code>files/</code> fixtures、<code>config.yml</code>、<code>harbor/</code>（BYOT/BYOG）、自訂 Dockerfile 與 mock MCP</li><li><b>依成本漸進</b>：結構檢查每次 PR 都跑（無 API）→ LLM judge 按需 → live 配對在有 assets、reviewer 觸發、或模型更新後排程時跑</li><li>change-aware（從 merge base 找出改過的 skill）、gate 可選擇擋或只提醒、結果貼成 MR comment</li><li>成本取捨：live 配對留給 release candidate、高風險 skill、reviewer 指定的改動</li></ul>
+      <div class="cite">§5 p.8–9；Figure 7 p.9；§7 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自己承認的部分</h2>
+      <ul class="bullets"><li>Corpus 偏重 System Access / Deployment / Platform / Data Infra；Troubleshooting、Dev-Tooling、創作類 skill 不宣稱同樣分佈</li><li><b>因果解讀</b>：Skill Lift 是「在宣告的 workspace 與 baseline policy 下」的邊際貢獻；增減一個 skill 也會改變 routing 壓力與 context 分配，不是 skill 的內在價值</li><li>live trajectory 評分的 inter-judge agreement、人工校準<b>都沒量</b>；1.5 分的 judge 差距只針對文件 rubric</li><li>VPN 內部 endpoint 在容器裡連不到 → goal_accuracy 絕對值是下界（lift 仍可比）</li><li>缺 subgroup CI 與負 lift 類型的正式檢定；timeout 沒有單獨統計；原始 trace 不公開</li><li>Appendix B 保守插補：把 with-skill 缺分全部當失敗，composite 從 0.2153 降到 <b>0.1840，仍為正</b></li></ul>
+      <div class="cite">§7 p.11–13；Appendix B p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 / 啟發</div>
+      <h2 class="head">給每天在寫 skill、裝 plugin 的工程師</h2>
+      <ul class="bullets"><li><b>先寫 evals/ 再寫 SKILL.md</b>：四桶（explicit / implicit / contextual / negative）加上幾句 expected_behavior，就足以抓到大多數「沒觸發」與「亂觸發」</li><li><b>baseline 要放 decoy</b>：自己做 A/B 時別拿空 workspace 比，不然 lift 會被灌水；group 模式的 routing premium 直接告訴你 description 夠不夠有辨識度</li><li><b>模型升級後重測</b>：Codex 5.5 的例子說明舊 skill 可能從「很有幫助」變成「幫助不大」，該刪就刪，省 context</li><li><b>掃描仍有價值，但只是 lint</b>：結構分與 LLM-judge 分適合當快速 gate，不能當作 skill 有沒有用的證據</li><li><b>讀數字的注意事項</b>：947 是 case 數，不是獨立 skill 數；harness 間覆蓋不均；作者是 SkillEvaluator 的開發者</li></ul>
+      <div class="takeaway">核心訊息：一個 skill 的價值等於「有它」減「沒它」的差，而且只能靠實際跑 agent 量出來。</div>
+      <div class="cite">綜合 §1–7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文螢光筆</div>
+      <h2 class="head">四句話讀懂這篇</h2>
+      <div class="hl"><p class="hl__en">All four classes share a structural property: they scan the skill document. <b>None runs it.</b></p><p class="hl__zh">四類工具有一個共同點：都在掃描 skill 文件，<b>沒有一個真的去執行它</b>。<span class="hl__src">§1, p.1</span></p></div>
+      <div class="hl"><p class="hl__en">The naive baseline thus <b>inflates lift by attributing both to the skill</b>.</p><p class="hl__zh">因此，空 workspace 的 baseline 會<b>把內容與可被發現性兩者都算給這個 skill，灌高 lift</b>。<span class="hl__src">§4.7, p.8</span></p></div>
+      <div class="hl"><p class="hl__en">These correlations are <b>statistically indistinguishable from zero</b>.</p><p class="hl__zh">這些相關係數<b>在統計上與零無法區分</b>。<span class="hl__src">§6.7, p.11</span></p></div>
+      <div class="hl"><p class="hl__en">Lift may therefore <b>shrink even when absolute task performance improves</b>, because the baseline agent no longer needs as much help from the skill.</p><p class="hl__zh">因此即使絕對表現提升，<b>lift 仍可能縮小</b>，因為 baseline agent 已經不那麼需要這個 skill 幫忙。<span class="hl__src">§7, p.12</span></p></div>
+      <div class="cite">arXiv 2608.20614v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 數字速查</div>
+      <h2 class="head">可直接引用的數字</h2>
+      <table class="bench"><thead><tr><th>項目</th><th>數值</th><th>出處</th></tr></thead><tbody><tr><td>結構分範圍 / 平均 / 中位數 / σ</td><td>61–98 / 79.2 / 79.8 / 4.9</td><td>§2.4 p.3</td></tr><tr><td>過 70 gate / 到 80 分</td><td>94.5% / 48.9%</td><td>§2.4 p.3</td></tr><tr><td>LLM-judge 過 70</td><td>86.2%</td><td>§2.4 p.3</td></tr><tr><td>結構 vs judge 相關</td><td>Spearman 0.14 / Pearson 0.08</td><td>§2.4 p.3</td></tr><tr><td>靜態分 vs live lift（62 skills）</td><td>Tier1 −0.0181 / Tier2 −0.0266</td><td>§6.7 p.11</td></tr><tr><td>Composite lift（947 case）</td><td>0.2134，CI [0.1967, 0.2301]</td><td>§6.4 p.10</td></tr><tr><td>Outcome-only lift</td><td>0.1799</td><td>§6.4 p.10</td></tr><tr><td>重複 cell 的 within-cell SD</td><td>median 0.0319 / mean 0.0699（88 cells）</td><td>§6.3 p.10</td></tr><tr><td>Raw-row 重建（898 / 947）</td><td>composite 0.2153；保守插補 0.1840</td><td>App. B p.15</td></tr><tr><td>Isolation decoy 範例</td><td>api-debugger, log-triage, config-validator, release-planner</td><td>§4.8 p.8</td></tr></tbody></table>
+      <div class="cite">arXiv 2608.20614v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">ACES：skill 的價值 = 有它減沒它，而且要讓 agent 實際跑過才算數</h2>
+      <p class="end__sub">來源：Evaluating Skills, Not Just Agents: Agentic Continuous Evaluation of Skills · arXiv 2608.20614v1 · NVIDIA · 開源實作 NVIDIA/SkillEvaluator</p>
+      <div class="end__next">明日預告：週一 · LLM（架構、訓練、對齊）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
