@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mamba-3 — Improved Sequence Modeling using State Space Principles (ICLR 2026 Oral)</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週一 · LLM（架構、訓練、對齊）</div>
+      <h1 class="title">Mamba-3：從 SSM 原理出發，同時補上線性模型的品質、state tracking 與 decode 硬體效率</h1>
+      <div class="sub">Exponential-trapezoidal 離散化 · 複數狀態 = data-dependent RoPE · MIMO 提高 decode 算術強度</div>
+      <div class="authors">Aakash Lahoti*, Kevin Y. Li*, Berlin Chen*, Caitlin Wang*, Aviv Bick, J. Zico Kolter, Tri Dao†, Albert Gu† · CMU / Princeton / Together AI / Cartesia AI</div>
+      <div class="meta-row"><span class="badge tier">ICLR 2026 Oral</span><span class="badge date">arXiv 2026-03-16</span><span class="badge">code: state-spaces/mamba</span></div>
+      <p class="note">論文：<i>Mamba-3: Improved Sequence Modeling using State Space Principles</i>（arXiv 2603.15569v1，cs.LG）· 今日 arXiv API 429，改以 web search + iclr.cc 官方 oral 頁確認 venue；回溯選題</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Mamba-3 在 Mamba-2 上做三個都來自 SSM 理論的改動：<b>二階梯形離散化</b>（隱含一個寬 2 的卷積，讓外部 short conv 變多餘）、<b>複數狀態</b>（數學上等於 data-dependent RoPE，Parity 從 0.90 拉到 100）、<b>MIMO</b>（decode 多做 R 倍 FLOPs 但延遲幾乎不變）。1.5B 下平均準確率 SISO 56.4、MIMO 57.6，勝 Transformer 55.4 與 GDN 55.8；用一半 state size 就達到 Mamba-2 的 perplexity。</p>
+      <div class="cite">Abstract p.1；§1 p.2；Table 3 p.12；Table 5b p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">為什麼值得看</div>
+      <h2 class="head">推論成本變成主戰場，線性層已經進了大型 hybrid 模型</h2>
+      <ul class="bullets"><li>test-time compute 與 agentic workflow 讓推論佔總算力的比例持續上升，架構設計要以<b>推論優先</b></li><li>Transformer：KV cache 記憶體線性成長、attention 計算平方成長</li><li>Mamba-2 與 Gated DeltaNet（GDN）已被 Kimi、NVIDIA、Hunyuan、Qwen 等大型 hybrid 模型採用</li><li>作者群：Albert Gu 與 Tri Dao，即 Mamba-1/2、FlashAttention 的作者</li></ul>
+      <div class="takeaway">這篇不是又一個 linear attention 變體，而是 Mamba 系列官方的下一代，kernel 一起開源。</div>
+      <div class="cite">§1 p.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 前人缺陷</div>
+      <h2 class="head">現有線性模型的三個缺口</h2>
+      <ol class="numbered"><li><b>品質</b>：Mamba-2 為了訓練速度與簡單，相比 Mamba-1 犧牲了表達力，推論相同條件下表現較差</li><li><b>能力</b>：轉移矩陣只有實數非負特徵值，連 bit 序列的 parity 都學不會（state tracking 失敗）</li><li><b>硬體效率</b>：演算法從訓練角度設計，decode 階段算術強度（FLOPs / 記憶體流量）很低，大部分 GPU 算力閒置</li></ol>
+      <div class="takeaway">三個缺口分別對應三個改動：離散化 → 品質；複數 → 能力；MIMO → 硬體效率。</div>
+      <div class="cite">§1 p.1–2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景 · Mamba-2 與 SSD</div>
+      <h2 class="head">Mamba-2 的 recurrence 與它的平行（attention 形）對偶</h2>
+      <div class="formula">h<sub>t</sub> = α<sub>t</sub> h<sub>t−1</sub> + γ<sub>t</sub> B<sub>t</sub> x<sub>t</sub>,&nbsp;&nbsp; y<sub>t</sub> = C<sub>t</sub><sup>T</sup> h<sub>t</sub>,&nbsp;&nbsp; α<sub>t</sub> = exp(Δ<sub>t</sub>A<sub>t</sub>), γ<sub>t</sub> = Δ<sub>t</sub></div>
+      <div class="formula">Y = (L ⊙ C B<sup>T</sup>) X &nbsp;&nbsp;（SSD：Q = C, K = B, V = X）</div>
+      <ul class="bullets"><li>A<sub>t</sub> 是 scalar × I，所以 recurrence 能用 GPU tensor core 的 matmul 計算</li><li>Δ<sub>t</sub> 同時控制遺忘與輸入權重：Δ 大 → 忘得快、當前 token 權重高</li><li>L 是結構化 mask；最簡單的 L（下三角全 1）就是 causal linear attention</li></ul>
+      <div class="cite">§2.2–2.3 eq.(1)(2)(3) p.3–4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">三個改動，全部從「SSM 是連續時間動態系統」這個觀點推出來</h2>
+      <table class="bench"><thead><tr><th>改動</th><th>做法</th><th>解決什麼</th></tr></thead><tbody><tr><td>Exponential-trapezoidal 離散化</td><td>狀態輸入積分改用二階梯形法，λ<sub>t</sub> 由資料決定</td><td>表達力；取代外部 short conv</td></tr><tr><td>Complex-valued SSM</td><td>複數狀態轉移，用 RoPE trick 實作</td><td>state tracking（parity、模運算）</td></tr><tr><td>MIMO</td><td>B、x、C 擴成 rank R，外積變 matmul</td><td>decode 算術強度與模型品質</td></tr></tbody></table>
+      <div class="takeaway">作者強調：這三點從 linear attention 或 test-time regression 的角度都不自然，只有 SSM 視角會自然想到。</div>
+      <div class="cite">§1 p.2；§5.4 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① · 離散化框架</div>
+      <h2 class="head">Mamba-1/2 的實作其實是一個沒被命名的離散化：exponential-Euler</h2>
+      <table class="bench"><thead><tr><th>方法</th><th>α<sub>t</sub></th><th>β<sub>t</sub></th><th>γ<sub>t</sub></th><th>用於</th></tr></thead><tbody><tr><td>Zero-Order Hold</td><td>exp(ΔA)</td><td>—</td><td>A<sup>−1</sup>(exp(ΔA) − I)</td><td>S4D, S5</td></tr><tr><td>Trapezoidal（經典）</td><td>(I − ΔA/2)<sup>−1</sup>(I + ΔA/2)</td><td>—</td><td>(I − ΔA/2)<sup>−1</sup>Δ</td><td>S4</td></tr><tr><td>Exponential-Euler</td><td>exp(Δ<sub>t</sub>A<sub>t</sub>)</td><td>—</td><td>Δ<sub>t</sub></td><td>Mamba-1, -2</td></tr><tr class="win"><td class="best"><b>Exponential-Trapezoidal</b></td><td>exp(Δ<sub>t</sub>A<sub>t</sub>)</td><td>(1 − λ<sub>t</sub>)Δ<sub>t</sub> exp(Δ<sub>t</sub>A<sub>t</sub>)</td><td>λ<sub>t</sub>Δ<sub>t</sub></td><td><b>Mamba-3</b></td></tr></tbody></table>
+      <ul class="bullets"><li>先對 e<sup>−At</sup>x(t) 這個「扣掉指數」的系統做近似：狀態轉移用右端點，狀態輸入積分再選不同近似法</li><li>Mamba-1 論文寫 ZOH，但釋出的實作多用了一步近似；本文證明那一步就是 exponential-Euler，第一次給了理論根據</li></ul>
+      <div class="cite">§3.1.1 Table 1 p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① · Exponential-Trapezoidal</div>
+      <h2 class="head">把一階 Euler 換成資料決定權重的二階梯形法</h2>
+      <div class="formula">h<sub>t</sub> = e<sup>Δ<sub>t</sub>A<sub>t</sub></sup> h<sub>t−1</sub> + (1 − λ<sub>t</sub>) Δ<sub>t</sub> e<sup>Δ<sub>t</sub>A<sub>t</sub></sup> B<sub>t−1</sub> x<sub>t−1</sub> + λ<sub>t</sub> Δ<sub>t</sub> B<sub>t</sub> x<sub>t</sub></div>
+      <div class="formula">= α<sub>t</sub> h<sub>t−1</sub> + β<sub>t</sub> B<sub>t−1</sub> x<sub>t−1</sub> + γ<sub>t</sub> B<sub>t</sub> x<sub>t</sub> &nbsp;&nbsp;（λ<sub>t</sub> ∈ [0,1] 由資料投影產生）</div>
+      <ul class="bullets"><li>λ<sub>t</sub> = 1 → 退回 Mamba-2 的 Euler；λ<sub>t</sub> = ½ → 經典梯形法</li><li>局部截斷誤差從 O(Δ<sup>2</sup>) 降到 O(Δ<sup>3</sup>)，前提是 λ<sub>t</sub> = ½ + O(Δ<sub>t</sub>)</li><li>但消融發現<b>不加這個約束反而更好</b>：理論動機與實際最佳設定並不一致</li></ul>
+      <div class="cite">§3.1.1 Prop.1 eq.(5)(6)，Remark 2–3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ① · 隱含卷積</div>
+      <h2 class="head">三項 recurrence = 在狀態輸入上做一個寬 2 的 data-dependent 卷積</h2>
+      <div class="two-col"><div><ul class="bullets"><li>一般 SSM：先算 v<sub>t</sub> = B<sub>t</sub>x<sub>t</sub>，再做 h<sub>t</sub> = α<sub>t</sub>h<sub>t−1</sub> + γ<sub>t</sub>v<sub>t</sub></li><li>Mamba-3：v<sub>t</sub> 先經過權重 (β, γ) 的寬 2 卷積才進 recurrence</li><li>平行形的 mask L = 1-semiseparable 衰減矩陣 × 2-band 矩陣，仍是 SSD 的特例，訓練照樣走 matmul</li><li>與 Mamba / GDN 的 short conv 不同：那個卷積在 recurrence <b>外面</b>作用於 x；這個在 recurrence <b>裡面</b>作用於 B<sub>t</sub>x<sub>t</sub></li></ul></div><div><figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure1_p4.jpg" alt=""><figcaption>Fig.1 左：exp-trapezoidal 誘導的 mask = 衰減 × 雙帶卷積 mask；右：Euler（取端點）vs 梯形（端點加權平均）</figcaption></figure></div></div>
+      <div class="cite">§3.1.2–3.1.3 eq.(7)，Remark 4–5 p.6–7；Fig.1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ② · 為什麼要複數</div>
+      <h2 class="head">實數特徵值表示不了「旋轉」，所以連 parity 都做不到</h2>
+      <ul class="bullets"><li>SSM 演進一路簡化轉移矩陣：S4 複數 NPLR → Mamba 實數對角 → Mamba-2 scalar × I</li><li>語言建模分數大致沒掉，但已有理論證明：特徵值限制為實數非負，會失去 state tracking 能力（TC<sup>0</sup> 中的可解群，如 parity）</li><li>parity 的解法是旋轉：h<sub>t</sub> = R(π x<sub>t</sub>) h<sub>t−1</sub>，R 是 2-D 旋轉矩陣；一層 LSTM 就能做到</li><li>過去的複數 SSM（H3、RetNet、Megalodon）都是 LTI，語言建模仍輸 Transformer，所以複數被淘汰</li></ul>
+      <div class="takeaway">Mamba-3 把複數重新帶回來，但目的不是頻率建模，而是 state tracking。</div>
+      <div class="cite">§3.2 p.7；§5.2 p.16–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ② · RoPE trick</div>
+      <h2 class="head">複數 SSM ≡ 對 B、C 做 data-dependent RoPE</h2>
+      <div class="formula">Prop.2：h<sub>t</sub> = e<sup>Δ<sub>t</sub>A<sub>t</sub></sup> R<sub>t</sub> h<sub>t−1</sub> + Δ<sub>t</sub> B<sub>t</sub> x<sub>t</sub>,&nbsp; R<sub>t</sub> = Block{ R(Δ<sub>t</sub> θ<sub>t</sub>[i]) }，2×2 旋轉塊</div>
+      <div class="formula">Prop.3：h<sub>t</sub> = e<sup>Δ<sub>t</sub>A<sub>t</sub></sup> h<sub>t−1</sub> + (Π<sub>i≤t</sub> R<sub>i</sub><sup>T</sup>) Δ<sub>t</sub> B<sub>t</sub> x<sub>t</sub>,&nbsp; y<sub>t</sub> = [(Π<sub>i≤t</sub> R<sub>i</sub><sup>T</sup>) C<sub>t</sub>]<sup>T</sup> h<sub>t</sub></div>
+      <ul class="bullets"><li>N/2 維複數 SSM 等價於 N 維實數 SSM，轉移矩陣是衰減 × 旋轉塊對角</li><li>把旋轉累積後丟到 B、C 上（對應 attention 的 K、Q），核心 recurrence 仍是 scalar 衰減，可以沿用 SSD kernel</li><li>差別：標準 RoPE 角度固定 θ[i] = 10000<sup>−2i/N</sup>；這裡角度 θ<sub>t</sub> 由輸入投影而來</li><li>Prop.4 把同樣技巧推到 exp-trapezoidal 的三項 recurrence</li></ul>
+      <div class="cite">§3.2.1–3.2.2 Prop.2–4 eq.(9)(10)(11) p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ③ · MIMO 動機</div>
+      <h2 class="head">SSM decode 是 memory-bound：每 byte 只做 2.5 次運算</h2>
+      <div class="two-col"><div><p class="col-hint">SISO（Table 2a）</p><ul class="bullets"><li>記憶體流量由狀態 H<sub>t</sub> ∈ (N, P) 主導</li><li>計算是外積 B<sub>t</sub>x<sub>t</sub><sup>T</sup>，FLOPs ∝ NP</li><li>算術強度 ≈ <b>2.5</b> ops/byte = Θ(1)</li><li>H100-SXM5 bf16 matmul ≈ <b>295</b> ops/byte</li></ul></div><div><p class="col-hint">MIMO（Table 2b）</p><ul class="bullets"><li>B<sub>t</sub> ∈ R<sup>N×R</sup>、x<sub>t</sub> ∈ R<sup>P×R</sup>、C<sub>t</sub> ∈ R<sup>N×R</sup></li><li>FLOPs 變 R 倍，記憶體流量（R 小時）幾乎不變</li><li>算術強度 = Θ(R)</li><li>外積變成 matmul，可以走 tensor core</li></ul></div></div>
+      <div class="takeaway">decode 時 GPU 本來就在等記憶體，順便多做 R 倍計算幾乎是免費的，換來更強的模型。</div>
+      <div class="cite">§3.3 Table 2 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 ③ · MIMO 怎麼訓練</div>
+      <h2 class="head">R² 個 SISO 的和，chunk 縮成 1/R 後總成本只多 R 倍</h2>
+      <div class="formula">h<sub>t</sub><sup>(j)</sup> = α<sub>t</sub> h<sub>t−1</sub><sup>(j)</sup> + Δ<sub>t</sub> B<sub>t</sub><sup>(j)</sup> x<sub>t</sub><sup>(j)</sup>,&nbsp; h<sub>t</sub> = Σ<sub>j</sub> h<sub>t</sub><sup>(j)</sup>,&nbsp; y<sub>t</sub><sup>(i)</sup> = C<sub>t</sub><sup>(i)T</sup> h<sub>t</sub></div>
+      <ul class="bullets"><li>MIMO 可以把現成 SISO 演算法當黑盒呼叫 R<sup>2</sup> 次，所以前面兩項改動都直接適用</li><li>chunked 演算法：SSD 設 C = P = N 時總 FLOPs 為 8TN<sup>2</sup>；MIMO 設 CR = N = P → 8TRN<sup>2</sup>，只多 R 倍而不是 R<sup>2</sup> 倍</li><li>實測：Triton SISO kernel 與 Mamba-2 相當；MIMO R = 4 訓練只慢約 2×</li><li>參數：x、z 不直接放大投影，而是乘一個可學習向量擴到 R 維，參數從 DPR 降為 DP + PR；MLP 寬度縮小做 param-match（1.5B：4096 → 3824，−6.6%）</li></ul>
+      <div class="cite">§3.3 eq.(12)–(14) p.9–10；§4.1.1 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">架構 · Mamba-3 block</div>
+      <h2 class="head">拿掉 short conv，加上 BCNorm 與 B/C bias</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure2_p11.jpg" alt=""><figcaption>Fig.2 Mamba-2 vs Mamba-3 block</figcaption></figure></div><div><ul class="bullets"><li>整體仿 Llama：Mamba-3 block 與 SwiGLU 交錯、pre-norm</li><li>SSM 換成複數 exp-trapezoidal（Prop.4）；A 的實部走 SSD，虛部 θ 走 RoPE trick</li><li><b>BCNorm</b>（= QKNorm）：B、C 投影後加 RMSNorm，穩定大規模訓練，因此拿掉 Mamba-2 的 post-gate RMSNorm</li><li><b>B/C bias</b>：head-specific、channel-wise，可學習；作者推測它帶來類似卷積的資料無關成分</li><li>MIMO 投影是可選項；預設用 SISO 方便公平比較</li></ul></div></div>
+      <div class="cite">§3.4 p.11–12；Fig.2 p.11</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 語言建模</div>
+      <h2 class="head">四個規模都贏，1.5B 平均準確率：SISO +0.6、MIMO +1.8（對 GDN）</h2>
+      <table class="bench"><thead><tr><th>模型（1.5B）</th><th class="num">FW-Edu ppl ↓</th><th class="num">LAMB. acc ↑</th><th class="num">HellaS. ↑</th><th class="num">Arc-C ↑</th><th class="num">Avg ↑</th></tr></thead><tbody><tr><td>Transformer</td><td class="num">10.51</td><td class="num">50.3</td><td class="num">60.6</td><td class="num">40.4</td><td class="num">55.4</td></tr><tr><td>Gated DeltaNet</td><td class="num">10.45</td><td class="num">49.2</td><td class="num">61.3</td><td class="num">41.2</td><td class="num">55.8</td></tr><tr><td>Mamba-2</td><td class="num">10.47</td><td class="num">47.8</td><td class="num">61.4</td><td class="num">41.8</td><td class="num">55.7</td></tr><tr><td>Mamba-3 SISO</td><td class="num">10.35</td><td class="num">49.4</td><td class="num">61.9</td><td class="num">42.7</td><td class="num">56.4</td></tr><tr class="win"><td>Mamba-3 MIMO (R=4)</td><td class="num best">10.24</td><td class="num best">51.7</td><td class="num best">62.3</td><td class="num best">44.5</td><td class="num best">57.6</td></tr></tbody></table>
+      <ul class="bullets"><li>設定：100B FineWeb-Edu tokens、Llama-3.1 tokenizer、2K context，所有模型同一訓練流程</li><li>其他規模平均：180M 43.2 / 42.9 / 43.4 / 43.5；440M 49.7 / 49.6 / 49.8 / 51.0；880M 53.7 / 53.4 / 54.4 / 55.3（GDN / Mamba-2 / SISO / MIMO）</li><li>Mamba-3 不使用外部 short conv，而過去普遍認為這是線性模型的關鍵元件</li></ul>
+      <div class="cite">§4.1 Table 3 p.12</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 效率 vs 品質</div>
+      <h2 class="head">同樣品質只需一半 state：Pareto 前緣整條往下移</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure3_p15.jpg" alt=""><figcaption>Fig.3 相對 state size（推論速度 proxy）vs 預訓練 perplexity</figcaption></figure></div><div><ul class="bullets"><li>decode 時間由 d<sub>state</sub> 決定，所以用 state size 當推論速度的代理指標</li><li>每點：440M 模型、2× Chinchilla tokens、d<sub>state</sub> ∈ {16, 32, 64, 128}</li><li>Mamba-3 用 2× 小的 state 就勝過 Mamba-2：同品質更快，或同速度更好</li><li>MIMO（R = 4，param-match）讓前緣再往下移，state size 不變</li></ul></div></div>
+      <div class="cite">§4.3 Fig.3 p.14–15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 · 核心元件</div>
+      <h2 class="head">bias + 梯形離散化合起來，讓 short conv 變成可有可無</h2>
+      <div class="two-col"><div><p class="col-hint">Table 5a · 440M，Chinchilla tokens，test ppl ↓</p><table class="bench"><thead><tr><th>變體</th><th class="num">ppl</th></tr></thead><tbody><tr><td>Mamba-3 − bias − trap</td><td class="num">16.68</td></tr><tr><td>Mamba-3 − bias</td><td class="num">16.49</td></tr><tr class="win"><td><b>Mamba-3</b></td><td class="num best">15.72</td></tr><tr><td>Mamba-3 + conv</td><td class="num">15.85</td></tr></tbody></table></div><div><ul class="bullets"><li>單拿掉 bias：16.49；兩個都拿掉：16.68</li><li>兩者同時加入降到 15.72，作者稱兩者有加乘作用</li><li>再把 short conv 加回去反而變差（15.85）</li><li>實務意義：少一個 conv 與 activation，decode 路徑更簡單</li></ul></div></div>
+      <div class="cite">§4.2 Table 5a p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">消融 · State tracking</div>
+      <h2 class="head">只有 data-dependent RoPE 能學會 parity 與模運算</h2>
+      <table class="bench"><thead><tr><th>模型</th><th class="num">Parity ↑</th><th class="num">Arith. w/o brackets ↑</th><th class="num">Arith. w/ brackets ↑</th></tr></thead><tbody><tr class="win"><td><b>Mamba-3</b></td><td class="num best">100.00</td><td class="num best">98.51</td><td class="num best">87.75</td></tr><tr><td>Mamba-3（標準 RoPE）</td><td class="num">1.56</td><td class="num">20.70</td><td class="num">2.62</td></tr><tr><td>Mamba-3（無 RoPE）</td><td class="num">2.27</td><td class="num">1.49</td><td class="num">0.72</td></tr><tr><td>Mamba-2</td><td class="num">0.90</td><td class="num">47.81</td><td class="num">0.88</td></tr><tr><td>GDN [−1, 1]</td><td class="num">100.00</td><td class="num">99.25</td><td class="num">93.50</td></tr></tbody></table>
+      <ul class="bullets"><li>Chomsky hierarchy 任務；scaled accuracy；短序列訓練、長序列測試（測長度外推）</li><li><b>固定頻率的標準 RoPE 沒用</b>：關鍵是旋轉角度由資料決定</li><li>GDN 的 [−1, 1] 特徵值變體在模運算上仍略強；Mamba-3 在 parity 打平</li></ul>
+      <div class="cite">§4.2 Table 5b p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · 檢索能力</div>
+      <h2 class="head">固定大小 state 的代價：半結構化抽取仍明顯輸 Transformer</h2>
+      <table class="bench"><thead><tr><th>模型（1.5B）</th><th class="num">SWDE</th><th class="num">SQuAD</th><th class="num">FDA</th><th class="num">NIAH-S1 @4K</th><th class="num">NIAH-S2 @4K</th></tr></thead><tbody><tr><td>Transformer</td><td class="num">48.9</td><td class="num">46.6</td><td class="num best">58.4</td><td class="num">0.0</td><td class="num">0.0</td></tr><tr><td>GDN</td><td class="num">32.7</td><td class="num">40.0</td><td class="num">28.3</td><td class="num">99.8</td><td class="num">49.8</td></tr><tr><td>Mamba-2</td><td class="num">30.7</td><td class="num">39.1</td><td class="num">23.7</td><td class="num">62.0</td><td class="num">11.8</td></tr><tr><td>Mamba-3 SISO</td><td class="num">28.5</td><td class="num">40.1</td><td class="num">23.4</td><td class="num">88.2</td><td class="num">50.6</td></tr><tr><td>Mamba-3 MIMO</td><td class="num">36.3</td><td class="num">41.7</td><td class="num">29.3</td><td class="num">93.0</td><td class="num">40.4</td></tr><tr class="win"><td>Hybrid M3 SISO + Norm*</td><td class="num best">58.6</td><td class="num best">47.3</td><td class="num">52.4</td><td class="num best">100.0</td><td class="num best">96.0</td></tr></tbody></table>
+      <ul class="bullets"><li>純線性模型在 SWDE、FDA（半結構 / 非結構抽取）明顯落後；TQA、SQuAD 則接近</li><li>NIAH 在 2K 訓練、4K 測試的長度外推上，Mamba-3 比 Mamba-2 好很多；Transformer 用 RoPE 外推失敗為 0</li><li>Hybrid（線性層 : NoPE attention = 5 : 1）加回 pre-gate grouped RMSNorm 後，外推大幅改善，但真實檢索略降</li></ul>
+      <div class="cite">§4.1.2 Table 4 p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">實驗 · Kernel 延遲</div>
+      <h2 class="head">SISO 是最快的 decode；MIMO 多做 4× FLOPs 只慢一點</h2>
+      <div class="two-col"><div><p class="col-hint">Table 6 · 單步 decode（ms），bs 128，H100，bf16</p><table class="bench"><thead><tr><th>模型</th><th class="num">d=64</th><th class="num">d=128</th></tr></thead><tbody><tr><td>Mamba-2</td><td class="num">0.127</td><td class="num">0.203</td></tr><tr><td>GDN</td><td class="num">0.176</td><td class="num">0.257</td></tr><tr class="win"><td>Mamba-3 SISO</td><td class="num best">0.110</td><td class="num best">0.156</td></tr><tr><td>Mamba-3 MIMO</td><td class="num">0.137</td><td class="num">0.179</td></tr></tbody></table></div><div><p class="col-hint">Table 7 · 16,384 tokens（秒）</p><table class="bench"><thead><tr><th>模型</th><th class="num">Prefill</th><th class="num">Prefill+Dec</th></tr></thead><tbody><tr><td>vLLM Llama-3.2-1B</td><td class="num">12.17</td><td class="num">976.50</td></tr><tr><td>GDN</td><td class="num">16.21</td><td class="num">145.87</td></tr><tr><td>Mamba-2</td><td class="num">16.22</td><td class="num">149.02</td></tr><tr class="win"><td>Mamba-3 SISO</td><td class="num">16.22</td><td class="num best">140.61</td></tr><tr><td>Mamba-3 MIMO</td><td class="num">19.44</td><td class="num">151.81</td></tr></tbody></table></div></div>
+      <ul class="bullets"><li>Kernel：prefill 用 Triton、decode 用 CuTe DSL；1.5B，model dim 2048</li><li>MIMO 的代價主要在 prefill（19.44 vs 16.22 秒），decode 與 Mamba-2 同級</li></ul>
+      <div class="cite">§4.4 Table 6–7 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">觀點 · 為什麼強調 SSM 視角</div>
+      <h2 class="head">三個改動在 linear attention / test-time training 框架裡都不自然</h2>
+      <ol class="numbered"><li><b>離散化</b>：associative memory 視角沒有連續時間 ODE，很難解釋三項 recurrence</li><li><b>複數轉移</b>：在 test-time regression 中，A 對應目標函數的正則化係數，複數係數沒有意義</li><li><b>MIMO</b>：是控制理論的經典概念；但作者也承認本文的 MIMO 主要出於計算動機，可移植到其他 recurrent model</li></ol>
+      <div class="takeaway">作者聲稱這是第一個使用複數狀態轉移的現代 recurrent model，也是第一個有理論動機的 data-dependent RoPE。</div>
+      <div class="cite">§5.2–5.4 p.16–17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">論文裡看得到的限制與未解問題</h2>
+      <ul class="bullets"><li><b>規模</b>：最大 1.5B、100B tokens、2K context；更大規模與長 context 預訓練未驗證</li><li><b>檢索</b>：固定 state 的本質限制，SWDE / FDA 仍大幅落後 Transformer；作者自己預測線性層主要會用在 hybrid 架構</li><li><b>MIMO 成本</b>：訓練約慢 2×（R = 4）、prefill 慢約 20%</li><li><b>Hybrid 細節未定</b>：norm 類型（grouped vs default）與位置（pre / post gate）有互相競爭的取捨</li><li><b>理論與實務落差</b>：二階精度需要 λ ≈ ½，但不加約束反而表現較好</li></ul>
+      <div class="cite">§3.1 Remark 3 p.6；§3.3 p.10；§4.1.2 p.13；Table 7 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">個人解讀 · 給圖像 / 多模態工程師</div>
+      <h2 class="head">可以帶走的設計原則</h2>
+      <ul class="bullets"><li><b>先看 decode 算術強度</b>：memory-bound 的 op 可以多塞計算來換品質，MIMO 這個想法可以套到任何 recurrent / linear attention 層</li><li><b>位置編碼可以由資料決定</b>：複數狀態 = data-dependent RoPE，這對影片 / 時序 token 的狀態追蹤也可能有用</li><li><b>離散化是設計自由度</b>：把 recurrence 寫成 ODE 再換數值積分法，就能得到新的層，而且仍保有 SSD 的平行形</li><li><b>短卷積不是必須</b>：如果 recurrence 本身帶局部卷積，外部 conv 可以拿掉</li><li>實作入口：<code>state-spaces/mamba</code> 已釋出 Mamba-3 Triton / CuTe kernel</li></ul>
+      <div class="cite">本 deck 解讀；依據 §3–4</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文螢光筆</div>
+      <h2 class="head">四句話讀懂這篇</h2>
+      <div class="hl"><p class="hl__en">This derivation <b>justifies the formulas used in Mamba-1/-2's implementation</b>.</p><p class="hl__zh">這個推導<b>為 Mamba-1/-2 實作中的公式提供了理論根據</b>（即 exponential-Euler）。<span class="hl__src">§3.1.1, p.6</span></p></div>
+      <div class="hl"><p class="hl__en">Our complex-valued update rule is <b>equivalent to a data-dependent rotary embedding</b>.</p><p class="hl__zh">我們的複數狀態更新規則<b>等價於 data-dependent 的旋轉位置編碼</b>。<span class="hl__src">§1, p.2</span></p></div>
+      <div class="hl"><p class="hl__en">The MIMO recurrence is more expressive than the original SISO recurrence, computing <b>R× more FLOPs while practically preserving the decoding speed</b>.</p><p class="hl__zh">MIMO recurrence 比原本的 SISO 更有表達力，<b>多算 R 倍 FLOPs，decode 速度卻幾乎不變</b>。<span class="hl__src">§3.3, p.9</span></p></div>
+      <div class="hl"><p class="hl__en">The bias and exponential-trapezoidal SSM synergize well and <b>make the short convolution ... redundant</b>.</p><p class="hl__zh">bias 與 exponential-trapezoidal SSM 互相加乘，<b>讓 short convolution 變得多餘</b>。<span class="hl__src">§4.2, p.13</span></p></div>
+      <div class="cite">Mamba-3: Improved Sequence Modeling using State Space Principles · arXiv 2603.15569v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 數字速查</div>
+      <h2 class="head">可直接引用的數字</h2>
+      <table class="bench"><thead><tr><th>項目</th><th>數值</th><th>出處</th></tr></thead><tbody><tr><td>1.5B 平均準確率 Transformer / GDN / Mamba-2 / SISO / MIMO</td><td>55.4 / 55.8 / 55.7 / 56.4 / 57.6</td><td>Table 3 p.12</td></tr><tr><td>1.5B FW-Edu ppl（同上順序）</td><td>10.51 / 10.45 / 10.47 / 10.35 / 10.24</td><td>Table 3 p.12</td></tr><tr><td>MIMO 對 Transformer / Mamba-2 / GDN（1.5B）</td><td>+2.2 / +1.9 / +1.8 pts</td><td>§1 p.2</td></tr><tr><td>SISO vs MIMO decode 算術強度</td><td>≈2.5 vs Θ(R) ops/byte</td><td>Table 2 p.9</td></tr><tr><td>MIMO decode FLOPs（固定 state）</td><td>最多 4× Mamba-2</td><td>§1 p.2</td></tr><tr><td>440M ppl：−bias −trap / −bias / full / +conv</td><td>16.68 / 16.49 / 15.72 / 15.85</td><td>Table 5a p.14</td></tr><tr><td>Parity：Mamba-3 / Mamba-2</td><td>100.00 / 0.90</td><td>Table 5b p.14</td></tr><tr><td>decode 延遲 bf16 d=128：SISO / Mamba-2</td><td>0.156 / 0.203 ms</td><td>Table 6 p.15</td></tr><tr><td>MIMO 1.5B MLP 寬度</td><td>4096 → 3824（−6.6%）</td><td>§4.1.1 p.13</td></tr></tbody></table>
+      <div class="cite">Mamba-3: Improved Sequence Modeling using State Space Principles · arXiv 2603.15569v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Mamba-3：離散化給品質、複數給能力、MIMO 給硬體效率，三者都從 SSM 理論推出</h2>
+      <p class="end__sub">來源：Mamba-3: Improved Sequence Modeling using State Space Principles · arXiv 2603.15569v1 · ICLR 2026 Oral · code: state-spaces/mamba</p>
+      <div class="end__next">明日預告：週二 · 圖像生成 / 理解（Diffusion、VLM、CLIP）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
