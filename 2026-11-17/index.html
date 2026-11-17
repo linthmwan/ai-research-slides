@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SST · Structural Self-Teaching（NeurIPS 2026）· 2026-11-17</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週二 · 圖像生成 / 理解（Diffusion、VLM、CLIP）</div>
+      <h1 class="title">Structural Self-Teaching：讓 UMM 的「理解路徑」當自己「生成路徑」的結構老師</h1>
+      <div class="sub">Phrase-wise attention → soft support mask · phrase-local 對比對齊 · 會漸退的結構 scaffold · 推論零成本</div>
+      <div class="authors">Jaeyoo Park, Bohyung Han · Seoul National University / Samsung Electronics</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">arXiv 2026-11-13（回溯 4 天）</span><span class="badge">project: bellos1203.github.io/sst</span></div>
+      <p class="note">論文：<i>Structural Self-Teaching for Compositional Generation in Unified Multimodal Models</i>（arXiv 2611.18261v1，cs.CV）· venue 依 arXiv comment 自註；arXiv API 今日 429，標題作者取自 PDF p.1</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">UMM <b>看得懂</b>的東西比它<b>畫得出</b>的多。SST 把理解路徑對每個名詞片語的 attention 萃成 soft mask，訓練時用兩條路教生成路徑：<b>phrase-local 對比對齊</b>（每個片語區域對齊目標圖同一區域、推開同 prompt 其他片語）與 <b>漸退 scaffold</b>（mask 拼成片語 canvas 注入早層，訓練中逐步關掉）。推論時全部拿掉。GenEval2 GM 在四個 UMM 上都贏同資料 LoRA FT，BLIP-3o 4B 13.00→16.13。</p>
+      <div class="cite">Abstract p.1；Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">動機 · 一張圖講完</div>
+      <h2 class="head">模型能定位它畫不出來的片語</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure1_p2.jpg" alt=""><figcaption>左：理解路徑對「three flowers / a checkered car / a chair」各自的 attention 都落在正確區域；右：Base UMM 從同一 prompt 生成卻漏掉椅子、漏掉吉他並綁錯屬性，SST 全部滿足。</figcaption></figure>
+      <div class="cite">Figure 1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題 · 前人缺陷</div>
+      <h2 class="head">Dense compositional prompt 下，現有方法各缺一角</h2>
+      <ol class="numbered"><li><b>UMM 本身</b>：數錯數量、屬性換到別的物體、整個片語消失；atomicity 越高越嚴重</li><li><b>Sampling 時操控</b>（Prompt-to-Prompt、Attend-and-Excite）：每次推論都要改 cross-attention，模型本身沒學會</li><li><b>外部結構條件</b>（ControlNet、GLIGEN、LayoutGPT）：要使用者或另一個 planner 給 edge / depth / bbox</li><li><b>UMM post-training</b>（HermesFlow Pair-DPO、SRUM reward、RecA 重建）：監督是 prompt 層級 reward 或 pixel 重建，不是針對片語結構</li></ol>
+      <div class="takeaway">空缺：一個<b>只在訓練時</b>、<b>不需外部標註</b>、<b>直接針對片語結構</b>的監督訊號。</div>
+      <div class="cite">§1 p.1；§2.1 p.3；§2.3 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3 診斷 · 理解路徑可靠嗎？</div>
+      <h2 class="head">兩個軸：組合事實還量得到嗎？空間上定得準嗎？</h2>
+      <div class="two-col"><div><p class="col-hint">軸 1：組合資訊</p><ul class="bullets"><li>GenEval2 的 atomic question（object / attribute / count / spatial）</li><li>自製 800 張 oracle 圖：GPT-Image-1 + Nano Banana 生成再編輯，滿足所有 atom</li><li><b>Gen</b>（只給 prompt 生成）分數隨 atomicity 3→10 急降到近 0</li><li><b>Und</b>（理解路徑看 oracle 圖答題）四個 backbone 都相對穩定</li></ul></div><div><p class="col-hint">軸 2：空間定位</p><ul class="bullets"><li>用 §4.1 流程抽 support mask，與 Grounded-SAM 偽標註比</li><li>Activation-inside ratio（AIR）與 center-of-mass pointing（Pt）</li><li>atomicity 3–10 都維持窄帶，<b>不隨密度劣化</b></li><li>Grounded-SAM 本身不完美，看的是穩定性而非絕對準度</li></ul></div></div>
+      <div class="takeaway">作者自己標註：Fig.2 上排不是 Und vs Gen 的直接比較，而是「監督來源訊號夠不夠穩」的診斷。</div>
+      <div class="cite">§3 p.3–4；Figure 2 p.4；App.C.3 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">核心貢獻</div>
+      <h2 class="head">四點</h2>
+      <ol class="numbered"><li><b>SST 框架</b>：從 UMM 理解路徑抽 phrase-conditioned support mask 監督生成路徑；無外部結構標註、無測試時輸入</li><li><b>Phrase-local contrastive alignment</b>：mask 當 pooling region，同 prompt 其他片語當負樣本，防止片語表徵塌成一團</li><li><b>Attenuated structural scaffold</b>：mask 拼成 dense phrase canvas 做訓練時調變，keep probability 隨訓練衰減</li><li><b>跨四個 UMM 一致提升</b>：BLIP-3o 4B/8B、Show-o2 7B、BAGEL，三種生成架構，不改推論介面</li></ol>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法總覽</div>
+      <h2 class="head">一個 backbone、兩條路徑、兩個訓練訊號</h2>
+      <figure class="full" style="max-height:52vh; margin-top:.4rem;"><img src="figures/figure3_p5.jpg" alt=""><figcaption>理解路徑凍結，抽出每個片語的 support mask A<sub>p</sub>；生成路徑用 LoRA 訓練。4.2 用 mask pooling 做對比對齊；4.3 用 mask 組 dense canvas C 注入第 ℓ 層特徵 F<sup>ℓ</sup><sub>t</sub>，keep prob ρ 以 cosine 衰減。</figcaption></figure>
+      <div class="cite">Figure 3 p.5；§4 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.1 · Support mask 萃取</div>
+      <h2 class="head">從所有 (layer, head) 的 attention 中，替每個片語挑出自己的 head</h2>
+      <div class="two-col"><div><p class="col-hint">流程</p><ol class="numbered"><li>spaCy 抽名詞片語 {p<sub>n</sub>}，收理解路徑每個 (ℓ, h) 的 text→image attention A<sub>p,ℓ,h</sub> ∈ R<sup>M</sup></li><li>前處理：mean-centered ReLU，去掉 visual attention sink（全池平均最高 q=5% 的 token）；非 sink 質量比 &lt; η=0.7 的整張丟掉</li><li>打分 s = s<sup>sum</sup> + s<sup>ent</sup>：注意力總量 + 負熵，<b>都在同一片語的候選池內 z-score</b></li><li>Soft top-K（K=8, τ=0.07）加權聚合，再 sum-to-one</li></ol></div><div><p class="col-hint">相對 Kang et al. [8] 的兩個改動</p><ul class="bullets"><li><b>Per-phrase head 選擇</b>：同一張圖裡不同片語常由不同 head 負責，不再整個 prompt 共用一組 head</li><li><b>Soft aggregation</b> 取代硬閾值：低於閾值但有資訊的 map 也能貢獻，得到較密的 support</li></ul><div class="formula">A<sub>p</sub> = Norm( Σ<sub>k=1..K</sub> w<sub>p,k</sub> Ā<sub>p,k</sub> ),&nbsp; w<sub>p,k</sub> = softmax<sub>k</sub>(s<sub>p,k</sub> / τ)</div></div></div>
+      <div class="takeaway">輸出是 soft spatial support，不是分割或 instance mask：擅長粗定位與分開片語責任區，不擅長精確數量。</div>
+      <div class="cite">§4.1 p.5；App.B p.14–16（Eq.9–17, Table 10）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.1 · 兩個改動各值多少</div>
+      <h2 class="head">Mask 品質（1K Echo-4o 子集，BLIP-3o 4B，對 Grounded-SAM 偽標註）</h2>
+      <table class="bench"><thead><tr><th>Head 選擇</th><th>Soft 聚合</th><th class="num">AIR</th><th class="num">Pt</th></tr></thead><tbody><tr><td>global（[8]）</td><td>—</td><td class="num">0.321</td><td class="num">0.603</td></tr><tr><td>per-phrase</td><td>—</td><td class="num">0.371</td><td class="num">0.645</td></tr><tr class="win"><td>per-phrase</td><td>✓</td><td class="num best">0.411</td><td class="num best">0.718</td></tr></tbody></table>
+      <ul class="bullets"><li>三種設定都套用 sink suppression [16]</li><li>per-phrase 先把 AIR +0.050，soft top-K 再 +0.040；pointing 0.603 → 0.718</li><li>同一組超參（q, η, K, τ）用在所有 backbone，不需各自調</li></ul>
+      <div class="cite">Table 12 p.18；App.B.4 p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.2 · Phrase-local contrastive alignment</div>
+      <h2 class="head">Mask 當 pooling region：每個片語區域對齊目標圖的同一區域</h2>
+      <div class="formula">z<sup>U</sup><sub>p</sub> = Pool(v, A<sub>p</sub>),&nbsp;&nbsp; z<sup>G</sup><sub>p</sub> = g<sub>φ</sub>( Pool(x̂<sub>0</sub>, A<sub>p</sub>) )</div>
+      <div class="formula">L<sub>phrase</sub> = −(1/N) Σ<sub>p</sub> log [ exp(sim(z<sup>G</sup><sub>p</sub>, z<sup>U</sup><sub>p</sub>)/τ<sub>a</sub>) / Σ<sub>q=1..N</sub> exp(sim(z<sup>G</sup><sub>p</sub>, z<sup>U</sup><sub>q</sub>)/τ<sub>a</sub>) ]</div>
+      <ul class="bullets"><li>v：目標圖的 reference feature；x̂<sub>0</sub>：生成路徑從 x<sub>t</sub> 預測的去噪 latent；g<sub>φ</sub> 投影到 v 的空間</li><li><b>正樣本</b>：同一片語在生成與目標圖的區域內容要一致（what goes where）</li><li><b>負樣本只用同 prompt 的其他片語</b>：直接對付屬性外洩與物體融合（cow 變成 penguin-like 混種）</li><li>sim 為 cosine；pooled 表徵先 L2 normalize</li></ul>
+      <div class="cite">§4.2 p.6（Eq.3–4）；App.A.2 p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.3 · Attenuated structural scaffold</div>
+      <h2 class="head">對比 loss 只透過 pooled 梯度傳回；scaffold 直接在 forward 給空間 layout</h2>
+      <div class="formula">e<sub>p</sub> = W<sub>s</sub> z<sup>U</sup><sub>p</sub>,&nbsp;&nbsp; C(u) = Σ<sub>p</sub> Ã<sub>p</sub>(u) e<sub>p</sub></div>
+      <div class="formula">F<sup>ℓ</sup><sub>t</sub>(u) ← F<sup>ℓ</sup><sub>t</sub>(u) + m · α · W<sub>c</sub> C(u),&nbsp;&nbsp; m ~ Bernoulli(ρ),&nbsp; α 初始為 0</div>
+      <ul class="bullets"><li>Ã<sub>p</sub> 峰值歸一到 1；canvas <b>不跨片語歸一</b>，support 強的位置特徵幅度較大，保留信心</li><li>α 零初始化：訓練開始時 forward 完全不變，不破壞預訓練模型</li><li>ρ 以 cosine 衰減；m 每個 sample 獨立抽、與 timestep 無關 → 有/無 scaffold 的 step 更新同一組參數</li><li>ρ → 0 時沒有 scaffold 的 step 佔多數，參數收斂到推論實際會走的路徑</li></ul>
+      <div class="takeaway">Scaffold 沒有自己的 loss，只在 forward 時改變訓練軌跡；推論時整支移除。</div>
+      <div class="cite">§4.3 p.6（Eq.5–7）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.4 · 訓練目標與三種架構的實例化</div>
+      <h2 class="head">L = L<sub>gen</sub> + λ L<sub>phrase</sub>；理解路徑與 mask 萃取全程凍結</h2>
+      <table class="bench"><thead><tr><th></th><th>BLIP-3o（cascaded DiT）</th><th>Show-o2（LLM + diffusion head）</th><th>BAGEL（LLM-as-DiT）</th></tr></thead><tbody><tr><td>Student feature</td><td>x̂<sub>0</sub>（EVA-CLIP 空間）</td><td>patchified x̂<sub>0</sub>（VAE latent）</td><td>LLM 最後 hidden state</td></tr><tr><td>Reference feature</td><td>EVA-CLIP feature</td><td>unified visual representation</td><td>SigLIP feature</td></tr><tr><td>LoRA 模組</td><td>DiT cross-attention</td><td>diffusion head</td><td>每層 generation MoE</td></tr><tr><td>Scaffold 注入點</td><td>第一個 NextDiT block</td><td>第一個 diffusion_head_a</td><td>第一層 LLM（只動 latent token）</td></tr></tbody></table>
+      <ul class="bullets"><li>訓練：生成路徑 LoRA + 投影頭 g<sub>φ</sub> + scaffold adapter；5,000 steps、effective batch 32、AdamW</li><li>Show-o2 / BAGEL 是 [text | latent | …] 單一序列，注入 hook 只切出空間 token 位置改寫</li></ul>
+      <div class="cite">§4.4 p.7（Eq.8）；App.A.1–A.2 p.13–14（Table 9）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.1 · 實驗設定</div>
+      <h2 class="head">同資料 LoRA FT 是關鍵對照組</h2>
+      <ul class="bullets"><li><b>訓練資料</b>：Echo-4o Instruction-Following 子集，約 70K 張 GPT-4o 合成 image-caption pair，涵蓋多物體、顏色/材質/花紋、數量、大小、空間關係</li><li><b>評測</b>：GenEval2，800 prompts，atomicity 3–10 各 100 題；Soft-TIFA（Qwen3-VL-8B 做 atom 級 VQA）判分</li><li><b>主指標 GM</b>（幾何平均）：缺任何一個 atom 都重罰；另報 AM、五類別、各 atomicity GM</li><li><b>LoRA FT</b>：同資料、同 LoRA、只用原生 denoising loss → 把「資料帶來的增益」和「結構監督帶來的增益」拆開</li><li>算力：每個 backbone 約 10–11 小時 × 4 張 A5000 / A6000</li></ul>
+      <div class="cite">§5.1 p.7；App.A.1, A.3 p.13；App.C.1–C.2 p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.2 · 主結果（GenEval2）</div>
+      <h2 class="head">四個 UMM 上 SST 的 AM 與 GM 都贏同資料 LoRA FT</h2>
+      <table class="bench"><thead><tr><th>Backbone</th><th class="num">Base GM</th><th class="num">LoRA FT AM</th><th class="num">LoRA FT GM</th><th class="num">SST AM</th><th class="num">SST GM</th></tr></thead><tbody><tr class="win"><td>BLIP-3o 4B</td><td class="num">11.78</td><td class="num">54.70</td><td class="num">13.00</td><td class="num best">58.29</td><td class="num best">16.13</td></tr><tr class="win"><td>BLIP-3o 8B</td><td class="num">13.50</td><td class="num">60.48</td><td class="num">14.86</td><td class="num best">61.82</td><td class="num best">16.47</td></tr><tr class="win"><td>Show-o2 7B</td><td class="num">15.32</td><td class="num">63.42</td><td class="num">16.03</td><td class="num best">64.28</td><td class="num best">17.11</td></tr><tr class="win"><td>BAGEL 14B</td><td class="num">19.65</td><td class="num">73.01</td><td class="num">26.47</td><td class="num best">74.06</td><td class="num best">27.33</td></tr></tbody></table>
+      <ul class="bullets"><li>LoRA FT 與 SST 是三次訓練平均；增益大於 run-to-run 標準差（如 4B GM ±0.35 vs ±0.28）</li><li>BAGEL 參考基線：CoT 70.81 / 23.29（改推論）、RecA 72.66 / 25.52（全參數重建監督），SST 74.06 / 27.33 兩者都超過</li><li>增益幅度：小模型最明顯（4B GM +3.13），BAGEL 只 +0.86</li></ul>
+      <div class="cite">Table 1 p.7；§5.2 p.7–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.2 · 分類別看</div>
+      <h2 class="head">增益跟著 mask 覆蓋的東西走；Verb 是例外</h2>
+      <table class="bench"><thead><tr><th>BLIP-3o 4B</th><th class="num">Object</th><th class="num">Attribute</th><th class="num">Count</th><th class="num">Position</th><th class="num">Verb</th></tr></thead><tbody><tr><td>Base</td><td class="num">77.94</td><td class="num">52.87</td><td class="num">30.72</td><td class="num">35.06</td><td class="num">15.44</td></tr><tr><td>LoRA FT</td><td class="num">76.62</td><td class="num">54.24</td><td class="num">31.64</td><td class="num">36.33</td><td class="num">13.37</td></tr><tr class="win"><td>SST</td><td class="num best">81.29</td><td class="num best">54.49</td><td class="num best">37.17</td><td class="num best">41.53</td><td class="num best">17.03</td></tr></tbody></table>
+      <ul class="bullets"><li>Mask 定位的是<b>名詞片語</b>，SST 在四個 backbone 的 Object / Attribute / Count / Position 都高於 LoRA FT</li><li>Verb mask 不編碼，800 題只有 82 題含 Verb：BLIP-3o 8B 上 SST Verb 17.14，低於 Base 20.34 與 LoRA FT 21.22</li><li>Show-o2：LoRA FT 把 Verb 從 27.58 打到 18.12，SST 只救回到 20.89</li><li>BAGEL：RecA 在 Object（94.21）與 Verb（27.34）仍領先</li></ul>
+      <div class="cite">Table 1 p.7；§5.2 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.2 · 增益是真的嗎</div>
+      <h2 class="head">外部 benchmark、paired bootstrap、人類盲評三方交叉</h2>
+      <div class="two-col"><div><p class="col-hint">GenEval++（GPT-4.1 judge，全部條件滿足才算對）</p><table class="bench"><thead><tr><th>Backbone</th><th class="num">Base</th><th class="num">LoRA FT</th><th class="num">SST</th></tr></thead><tbody><tr><td>BLIP-3o 4B</td><td class="num">25.71</td><td class="num">26.43</td><td class="num best">30.71</td></tr><tr><td>BLIP-3o 8B</td><td class="num">30.71</td><td class="num">31.79</td><td class="num best">33.57</td></tr><tr><td>Show-o2 7B</td><td class="num">16.79</td><td class="num">18.21</td><td class="num best">19.64</td></tr><tr><td>BAGEL</td><td class="num">38.21</td><td class="num">45.00</td><td class="num best">46.79</td></tr></tbody></table></div><div><p class="col-hint">統計檢定</p><ul class="bullets"><li>Paired bootstrap（B=10,000）GM：4B +2.70 [+1.11, +4.28]，勝率 60.9%；BAGEL +0.82 [+0.11, +1.53]，勝率 53.9%</li><li>人類盲評（3 位非作者，每 backbone 80 題）：atom 級 AM +4.4（4B）、+7.0（BAGEL），CI 不含 0</li><li>Soft-TIFA 與人類多數決一致 89%（Cohen κ = 0.76）</li><li>全部 atom 都滿足的比率也上升，但這個樣本數下 CI 含 0</li></ul></div></div>
+      <div class="cite">Table 11 p.18；Table 14 p.19；App.D.4 + Table 15 p.19–20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.3 · 元件 ablation</div>
+      <h2 class="head">兩條路各補不同的洞：對比對齊管 what，scaffold 管 where</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">4B GM</th><th class="num">4B Count</th><th class="num">4B Position</th><th class="num">BAGEL GM</th><th class="num">BAGEL Position</th></tr></thead><tbody><tr><td>LoRA FT</td><td class="num">13.00</td><td class="num">31.64</td><td class="num">36.33</td><td class="num">26.47</td><td class="num">52.71</td></tr><tr><td>Phrase-local only</td><td class="num">15.42</td><td class="num">35.77</td><td class="num">37.98</td><td class="num">27.12</td><td class="num">52.78</td></tr><tr><td>Scaffold only</td><td class="num">14.43</td><td class="num">33.12</td><td class="num">38.67</td><td class="num">26.79</td><td class="num">53.92</td></tr><tr class="win"><td>Full SST</td><td class="num best">16.13</td><td class="num best">37.17</td><td class="num best">41.53</td><td class="num best">27.33</td><td class="num best">54.21</td></tr></tbody></table>
+      <ul class="bullets"><li>Phrase-local 單獨就拿到大部分 GM 增益，主要在 Object / Count / Verb</li><li>Scaffold only 的 GM 比 phrase-local only 低，但 <b>Position 較高</b>（兩個 backbone 都是）</li><li>BAGEL 上 phrase-local 單獨幾乎不動 Position（52.78 vs 52.71），加上 scaffold 才到 54.21</li></ul>
+      <div class="cite">Table 2 p.8（3 runs 平均）；§5.3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">★ 機制 · Scaffold 為什麼有效</div>
+      <p class="big">增益來自<b>「片語內容 ↔ 空間區域」綁對</b>，不是多了一條 conditioning 通道。打亂綁定的 canvas 比完全沒有 scaffold 還差。</p>
+      <table class="bench"><thead><tr><th>Canvas 控制組</th><th>保留空間結構？</th><th>綁定正確？</th><th class="num">GM</th></tr></thead><tbody><tr><td>No scaffold</td><td>—</td><td>—</td><td class="num">15.48</td></tr><tr><td>Uniform</td><td>✗</td><td>—</td><td class="num">15.37</td></tr><tr><td>Shuffled</td><td>✓</td><td>✗</td><td class="num">14.69</td></tr><tr class="win"><td>Full（SST）</td><td>✓</td><td>✓</td><td class="num best">16.05</td></tr></tbody></table>
+      <p class="note">Uniform 移除空間結構 → 與無 scaffold 持平；Shuffled 保留空間形狀但片語-區域亂配 → 掉到 14.69。容量假說被排除。</p>
+      <div class="cite">Table 6 p.9；§5.3 p.9（BLIP-3o 4B，single run）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.3 · Scaffold 放哪、開多久</div>
+      <h2 class="head">早層注入 + 衰減式 dropout = 訓練用的 curriculum</h2>
+      <div class="two-col"><div><p class="col-hint">注入層（BLIP-3o 4B）</p><table class="bench"><thead><tr><th>Layer</th><th class="num">Position</th><th class="num">GM</th></tr></thead><tbody><tr><td>No scaffold</td><td class="num">38.27</td><td class="num">15.48</td></tr><tr class="win"><td>0</td><td class="num best">41.57</td><td class="num best">16.05</td></tr><tr><td>3</td><td class="num">40.79</td><td class="num">15.86</td></tr><tr><td>7</td><td class="num">40.05</td><td class="num">15.45</td></tr><tr><td>11</td><td class="num">39.46</td><td class="num">15.52</td></tr></tbody></table><p class="note">越後面越差：要在生成路徑在一次 forward 內決定空間 layout 之前調變。</p></div><div><p class="col-hint">Dropout schedule</p><table class="bench"><thead><tr><th>Schedule</th><th class="num">Position</th><th class="num">GM</th></tr></thead><tbody><tr><td>No scaffold</td><td class="num">38.27</td><td class="num">15.48</td></tr><tr><td>Fixed ρ=1.0</td><td class="num">38.14</td><td class="num">14.28</td></tr><tr><td>Fixed ρ=0.5</td><td class="num">40.15</td><td class="num">15.76</td></tr><tr><td>Fixed ρ=0.25</td><td class="num">39.24</td><td class="num">15.32</td></tr><tr class="win"><td>Decay of ρ</td><td class="num best">41.57</td><td class="num best">16.05</td></tr></tbody></table><p class="note">ρ=1.0（永遠開著、推論卻拿掉）比不用還差：典型 train/test mismatch。</p></div></div>
+      <div class="cite">Table 5(a)(b) p.9；§5.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.3 · 自己的 attention 夠用嗎</div>
+      <h2 class="head">Mask 換成 Grounded-SAM：只差 0.79 GM</h2>
+      <table class="bench"><thead><tr><th>Mask 來源（BLIP-3o 4B）</th><th class="num">AM</th><th class="num">GM</th><th class="num">Count</th><th class="num">Position</th><th class="num">Verb</th></tr></thead><tbody><tr><td>None（LoRA FT）</td><td class="num">54.56</td><td class="num">13.35</td><td class="num">31.40</td><td class="num">36.29</td><td class="num">13.60</td></tr><tr><td>Grounded-SAM（外部）</td><td class="num best">59.58</td><td class="num best">16.84</td><td class="num">35.28</td><td class="num">40.52</td><td class="num best">18.64</td></tr><tr><td>Attention-derived（SST）</td><td class="num">58.34</td><td class="num">16.05</td><td class="num best">37.32</td><td class="num best">41.57</td><td class="num">16.29</td></tr></tbody></table>
+      <ul class="bullets"><li>自己萃的 mask 拿到外部分割模型 <b>77%</b> 的 GM 增益，Count +2.04、Position +1.05 甚至勝過外部 mask</li><li>萃取超參敏感度：K=1（GM 14.37）或 τ=0.01（GM 14.87）會掉超過 1 點 → 必須聚合多張 head map</li><li>τ ≥ 0.07、K ≥ 8 時 GM 變動 ≤ 0.12；AIR/Pt 繼續上升但生成分數不再上升</li></ul>
+      <div class="cite">Table 3 p.8；Table 13 p.19；App.D.2 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.3 · 兩個實務細節</div>
+      <h2 class="head">λ 要依生成目標空間調；SST 把 LoRA FT 吃掉的多樣性還回來</h2>
+      <div class="two-col"><div><p class="col-hint">λ（L<sub>phrase</sub> 權重）</p><ul class="bullets"><li>BLIP-3o 4B / 8B 最佳 λ = 10（GM 16.05 / 16.89）</li><li>Show-o2 / BAGEL 最佳 λ = 0.1（GM 16.55 / 27.21）</li><li>差兩個數量級：BLIP-3o 在 EVA-CLIP feature 空間去噪，Show-o2 / BAGEL 在 VAE latent 預測 velocity</li></ul></div><div><p class="col-hint">生成多樣性（每 prompt 4 張，兩兩距離）</p><table class="bench"><thead><tr><th>BLIP-3o 4B</th><th class="num">LPIPS</th><th class="num">DINOv2</th></tr></thead><tbody><tr><td>Base</td><td class="num">0.321</td><td class="num">0.127</td></tr><tr><td>LoRA FT</td><td class="num">0.283</td><td class="num">0.098</td></tr><tr class="win"><td>SST</td><td class="num">0.317</td><td class="num">0.123</td></tr></tbody></table><p class="note">BAGEL 上 LPIPS 兩者相近（0.628 vs 0.626），DINOv2 SST 較高（0.256 vs 0.243）。</p></div></div>
+      <div class="cite">Table 4 p.9；Table 7 p.10；§5.3 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§5.4 · 定性比較</div>
+      <h2 class="head">四種失敗模式：屬性錯綁、漏物體、物體融合、空間錯置</h2>
+      <figure class="full" style="max-height:50vh; margin-top:.4rem;"><img src="figures/figure4_p10.jpg" alt=""><figcaption>BLIP-3o 4B：牛被融成企鵝混種；BLIP-3o 8B：玩具不見；Show-o2：小提琴與腳踏車黏在一起（LoRA FT 也沒完全分開）；BAGEL：時鐘被熊抱著而非放在熊頭上。SST 四例都修正，LoRA FT 只部分緩解。</figcaption></figure>
+      <div class="cite">Figure 4 p.10；§5.4 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Mask 長什麼樣 · 失敗案例</div>
+      <h2 class="head">Mask 粗定位可靠，精確數量不可靠</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure6_p20.jpg" alt=""><figcaption>上：訓練分佈（Echo-4o）；下：評測分佈（GenEval2 oracle 圖）。兩邊都形成空間連貫區域。</figcaption></figure></div><div><figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure7_p21.jpg" alt=""><figcaption>BAGEL，atomicity 8：「three checkered cows, and two bicycles behind four pigs」。Base 與 LoRA FT 完全漏掉豬；SST 畫出豬但只有 3 隻。</figcaption></figure></div></div>
+      <div class="takeaway">失敗型態和 App.B.5 的自評一致：support 管得到「有沒有、在哪裡」，管不到「幾個」。</div>
+      <div class="cite">Figure 6 p.20；Figure 7 p.21；App.B.5 p.16；App.E.2 p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限（作者自承 + 工程面）</div>
+      <h2 class="head">什麼情況下 SST 幫不上忙</h2>
+      <ul class="bullets"><li>只訓練 LoRA：上限被 backbone 本身的生成品質綁住</li><li>Mask 一定有錯，但沒有 phrase-level ground truth 無法辨識；所有報告結果都包含這些錯</li><li>Scaffold 調變的是連續中間 state → <b>純 autoregressive image-token UMM</b>（Janus 類）需要另外設計</li><li>高 atomicity 仍然難；作者歸因於 post-training 資料缺乏 dense prompt</li><li>Scaffold 只依訓練進度排程，沒分析在不同 diffusion timestep 的貢獻</li><li>萃取要實體化 attention，<b>不能用 FlashAttention</b>；BLIP-3o 4B 70K pair 離線約 10 小時 / 4×A5000，cache 4.2 GB</li></ul>
+      <div class="cite">App.F p.19–20；App.A p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">對圖像工程師的啟發</div>
+      <h2 class="head">可以直接帶走的設計模式</h2>
+      <ol class="numbered"><li><b>「自己教自己」的結構監督</b>：任何同時具備理解與生成的模型，都可以先問「理解端是否已經定位得到」，再把它變成生成端的訓練訊號</li><li><b>Contrastive 的負樣本選同一 prompt 內的其他片語</b>：比 batch 內隨機負樣本更直接對付屬性外洩</li><li><b>Privileged information 要漸退</b>：只在訓練時給的條件，若一直開著（ρ=1）推論時拿掉反而更差；cosine decay 的 Bernoulli dropout 是便宜的解法</li><li><b>零初始化 residual adapter</b> 讓注入式條件在訓練開始時不破壞預訓練權重（與 ControlNet zero-conv 同精神）</li><li><b>評估要拆資料效應</b>：同資料 LoRA FT 對照組 + paired bootstrap + 人類盲評，比只報 vs Base 可信</li></ol>
+      <div class="takeaway">增益在大模型上縮小（BAGEL GM +0.86），但機制分析（canvas 控制組、schedule、注入層）很乾淨，值得借鏡的是方法論。</div>
+      <div class="cite">綜合 §4–§5、App.D</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文螢光筆</div>
+      <h2 class="head">五句關鍵原文</h2>
+      <div class="hl"><p class="hl__en">UMMs exhibit a persistent asymmetry in which they <b>understand more reliably than they generate</b></p><p class="hl__zh">UMM 存在持續的不對稱：理解比生成可靠<span class="hl__src">§2.1 p.3</span></p></div>
+      <div class="hl"><p class="hl__en">The <b>in-prompt negatives</b> keep distinct phrases from collapsing onto one representation</p><p class="hl__zh">同 prompt 內的負樣本讓不同片語不會塌成同一個表徵<span class="hl__src">§4.2 p.6</span></p></div>
+      <div class="hl"><p class="hl__en">the benefit derives from <b>correctly binding phrase content to spatial support</b>, rather than from added conditioning capacity alone</p><p class="hl__zh">增益來自把片語內容正確綁到空間區域，而不只是多了條件容量<span class="hl__src">§5.3 p.9</span></p></div>
+      <div class="hl"><p class="hl__en">The result supports scaffold dropout as a <b>training-time curriculum</b> rather than a persistent conditioning pathway</p><p class="hl__zh">結果支持把 scaffold dropout 視為訓練期 curriculum，而非常駐的條件通道<span class="hl__src">§5.3 p.9</span></p></div>
+      <div class="hl"><p class="hl__en"><b>Coarse supports</b> from the understanding path suffice for SST, without an external segmentation model</p><p class="hl__zh">理解路徑給的粗略 support 就足以支撐 SST，不需要外部分割模型<span class="hl__src">§5.3 p.8</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · Mask 萃取完整公式</div>
+      <h2 class="head">前處理 → 打分 → 聚合（App.B）</h2>
+      <div class="formula">Ã<sub>p,ℓ,h</sub>(i) = ReLU( A<sub>p,ℓ,h</sub>(i) − (1/M) Σ<sub>i′</sub> A<sub>p,ℓ,h</sub>(i′) )</div>
+      <div class="formula">r<sub>p,ℓ,h</sub> = Σ<sub>i∉S</sub> Ã(i) / (Σ<sub>i</sub> Ã(i) + ε)；r &lt; η 丟棄，其餘 i∈S 歸零 → Ā<sub>p,ℓ,h</sub></div>
+      <div class="formula">u = Σ<sub>i</sub> Ā(i)；s<sup>sum</sup> = (u − μ<sup>sum</sup><sub>p</sub>) / (σ<sup>sum</sup><sub>p</sub> + ε)</div>
+      <div class="formula">P(i) = Ā(i)/(u+ε)；H = −Σ<sub>i</sub> P(i) log(P(i)+ε)；s<sup>ent</sup> = (−H − μ<sup>ent</sup><sub>p</sub>) / (σ<sup>ent</sup><sub>p</sub> + ε)</div>
+      <ul class="bullets"><li>超參（所有 backbone 共用）：sink 比例 q = 0.05、非 sink 閾值 η = 0.7、K = 8、τ = 0.07、ε = 10<sup>−8</sup></li><li>μ, σ 都在「同一片語的候選池」內計算 → 負熵項偏好「相對於同片語其他候選」較集中的 map，不假設絕對緊湊度</li></ul>
+      <div class="cite">App.B.1–B.4 p.14–16（Eq.9–17, Table 10）</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · Table 1 各 atomicity GM</div>
+      <h2 class="head">atomicity 越高，所有方法都往個位數掉</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">3</th><th class="num">4</th><th class="num">5</th><th class="num">6</th><th class="num">7</th><th class="num">8</th><th class="num">9</th><th class="num">10</th></tr></thead><tbody><tr><td>BLIP-3o 4B LoRA FT</td><td class="num">39.34</td><td class="num">28.24</td><td class="num">14.65</td><td class="num">10.71</td><td class="num">4.33</td><td class="num">3.46</td><td class="num">1.90</td><td class="num">1.44</td></tr><tr class="win"><td>BLIP-3o 4B SST</td><td class="num">47.41</td><td class="num">33.19</td><td class="num">16.92</td><td class="num">14.43</td><td class="num">5.72</td><td class="num">4.53</td><td class="num">3.93</td><td class="num">2.92</td></tr><tr><td>BAGEL LoRA FT</td><td class="num">59.89</td><td class="num">48.71</td><td class="num">30.74</td><td class="num">28.86</td><td class="num">15.89</td><td class="num">11.50</td><td class="num">8.93</td><td class="num">7.20</td></tr><tr class="win"><td>BAGEL SST</td><td class="num">60.52</td><td class="num">52.16</td><td class="num">31.86</td><td class="num">28.74</td><td class="num">14.89</td><td class="num">13.72</td><td class="num">9.33</td><td class="num">7.44</td></tr></tbody></table>
+      <ul class="bullets"><li>BLIP-3o 4B 在每個 atomicity 都贏；BAGEL 在 atomicity 6、7 略輸 LoRA FT</li><li>atomicity 10 時最好的 BAGEL SST GM 也只有 7.44 → dense prompt 生成仍是開放問題</li></ul>
+      <div class="cite">Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">理解比生成可靠，就讓理解來教生成</h2>
+      <p class="end__sub">SST · NeurIPS 2026 · Park &amp; Han（SNU）· arXiv 2611.18261</p>
+      <div class="end__next">明日（週三）預告：影片生成 / 時序模型</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
