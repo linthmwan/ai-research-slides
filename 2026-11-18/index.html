@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BAL：雙向 latent 自回歸學人體動作表徵 · 2026-11-18</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週三 · 影片生成 / 時序模型</div>
+      <h1 class="title">BAL：在 latent space 做雙向自回歸，學人體動作的語意表徵</h1>
+      <div class="sub">4 秒 chunk → latent token · 過去↔未來雙向預測 · global/local 分解防 collapse · 推論拔掉 causal mask</div>
+      <div class="authors">Genki Kinoshita, Ko Nishino · Kyoto University</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">arXiv 2026-11-13（回溯 5 天）</span><span class="badge">code: github.com/kyotovision-public/bal</span></div>
+      <p class="note">論文：<i>BAL: Bidirectional Autoregression in Latent Space for Learning Human Movement Representations</i>（arXiv 2611.18559v1，cs.CV）· venue 依 arXiv comment 與 PDF p.1 頁尾</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">不要預測<b>下一個 pose</b>，改預測<b>下一段動作的 latent token</b>——而且往前、往後都預測。日常行為的先後順序本身就是監督訊號。</p>
+      <p class="lead">Forecasting MPJPE（Nymeria）：BAL <b>82.1 mm</b>，次佳 baseline 359.0 mm；captioning 多數指標最佳。</p>
+      <div class="cite">Abstract p.1；Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§1 · 問題</div>
+      <h2 class="head">現有 3D pose 自監督的監督訊號是「人為設定」出來的</h2>
+      <ul class="bullets"><li><b>Contrastive</b>（USDRL 等）：表徵要對手工 augmentation 不變 → 語意取決於 augmentation 類型與強度</li><li><b>Masked</b>（MotionBERT、BehaveMAE、MacDiff）：要能從 context 補回被遮區域 → 語意取決於 mask 大小 / 時間尺度</li><li>結果：表徵對這些超參敏感，換 dataset / task 常要重新調</li><li>作者論點：這種敏感不是偶然——監督是<b>外加</b>的，不是來自資料本身的性質</li></ul>
+      <div class="takeaway">想找的是「動作資料自帶」的監督訊號。</div>
+      <div class="cite">§1 p.1；§2 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§1 · 為什麼不直接做 pose 自回歸</div>
+      <h2 class="head">pose 空間的 next-frame prediction 學到的是運動學，不是語意</h2>
+      <div class="two-col"><div><p class="col-hint">短期預測</p><ul class="bullets"><li>只要關節軌跡夠平滑就能把 loss 壓低</li><li>表徵傾向編碼局部 pose kinematics，不是 action 層級語意</li></ul></div><div><p class="col-hint">長期預測</p><ul class="bullets"><li>同一動作，不同人 / 情境 / 風格會呈現不同 pose</li><li>pose target 本身模糊 → 模型平均多種合理未來，而非區分它們的語意</li></ul></div></div>
+      <div class="takeaway">人預測別人行為時想的是「要坐下了」「要從冰箱拿東西」，不是關節座標——BAL 就照這個直覺設計。</div>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">核心觀察</div>
+      <p class="big">日常行為有<b>先後順序</b>：先拉椅子才坐下、先開冰箱才伸手進去。<br>而且推論是雙向的——看到伸手進冰箱，就知道剛剛開過門。</p>
+      <p class="lead">若表徵抓到動作語意，它就應該反映這些順序約束 → 把「預測相鄰語意單位」當訓練目標。</p>
+      <div class="cite">§1 p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">四個主張</h2>
+      <ol class="numbered"><li><b>Latent-space AR</b>：把 pose 序列切成 chunk，每個 chunk 壓成一個 token，預測相鄰 token 而非原始 pose</li><li><b>雙向 AR + 共享 extractor</b>：兩個方向專屬 predictor 吸收不對稱；推論時拔掉 causal mask，單次 forward 拿到前後文</li><li><b>Global/local target 分解</b>：證明正規化後的 local target 至少有一對夾角 ≥ 90°，防止 collapse，且不引入新超參</li><li>三個下游任務（captioning / forecasting / interpolation）多數指標勝過 6 個自監督 baseline</li></ol>
+      <div class="cite">§1 p.2；§3 p.3–6；Table 1 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§2 · 相關工作定位</div>
+      <h2 class="head">跟 latent 預測系列的差別</h2>
+      <table class="bench"><thead><tr><th>方法</th><th>預測什麼</th><th>防 collapse / 訓練穩定</th><th>BAL 的批評</th></tr></thead><tbody><tr><td>CPC / DPC / wav2vec</td><td>未來 latent</td><td>contrastive + 負樣本</td><td>objective 設計複雜</td></tr><tr><td>NEPA</td><td>單層 conv 淺特徵</td><td>—</td><td>特徵綁在局部輸入，linear-probe 弱</td></tr><tr><td>LeWM</td><td>深層 Transformer 表徵</td><td>SIGReg 正則</td><td>多超參；在人體動作上擋不住 collapse</td></tr><tr><td>A4Mer（同組前作）</td><td>JEPA latent</td><td>global/local 分解（為了可重用性）</td><td>兩階段 pipeline + 啟發式超參</td></tr><tr class="win"><td><b>BAL</b></td><td>深層 latent token（雙向 AR）</td><td>global/local 分解（為了防 collapse）</td><td>—</td></tr></tbody></table>
+      <div class="cite">§2 p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3 · 架構總覽</div>
+      <h2 class="head">Encoder → 共享 LatentFormer → 兩個方向專屬 Predictor</h2>
+      <figure class="full" style="max-height:46vh; margin-top:.4rem;"><img src="figures/figure1_p4.jpg" alt=""><figcaption>左：訓練時 LatentFormer 用 causal / reversed causal mask 處理兩個方向，Predictor 預測相鄰 token 的 local 分量，[CLS] 預測 global 分量。右：推論時拔掉 mask。</figcaption></figure>
+      <div class="cite">Figure 1 p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3.1 · Latent-space 自回歸</div>
+      <h2 class="head">Encoder 只做 chunk 內聚合，跨 chunk 推理交給 LatentFormer</h2>
+      <div class="formula">h<sub>m</sub> = f<sub>E</sub>(X<sub>m</sub>) &nbsp;·&nbsp; z<sub>m</sub><sup>fwd</sup> = f<sub>L</sub>(h<sub>≤m</sub>) &nbsp;·&nbsp; ẑ<sub>m+1</sub><sup>fwd</sup> = g<sup>fwd</sup>(z<sub>≤m</sub><sup>fwd</sup>)</div>
+      <div class="formula">L<sub>fwd</sub> = 1/(M−1) · Σ<sub>m=1..M−1</sub> D( ẑ<sub>m+1</sub><sup>fwd</sup>, sg(z<sub>m+1</sub><sup>fwd</sup>) )</div>
+      <ul class="bullets"><li>Encoder f<sub>E</sub>：max-pool 初始化 chunk embedding，chunk 內 self-attn 與 chunk→frames cross-attn 交替</li><li>target 由同一個 extractor 產生、加 stop-gradient sg(·)；D 內含正規化（實作用 LayerNorm(target) + smooth L1）</li><li>設定：5 fps、序列最長 30 s、chunk <b>4 s</b>（依 Nymeria 的 atomic action 3–5 秒定義）</li></ul>
+      <div class="cite">Eq.1–4 §3.1 p.4；§4.1 p.7；App.C.3 p.17</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3.2 · 雙向自回歸</div>
+      <h2 class="head">不對稱留在 predictor，extractor 學「同一個 latent space」</h2>
+      <div class="two-col"><div><p class="col-hint">訓練</p><div class="formula">z<sub>m</sub><sup>bwd</sup> = f<sub>L</sub>(h<sub>≥m</sub>) &nbsp;·&nbsp; ẑ<sub>m−1</sub><sup>bwd</sup> = g<sup>bwd</sup>(z<sub>≥m</sub><sup>bwd</sup>)</div><ul class="bullets"><li>同一個 LatentFormer：forward 用 causal mask，backward 用 reversed causal mask</li><li>過去條件 vs 未來條件的分布不同 → 各自一個 predictor</li></ul></div><div><p class="col-hint">推論</p><ul class="bullets"><li>extractor 學到的 past- 與 future-conditioned 視角落在共同空間</li><li>→ 推論時<b>拔掉 causal mask</b>，單次 forward 同時看前後文</li><li>對比 NLP / speech 的雙向 AR：訓兩個方向專屬模型、推論跑兩次</li></ul></div></div>
+      <div class="cite">Eq.5–6 §3.2 p.4–5；§2 p.3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3.3 · Collapse 是怎麼發生的</div>
+      <h2 class="head">target 與 predictor 一起學 → 自我強化的坍縮迴圈</h2>
+      <ol class="numbered"><li>extractor 開始輸出相似表徵</li><li>predictor 只要輸出近乎常數就能壓低 loss</li><li>loss 變小 → 更往 collapse 推</li></ol>
+      <p class="lead">反過來說：只要從相似表徵出發，預測 target 仍然<b>很難</b>、loss 夠大，collapse 就會被抑制 → 需要讓 target 保有足夠多樣性。</p>
+      <div class="formula">z<sup>g</sup> = (1/M) Σ<sub>m</sub> z<sub>m</sub> &nbsp;&nbsp;（global：整段序列語意）&nbsp;&nbsp;&nbsp; z<sub>m</sub><sup>l</sup> = z<sub>m</sub> − z<sup>g</sup> &nbsp;&nbsp;（local：與序列無關的 chunk 動作）</div>
+      <div class="cite">§3.3 p.5；Eq.7</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">★ 機制 · 為什麼分解能防 collapse</div>
+      <p class="big">local 分量加總必為 0。只要 token 不全相同，正規化後<b>至少有一對夾角 ≥ 90°</b>——target 不可能變成「同一個方向」，predictor 沒法偷懶。</p>
+      <div class="formula">Σ a<sub>m</sub>u<sub>m</sub> = 0 &nbsp;⇒&nbsp; μ = min<sub>m≠n</sub> u<sub>m</sub><sup>T</sup>u<sub>n</sub> ≤ −1/(M−1) &nbsp;⇒&nbsp; max ∠(u<sub>m</sub>, u<sub>n</sub>) ≥ arccos(−1/(M−1)) ≥ π/2</div>
+      <p class="note">u<sub>m</sub> = z<sub>m</sub><sup>l</sup>/||z<sub>m</sub><sup>l</sup>||，a<sub>m</sub> = ||z<sub>m</sub><sup>l</sup>||。展開平方範數後用 Cauchy–Schwarz：2Σ<sub>m&lt;n</sub>a<sub>m</sub>a<sub>n</sub> ≤ (M−1)Σa<sub>m</sub><sup>2</sup>。LayerNorm 版本類推見 App.B。</p>
+      <div class="cite">Eq.8–11 §3.3 p.5–6；App.B p.13</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§3.3 · 最終 objective</div>
+      <h2 class="head">local 與 global 分開預測、動態平衡，不加新超參</h2>
+      <div class="formula">L = 1/(M−1) Σ<sub>m=1..M−1</sub>( L<sub>m</sub><sup>l,fwd</sup> + λ<sub>m</sub><sup>fwd</sup> L<sup>g,fwd</sup> ) + 1/(M−1) Σ<sub>m=2..M</sub>( L<sub>m</sub><sup>l,bwd</sup> + λ<sub>m</sub><sup>bwd</sup> L<sup>g,bwd</sup> )</div>
+      <div class="formula">λ<sub>m</sub> = sg( L<sub>m</sub><sup>l</sup> / L<sup>g</sup> )</div>
+      <ul class="bullets"><li>local：predictor 預測相鄰 chunk 的 z<sup>l</sup>（forward 預測 m+1，backward 預測 m−1）</li><li>global：learnable [CLS] token 看整段序列（不被其他 token attend）預測 z<sup>g</sup></li><li>與 A4Mer 不同：A4Mer 是把預測出的 token 事後分解；BAL 讓 predictor <b>直接</b>輸出兩個分量，分工更清楚</li></ul>
+      <div class="cite">Eq.12–14 §3.3 p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4 · 評測協定</div>
+      <h2 class="head">全部凍結 extractor，只訓下游 head</h2>
+      <div class="two-col"><div><p class="col-hint">資料（混合預訓練）</p><ul class="bullets"><li>AMD：~14.2 h 居家活動</li><li>Nymeria：~300 h 室內外、多人互動</li><li>Embody 3D：~500 h 室內，含比手畫腳、多人對話</li></ul></div><div><p class="col-hint">三個下游任務</p><ul class="bullets"><li><b>Captioning</b>：2 層 MLP 把表徵投影到<b>凍結</b>的 Llama 3.1 8B Instruct</li><li><b>Forecasting</b>：head 預測下一個 latent token → 獨立 decoder 回 pose，4 秒，MPJPE</li><li><b>Interpolation</b>：遮 4–12 秒，head 補 token → decoder，MPJPE</li></ul></div></div>
+      <div class="takeaway">凍結 extractor 是為了讓結果反映 SSL objective 本身，不被模型大小或 fine-tune 能力左右。</div>
+      <div class="cite">§4 p.6；§4.1–4.4 p.6–8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4 · 主結果</div>
+      <h2 class="head">Forecasting 全面且大幅領先；captioning 多數最佳；interpolation 互有勝負</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">BLEU-1 Nym ↑</th><th class="num">CIDEr Nym ↑</th><th class="num">Fcst AMD ↓</th><th class="num">Fcst Nym ↓</th><th class="num">Fcst E3D ↓</th><th class="num">Interp AMD ↓</th><th class="num">Interp Nym ↓</th><th class="num">Interp E3D ↓</th></tr></thead><tbody><tr><td>A4Mer</td><td class="num">15.7</td><td class="num">4.3</td><td class="num">641.6</td><td class="num">359.0</td><td class="num">381.3</td><td class="num">163.7</td><td class="num">145.1</td><td class="num">86.3</td></tr><tr><td>PUMPS</td><td class="num">8.2</td><td class="num">16.2</td><td class="num">186.4</td><td class="num">453.6</td><td class="num">111.7</td><td class="num">195.6</td><td class="num">472.4</td><td class="num">89.2</td></tr><tr><td>USDRL</td><td class="num">27.1</td><td class="num">32.5</td><td class="num">136.1</td><td class="num">373.8</td><td class="num">90.2</td><td class="num">117.7</td><td class="num">424.6</td><td class="num">59.2</td></tr><tr><td>BehaveMAE</td><td class="num">33.9</td><td class="num">49.4</td><td class="num">195.5</td><td class="num">394.8</td><td class="num">152.7</td><td class="num">135.6</td><td class="num">103.5</td><td class="num">77.8</td></tr><tr><td>MotionBERT</td><td class="num">24.3</td><td class="num">19.9</td><td class="num">976.6</td><td class="num">1623.2</td><td class="num">248.7</td><td class="num">136.7</td><td class="num">348.7</td><td class="num">69.5</td></tr><tr><td>MacDiff</td><td class="num">36.7</td><td class="num best">65.6</td><td class="num">160.0</td><td class="num">371.8</td><td class="num">73.2</td><td class="num best">112.7</td><td class="num">454.1</td><td class="num best">56.6</td></tr><tr class="win"><td><b>BAL</b></td><td class="num best">37.3</td><td class="num">63.1</td><td class="num best">90.5</td><td class="num best">82.1</td><td class="num best">63.8</td><td class="num">117.5</td><td class="num best">77.0</td><td class="num">59.2</td></tr></tbody></table>
+      <p class="note">誠實標註：CIDEr Nym 與 interpolation AMD / E3D 由 MacDiff 拿下（作者原文寫「most metrics」）。完整 14 欄見附錄。</p>
+      <div class="cite">Table 1 p.7（MPJPE 單位 mm）</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.3–4.4 · 定性結果</div>
+      <h2 class="head">BAL 能預測「蹲下→站起」這種語意轉折，baseline 多半只是平滑外插</h2>
+      <figure class="full" style="max-height:48vh; margin-top:.4rem;"><img src="figures/figure3_p8.jpg" alt=""><figcaption>(a) 4 秒 forecasting、(b) 8 秒 interpolation。深色 SMPL mesh 為 ground truth。</figcaption></figure>
+      <div class="cite">Figure 3 p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">App.D.2 · 差距有多少來自 global translation？</div>
+      <h2 class="head">Oracle 對齊根節點位移後差距縮小，但 BAL 仍多數領先</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">Fcst AMD</th><th class="num">Fcst Nym</th><th class="num">Fcst E3D</th><th class="num">Interp Nym</th></tr></thead><tbody><tr><td>USDRL</td><td class="num">136.1 → 133.3</td><td class="num">373.8 → 115.9</td><td class="num">90.2 → 87.9</td><td class="num">424.6 → 106.7</td></tr><tr><td>MacDiff</td><td class="num">160.0 → 152.7</td><td class="num">371.8 → 77.9</td><td class="num">73.2 → 71.5</td><td class="num">454.1 → 100.4</td></tr><tr class="win"><td><b>BAL</b></td><td class="num best">90.5 → 87.8</td><td class="num best">82.1 → 77.7</td><td class="num best">63.8 → 63.7</td><td class="num best">77.0 → 77.0</td></tr></tbody></table>
+      <ul class="bullets"><li>baseline 的大誤差有一部分是<b>沒編好 global translation</b>（例如 MacDiff Nymeria 371.8 → 77.9）</li><li>但對齊後兩兩排序不變；這個 oracle 用了 GT，實際能力仍以 Table 1 為準</li></ul>
+      <div class="cite">Table 7 p.21；§4.4 p.8；App.D.2 p.20–21</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.6 · Ablation ①</div>
+      <h2 class="head">為什麼是 latent 空間的自回歸，而不是 pose 空間或 JEPA</h2>
+      <table class="bench"><thead><tr><th>變體</th><th class="num">CIDEr Nym ↑</th><th class="num">BERT Nym ↑</th><th class="num">Fcst AMD ↓</th><th class="num">Interp Nym ↓</th></tr></thead><tbody><tr><td>Pose-space Bi-AR</td><td class="num">12.6</td><td class="num">7.3</td><td class="num">118.6</td><td class="num">87.4</td></tr><tr><td>JEPA, mask 15%</td><td class="num">46.2</td><td class="num">25.2</td><td class="num">109.3</td><td class="num">112.4</td></tr><tr><td>JEPA, mask 50%</td><td class="num">41.7</td><td class="num">24.9</td><td class="num">102.7</td><td class="num">96.8</td></tr><tr class="win"><td><b>Full BAL</b></td><td class="num best">68.3</td><td class="num best">30.8</td><td class="num best">88.3</td><td class="num best">79.0</td></tr></tbody></table>
+      <ul class="bullets"><li>Pose 空間：同語意對應多種 pose → target 模糊，全任務最差</li><li>JEPA 的兩難：短 mask 時前後文互補、單方向不需保留足夠資訊；長 mask 時遠端 target 有多種合理動作</li></ul>
+      <div class="cite">Table 2 p.10（Full 為 10 runs 平均）；§4.6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">★ 機制 · 為什麼 AR 的訊號比 masked 好</div>
+      <p class="big">自回歸要求<b>單一方向</b>就能預測下一步，而下一步又被歷史緊緊約束。所以預測誤差代表的是「表徵<b>缺資訊</b>」，不是「多種合理動作之間的不確定」。</p>
+      <p class="lead">前者可以靠學更好的表徵修正，後者再怎麼學也降不下去——這就是 AR 監督比較「乾淨」的原因。</p>
+      <div class="cite">§4.6 p.9</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.6 · Ablation ②</div>
+      <h2 class="head">分解把 feature 多樣性撐住；SIGReg 撐不住</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:44vh; margin-top:.4rem;"><img src="figures/figure5_p9_nocap.jpg" alt=""><figcaption>上：訓練 loss；下：L2-normalized feature 的 std（理想約 1/√d，collapse 時為 0）</figcaption></figure></div><div><table class="bench"><thead><tr><th>變體</th><th class="num">CIDEr Nym</th><th class="num">Fcst AMD</th></tr></thead><tbody><tr><td>w/o 分解</td><td class="num">37.3</td><td class="num">95.5</td></tr><tr><td>SIGReg 取代</td><td class="num">13.0</td><td class="num">297.9</td></tr><tr><td>w/o global</td><td class="num">12.4</td><td class="num">172.9</td></tr><tr><td>w/o 動態 λ</td><td class="num">49.6</td><td class="num">170.0</td></tr><tr><td>A4Mer-style 分解</td><td class="num">24.3</td><td class="num">107.2</td></tr><tr class="win"><td><b>Full</b></td><td class="num best">68.3</td><td class="num best">88.3</td></tr></tbody></table></div></div>
+      <div class="takeaway">loss 很低反而是警訊：w/o 分解與 SIGReg 的 loss 都很小，因為表徵趨同讓預測變簡單。</div>
+      <div class="cite">Figure 5 p.9（10% 預訓練步數）；Table 2 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">§4.6 · Ablation ③</div>
+      <h2 class="head">雙向訓練 + 推論拔 mask：兩者缺一不可</h2>
+      <table class="bench"><thead><tr><th>訓練 / 推論</th><th class="num">CIDEr Nym ↑</th><th class="num">BLEU-1 Nym ↑</th><th class="num">Interp Nym ↓</th></tr></thead><tbody><tr><td>AR / Causal</td><td class="num">63.7 (1.4)</td><td class="num">34.3 (1.5)</td><td class="num">88.3 (8.4)</td></tr><tr><td>AR / Non-Causal</td><td class="num">60.3 (1.2)</td><td class="num">33.4 (2.0)</td><td class="num">88.0 (4.1)</td></tr><tr><td>Bi-AR / Causal</td><td class="num">65.2 (1.5)</td><td class="num">35.1 (0.9)</td><td class="num">82.0 (1.6)</td></tr><tr><td>Bi-AR / Bi-Causal（兩趟拼接）</td><td class="num">62.6 (1.9)</td><td class="num">34.2 (1.2)</td><td class="num">81.6 (2.2)</td></tr><tr class="win"><td><b>Bi-AR / Non-Causal（Full）</b></td><td class="num best">68.3 (1.3)</td><td class="num best">36.5 (1.2)</td><td class="num best">79.0 (1.2)</td></tr></tbody></table>
+      <ul class="bullets"><li>只用 forward 訓練就拔 mask → 反而變差（60.3 &lt; 63.7）：拔 mask 的收益<b>只在雙向訓練</b>時出現</li><li>單趟聯合看前後文 &gt; 兩趟各看一邊再拼接 → 前後文要在抽取時就一起推</li></ul>
+      <div class="cite">Table 2 p.10（mean (std) over 10 runs）；§4.6 p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">App.D.3–D.4 · 唯一的監督超參與成本</div>
+      <h2 class="head">chunk 長度有直觀語意：要多細就選多短</h2>
+      <table class="bench"><thead><tr><th>設定</th><th class="num">BLEU-1 Nym ↑</th><th class="num">CIDEr Nym ↑</th><th class="num">Fcst Nym ↓</th><th class="num">Interp Nym ↓</th></tr></thead><tbody><tr><td>BAL 2 s</td><td class="num">37.4</td><td class="num">62.6</td><td class="num best">72.2</td><td class="num best">70.3</td></tr><tr><td>BAL 3 s</td><td class="num">33.4</td><td class="num">63.6</td><td class="num">82.2</td><td class="num">75.2</td></tr><tr class="win"><td>BAL 4 s（主文）</td><td class="num">37.3</td><td class="num">63.1</td><td class="num">82.1</td><td class="num">77.0</td></tr><tr><td>BAL 5 s</td><td class="num best">41.4</td><td class="num best">71.8</td><td class="num">87.5</td><td class="num">80.7</td></tr><tr><td>Best prior</td><td class="num">36.7</td><td class="num">65.6</td><td class="num">359.0</td><td class="num">103.5</td></tr></tbody></table>
+      <ul class="bullets"><li>短 chunk 留較多細 pose → forecasting / interpolation 較好；長 chunk 抽象度高 → captioning 較好</li><li>Extractor 14.18 M 參數、12.2 ms（A100, bs=1）；MacDiff 11.96 M / 5.3 ms。參數對齊 ~14 M 後 BAL 仍多數勝（Table 10）</li></ul>
+      <div class="cite">Table 8–10 p.22；App.D.3–D.4 p.21–22</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">App.D.1 · 隨機順序可以嗎？</div>
+      <h2 class="head">XLNet-style 隨機分解順序 vs 自然時間順序</h2>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">BLEU-1 Nym ↑</th><th class="num">CIDEr Nym ↑</th><th class="num">BERT Nym ↑</th><th class="num">Fcst AMD ↓</th><th class="num">Interp Nym ↓</th></tr></thead><tbody><tr><td>XLNet-style</td><td class="num">35.2</td><td class="num">42.9</td><td class="num">26.7</td><td class="num best">85.8</td><td class="num">79.3</td></tr><tr class="win"><td><b>BAL</b></td><td class="num best">37.3</td><td class="num best">63.1</td><td class="num best">29.6</td><td class="num">90.5</td><td class="num best">77.0</td></tr></tbody></table>
+      <ul class="bullets"><li>保留 BAL 的 Encoder，只把 LatentFormer + predictor 換成 two-stream attention，其他設定相同</li><li>差距最大在 captioning（最直接反映語意）→ <b>自然時間順序</b>本身就是有用的監督，不只是「預測被遮的 token」</li></ul>
+      <div class="cite">Table 6 p.20；App.D.1 p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">從原文能讀到的弱點（作者沒有獨立 Limitations 節）</h2>
+      <ul class="bullets"><li>Interpolation 在 AMD / E3D 輸 MacDiff，CIDEr Nymeria 也輸 MacDiff（Table 1）</li><li>Forecasting 的大差距有一部分來自 baseline 沒編好 global translation（App.D.2）</li><li>chunk 長度仍要依任務粒度選；推論延遲 12.2 ms，高於 MacDiff 5.3 ms / BehaveMAE 4.3 ms（Table 9）</li><li>只在 3D pose（5 fps）上驗證；Broader impact 提到可能被用於未經同意的監控與行為側寫（App.F）</li></ul>
+      <div class="cite">Table 1 p.7；App.D.2 p.21；Table 9 p.22；App.F p.28</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">給影像 / 影片工程師的啟發</div>
+      <h2 class="head">可以帶走的三個設計模式</h2>
+      <ol class="numbered"><li><b>在語意 token 上做 AR，而非像素 / pose</b>：target 有歧義時，往抽象層預測會更乾淨——對 video world model、latent video predictor 一樣適用</li><li><b>共享 encoder + 方向專屬 head</b>：讓 encoder 只負責「表徵當下」，把條件分布的不對稱丟給輕量 head，推論就能用 full attention</li><li><b>mean / residual 分解當作防 collapse 的零超參工具</b>：self-distillation / JEPA 類訓練裡，loss 太低先查 feature std</li></ol>
+      <div class="takeaway">最值得記住的一句：<b>loss 降得太漂亮，可能是 collapse 的訊號。</b></div>
+      <div class="cite">§3 p.4–6；§4.6 p.9–10</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文螢光筆</div>
+      <div class="hl"><p class="hl__en">frame-level autoregressive prediction in pose space does not naturally produce semantic representations. <b>Short-term joint trajectory smoothness is sufficient to minimize such a loss</b></p><p class="hl__zh">pose 空間的逐幀自回歸不會自然產生語意表徵：只靠短期關節軌跡平滑就足以壓低 loss<span class="hl__src">§1 p.2</span></p></div>
+      <div class="hl"><p class="hl__en">at least one pair of normalized local components is <b>separated by an angle of at least 90°</b></p><p class="hl__zh">至少有一對正規化 local 分量的夾角 ≥ 90°<span class="hl__src">§3.3 p.6</span></p></div>
+      <div class="hl"><p class="hl__en">Its prediction errors therefore reflect <b>a lack of information in the representations</b> needed for prediction, rather than uncertainty among plausible actions</p><p class="hl__zh">AR 的預測誤差反映表徵缺乏預測所需資訊，而不是多種合理動作間的不確定<span class="hl__src">§4.6 p.9</span></p></div>
+      <div class="hl"><p class="hl__en">inferring the semantics of each motion chunk <b>jointly from past and future context</b> is more effective than processing the two contexts independently</p><p class="hl__zh">同時從過去與未來推斷每個 chunk 的語意，比分開處理再合併更有效<span class="hl__src">§4.6 p.10</span></p></div>
+      <div class="cite">arXiv 2611.18559v1</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · Table 1 captioning 完整欄位</div>
+      <table class="bench"><thead><tr><th>Method</th><th class="num">BLEU-1 Nym</th><th class="num">BLEU-1 E3D</th><th class="num">R-L Nym</th><th class="num">R-L E3D</th><th class="num">CIDEr Nym</th><th class="num">CIDEr E3D</th><th class="num">BERT Nym</th><th class="num">BERT E3D</th></tr></thead><tbody><tr><td>A4Mer</td><td class="num">15.7</td><td class="num">32.9</td><td class="num">20.5</td><td class="num">22.1</td><td class="num">4.3</td><td class="num">4.3</td><td class="num">8.7</td><td class="num">10.2</td></tr><tr><td>PUMPS</td><td class="num">8.2</td><td class="num">58.7</td><td class="num">17.0</td><td class="num">44.8</td><td class="num">16.2</td><td class="num">17.3</td><td class="num">9.5</td><td class="num">34.3</td></tr><tr><td>USDRL</td><td class="num">27.1</td><td class="num">58.0</td><td class="num">34.8</td><td class="num best">45.3</td><td class="num">32.5</td><td class="num">18.4</td><td class="num">17.7</td><td class="num best">35.0</td></tr><tr><td>BehaveMAE</td><td class="num">33.9</td><td class="num">58.8</td><td class="num">38.3</td><td class="num">44.6</td><td class="num">49.4</td><td class="num">17.4</td><td class="num">24.6</td><td class="num">33.6</td></tr><tr><td>MotionBERT</td><td class="num">24.3</td><td class="num">58.4</td><td class="num">36.6</td><td class="num">45.2</td><td class="num">19.9</td><td class="num">16.7</td><td class="num">15.8</td><td class="num best">35.2</td></tr><tr><td>MacDiff</td><td class="num">36.7</td><td class="num">58.2</td><td class="num best">41.4</td><td class="num">44.7</td><td class="num best">65.6</td><td class="num">17.8</td><td class="num">28.5</td><td class="num">33.6</td></tr><tr class="win"><td><b>BAL</b></td><td class="num best">37.3</td><td class="num best">58.9</td><td class="num">41.2</td><td class="num best">45.3</td><td class="num">63.1</td><td class="num best">18.6</td><td class="num best">29.6</td><td class="num">35.0</td></tr></tbody></table>
+      <p class="note">BERT E3D：MotionBERT 35.2 為最高（BAL 35.0）；R-L E3D：USDRL 與 BAL 並列 45.3。LLM：Llama 3.1 8B Instruct（凍結），只訓投影 MLP。</p>
+      <div class="cite">Table 1 p.7；§4.2 p.7</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 表徵空間檢索與實作細節</div>
+      <figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure4_p9.jpg" alt=""><figcaption>以 BAL 表徵做最近鄰檢索：跨資料集也能找回語意相近的動作（Query 為橘色）</figcaption></figure>
+      <ul class="bullets"><li>Pose 表示沿用 HumanML3D：腳接地 c ∈ {0,1}<sup>4</sup>、骨盆角速度與平面速度、關節位置 / 速度 / 6D 旋轉（App.C.2）</li><li>LayerNorm(只正規化 target) + smooth L1 優於 L2-norm + cosine：BLEU-1 Nym 37.3 vs 28.9、Fcst AMD 90.5 vs 96.7（Table 4）——cosine 對輸出尺度不變，smooth L1 同時約束方向與大小</li></ul>
+      <div class="cite">Figure 4 p.9；App.C.2–C.3 p.17；Table 4 p.18</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">別預測下一個 pose，預測下一段動作的意思</h2>
+      <p class="end__sub">BAL · NeurIPS 2026 · Kinoshita &amp; Nishino（Kyoto University）· arXiv 2611.18559</p>
+      <div class="end__next">明日（週四）預告：計算加速（Attention、Kernel、硬體）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
