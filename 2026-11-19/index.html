@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kernel Reality Check — Efficient Attention at Scale</title>
+<style>
+:root{
+  --bg:#fbfbfd; --ink:#1a1d24; --ink-soft:#5b616e; --line:#e4e7ec;
+  --accent:#3b5bdb; --accent-bg:#edf1ff; --teal:#0ca678; --baseline:#adb5bd;
+  --warn:#e8590c; --code-bg:#f3f4f7;
+  --kicker:clamp(.8rem,1.1vw,.95rem);
+  --h1:clamp(2.4rem,4.6vw,3.6rem); --h2:clamp(1.5rem,2.6vw,2.1rem);
+  --lead:clamp(1.3rem,2.2vw,1.9rem); --body:clamp(1rem,1.5vw,1.18rem);
+  --cap:clamp(.78rem,1vw,.9rem); --maxw:1120px; --pad:6vh clamp(28px,6vw,84px);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+.deck{position:relative;height:100vh;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;padding:var(--pad);animation:fade .35s ease;}
+.slide.active{display:flex;}
+.slide__inner{margin:auto;width:100%;max-width:var(--maxw);max-height:86vh;overflow-y:auto;}
+@keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:var(--kicker);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.1rem;}
+h1.title{font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;font-weight:800;}
+h2.head{font-size:var(--h2);line-height:1.2;font-weight:750;margin-bottom:1.4rem;}
+.sub{color:var(--ink-soft);font-size:var(--body);}
+.lead{font-size:var(--lead);line-height:1.4;font-weight:600;}
+.cite{margin-top:1.6rem;font-size:var(--cap);color:var(--ink-soft);font-family:var(--mono);}
+.cite a{color:var(--accent);text-decoration:none;}
+.cover .meta-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.6rem 0 1rem;}
+.badge{font-size:var(--cap);font-weight:700;padding:.28rem .7rem;border-radius:999px;background:var(--accent-bg);color:var(--accent);}
+.badge.tier{background:#fff4e6;color:var(--warn);}
+.badge.date{background:#f1f3f5;color:var(--ink-soft);}
+.cover .authors{color:var(--ink-soft);margin-top:.4rem;}
+.statement .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.statement .big{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.32;font-weight:750;}
+.statement .big b{color:var(--accent);}
+ul.bullets{list-style:none;margin-top:.4rem;}
+ul.bullets li{position:relative;padding-left:1.7rem;margin:.85rem 0;font-size:var(--body);}
+ul.bullets li::before{content:"";position:absolute;left:0;top:.62em;width:.5rem;height:.5rem;border-radius:2px;background:var(--accent);}
+ul.bullets li b{color:var(--ink);}
+ol.numbered{counter-reset:c;list-style:none;margin-top:.4rem;}
+ol.numbered li{position:relative;padding-left:2.6rem;margin:1rem 0;}
+ol.numbered li::before{counter-increment:c;content:counter(c);position:absolute;left:0;top:-.05em;width:1.8rem;height:1.8rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:.95rem;display:grid;place-items:center;}
+.takeaway{margin-top:1.4rem;padding:.9rem 1.1rem;border-left:4px solid var(--teal);background:#e9fbf3;border-radius:0 8px 8px 0;font-weight:600;}
+figure.full{width:100%;}
+figure.full img{width:100%;height:auto;max-height:64vh;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;}
+/* 當 figure 自帶 inline max-height（slides.json 的 style 欄）時，讓那個 cap 真正約束 img，否則 img 的 64vh 會無視 figure 高度溢出壓到內文 */
+figure.full[style*="max-height"]{display:flex;flex-direction:column;align-items:center;min-height:0;overflow:hidden;}
+figure.full[style*="max-height"] img{width:auto;max-width:100%;height:auto;min-height:0;max-height:100%;}
+figure.full figcaption{margin-top:.8rem;color:var(--ink-soft);font-size:var(--cap);}
+.figframe{border:1px dashed var(--line);border-radius:12px;padding:2.4rem;text-align:center;color:var(--ink-soft);font-family:var(--mono);font-size:var(--cap);}
+.formula{font-family:var(--mono);font-size:clamp(1.1rem,1.9vw,1.5rem);background:var(--code-bg);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.6rem;margin:1.2rem 0;overflow-x:auto;}
+.formula sub,.formula sup{font-size:.72em;}
+.note{color:var(--ink-soft);font-size:var(--body);margin-top:.3rem;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.2rem,3vw,2.4rem);align-items:start;}
+.two-col img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;}
+@media (max-width:820px){.two-col{grid-template-columns:1fr;}}
+table.bench{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:clamp(.92rem,1.4vw,1.08rem);}
+table.bench th,table.bench td{text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--line);}
+table.bench thead th{color:var(--ink-soft);font-size:var(--cap);text-transform:uppercase;letter-spacing:.04em;}
+table.bench td.num,table.bench th.num{text-align:right;font-family:var(--mono);}
+table.bench tr.win{background:var(--accent-bg);}
+table.bench tr.win td{font-weight:750;}
+table.bench tr.win td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+table.bench .best{color:var(--teal);font-weight:800;}
+.col-hint{color:var(--ink-soft);font-size:var(--cap);margin-top:.7rem;}
+.insight .slide__inner{display:flex;flex-direction:column;justify-content:center;}
+.insight .crown{border-left:6px solid var(--accent);padding-left:clamp(1rem,3vw,2.2rem);}
+.insight .why{font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.34;font-weight:750;}
+.insight .why b{color:var(--accent);}
+.insight .support{margin-top:1.4rem;display:grid;gap:.7rem;}
+.insight .support div{padding-left:1.4rem;position:relative;color:var(--ink-soft);font-size:var(--body);}
+.insight .support div::before{content:"\2192";position:absolute;left:0;color:var(--accent);font-weight:800;}
+.scores{display:flex;gap:.5rem;margin:1rem 0 1.4rem;}
+.scores .s{font-family:var(--mono);font-weight:800;padding:.4rem .8rem;border-radius:8px;background:#f1f3f5;}
+.scores .s.hi{background:#e9fbf3;color:var(--teal);}
+.scores .s.lo{background:#fff0e6;color:var(--warn);}
+.quote{border-left:4px solid var(--line);padding:.3rem 0 .3rem 1.1rem;margin:.8rem 0;color:var(--ink-soft);font-style:italic;}
+.rebuttal{margin-top:1rem;padding:.9rem 1.1rem;background:var(--accent-bg);border-radius:10px;}
+.appendix .pair{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;margin:1rem 0 1.4rem;border-bottom:1px solid var(--line);padding-bottom:1.2rem;}
+.appendix .en{font-family:var(--mono);font-size:.96rem;line-height:1.5;}
+.appendix .en mark{background:#fff3bf;padding:0 .15em;}
+.appendix .zh{font-size:var(--body);}
+.appendix .src{grid-column:1 / -1;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);}
+@media (max-width:820px){.appendix .pair{grid-template-columns:1fr;}}
+.deck__foot{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line);z-index:20;}
+.deck__bar{height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.deck__no{position:fixed;right:18px;bottom:14px;font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);z-index:20;}
+.deck__hint{position:fixed;left:18px;bottom:12px;font-size:var(--cap);color:var(--ink-soft);z-index:20;opacity:.8;}
+/* reviewer scorebox */
+.scorebox{display:flex;gap:.5rem;margin:.2rem 0 .4rem;}
+.score{font-family:var(--mono);font-weight:800;font-size:1.15rem;padding:.4rem .85rem;border-radius:8px;background:#f1f3f5;color:var(--ink);}
+.score--hi{background:#e9fbf3;color:var(--teal);}
+.score--lo{background:#fff0e6;color:var(--warn);}
+/* appendix highlighter */
+.slide--appendix .hl{border-bottom:1px solid var(--line);padding-bottom:1rem;margin:1rem 0;}
+.hl__en{font-family:var(--mono);font-size:.95rem;line-height:1.5;}
+.hl__en b{background:#fff3bf;padding:0 .15em;font-weight:700;}
+.hl__zh{font-size:var(--body);margin-top:.5rem;}
+.hl__zh b{color:var(--accent);}
+.hl__src{font-family:var(--mono);font-size:var(--cap);color:var(--ink-soft);margin-left:.4rem;}
+/* closing slide */
+.slide--cover{background:linear-gradient(160deg,#fbfbfd 0%,#edf1ff 100%);}
+.slide__inner--center{display:flex;flex-direction:column;justify-content:center;min-height:78vh;}
+.end__title{font-size:clamp(2.1rem,4.2vw,3.4rem);line-height:1.16;font-weight:800;letter-spacing:-.01em;margin:.4rem 0 1.2rem;}
+.end__sub{font-size:var(--lead);line-height:1.4;color:var(--ink-soft);font-weight:600;max-width:48ch;}
+.end__next{margin-top:1.6rem;padding:.85rem 1.1rem;border-left:4px solid var(--accent);background:var(--accent-bg);border-radius:0 8px 8px 0;font-weight:600;}
+.end__next b{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <section class="slide cover active">
+    <div class="slide__inner">
+      <div class="kicker">週四 · 計算加速（Attention / Kernel / 硬體）</div>
+      <h1 class="title">Kernel Reality Check：線性 attention 的 O(N) 承諾，在 GPU 上兌現了嗎？</h1>
+      <div class="sub">FlashAttention-2 vs Hedgehog / DiJiang（含 FLA Triton kernel）· ViT-S/B/L + GPT2-S/M/L · 統一蒸餾協定 + LARA++</div>
+      <div class="authors">Fırat Öncel, Cem Subakan, Mirco Ravanelli, Çağatay Yıldız · Concordia University / Mila / Laval University / University of Tübingen</div>
+      <div class="meta-row"><span class="badge tier">NeurIPS 2026</span><span class="badge date">arXiv 2026-11-17</span></div>
+      <p class="note">論文：<i>The Kernel Reality Check: Benchmarking and Distilling Efficient Attention at Scale</i> · arXiv 2611.22947 · 程式碼 github.com/firatoncel/KernelRealityCheckNeurIPS2026<br>選題說明：今日 arXiv 清單中唯一乾淨命中「attention / kernel」的頂會 accepted 論文。上週四（11-12）就想做這篇，但當時還沒有 PDF；今天 arXiv 版已釋出 · Reviewer 資料：未取得</p>
+    </div>
+  </section>
+
+  <section class="slide statement">
+    <div class="slide__inner">
+      <div class="kicker">TL;DR</div>
+      <p class="big">Kernelized attention 的 O(N) 優勢在 A100 上<b>大多沒兌現</b>：FlashAttention-2 在訓練與 ViT 推論的時間、記憶體全勝；linear attention 唯一明確的贏面是 <b>causal LM 推論的記憶體</b>。品質上 SOTA 方法掉 2–10 點，作者的 <b>LARA++</b> 收到 1.3 點內（最高 99%），但 clustering 開銷讓<b>效率牆依舊在</b>。</p>
+      <div class="cite">Abstract, p.1；§8, p.10</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">問題</div>
+      <h2 class="head">五年 kernelized attention 研究，為什麼生產環境還是 FlashAttention？</h2>
+      <ul class="bullets"><li>演進路線：random features（Performer/PRF）→ learned MLP（Hedgehog）→ importance sampling（LARA）→ frequency-domain（DiJiang），每代都宣稱大幅省記憶體、加速</li><li><b>比較對象過時</b>：Hedgehog、DiJiang 只和 2022 以前的方法比，很少和 FlashAttention 或彼此比</li><li><b>設定窄、細節不足</b>：效率宣稱常來自單層、舊版 FA、不帶 KV cache 的 baseline</li><li><b>協定不一致</b>：任務、規模、指標、從頭訓 vs 轉換預訓練模型各說各話 → 矛盾結論無法對質</li></ul>
+      <div class="takeaway">核心問題：理論複雜度的優勢，到底有沒有轉成實際的 wall-clock 與記憶體？</div>
+      <div class="cite">§1, p.1–2；§3 Limitations of existing evaluations, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">貢獻</div>
+      <h2 class="head">三件事</h2>
+      <ol class="numbered"><li><b>統一 benchmark 框架</b>：同一 harness、同一 host model、同 dtype / batch，量真實記憶體與吞吐</li><li><b>系統性重現</b>：在一致條件下重跑 SOTA 方法，發現與原論文宣稱有顯著出入</li><li><b>LARA++</b>：LARA importance-sampling 公式的原理性延伸，證明品質缺口<b>不是 kernelization 本質</b>，計算成本才是真正的綁定限制</li></ol>
+      <div class="cite">§1, p.2</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景 · 公式</div>
+      <h2 class="head">Kernel trick 把 O(N²) 換成 O(N)</h2>
+      <div class="formula">y<sub>i</sub> = Σ<sub>j</sub> k(q<sub>i</sub>, k<sub>j</sub>) v<sub>j</sub> / Σ<sub>j</sub> k(q<sub>i</sub>, k<sub>j</sub>), &nbsp; k(q, k) = exp(q<sup>T</sup>k)</div>
+      <div class="formula">k(q, k) ≈ φ(q)<sup>T</sup>φ(k) &nbsp;⇒&nbsp; y<sub>i</sub> = φ(q<sub>i</sub>)<sup>T</sup>S / φ(q<sub>i</sub>)<sup>T</sup>z, &nbsp; S = Σ<sub>j</sub> φ(k<sub>j</sub>) v<sub>j</sub><sup>T</sup>, &nbsp; z = Σ<sub>j</sub> φ(k<sub>j</sub>)</div>
+      <ul class="bullets"><li>S ∈ R<sup>d′×d<sub>v</sub></sup>、z 只算一次、所有 query 共用 → 時間 O(N·d′·d<sub>v</sub>)、記憶體 O(d′·d<sub>v</sub>)（d′ ≪ N 時）</li><li>遞迴形式 S<sub>i</sub> = S<sub>i−1</sub> + φ(k<sub>i</sub>) v<sub>i</sub><sup>T</sup>：生成時每步固定大小 state，就是 RNN</li></ul>
+      <div class="cite">§2, Eq.3–5, p.2–3</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">背景 · 為什麼理論≠實測</div>
+      <h2 class="head">Causal mask 把平行計算變成序列依賴</h2>
+      <ul class="bullets"><li>Non-causal：一個 S 給所有 query 共用，記憶體 O(d′²)</li><li>Causal：每個位置的 S<sub>i</sub> 依賴不同前綴，要算出並保留 <b>N 個不同的 state</b></li><li>理論上 cumulative sum 是 O(N·d′²)，但引入跨 N 步的 RNN 式依賴，<b>平行度受限</b>、迴圈內要 N 次記憶體存取</li><li>現代加速器上<b>記憶體存取延遲主導算術成本</b> → 理論複雜度與 wall-clock 出現大落差</li></ul>
+      <div class="takeaway">對照：FlashAttention 計算仍是 O(N²)，但用 IO-aware tiling 做到 O(N) 記憶體、不實體化 attention 矩陣。</div>
+      <div class="cite">§2 Causal masking challenge, p.3；§3 Implementation-level optimizations, p.4</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">評測設定</div>
+      <h2 class="head">公平比賽：給 linear attention 最好的 kernel</h2>
+      <ul class="bullets"><li>對手：Softmax（naive PyTorch）、<b>FlashAttention v2.3.6</b>、Hedgehog、DiJiang；後兩者另各配 <b>FLA</b>（FlashLinearAttention Triton chunked prefix-sum）版本</li><li>生成階段兩個 linear 方法都用 Triton fused O(1) 遞迴 kernel</li><li>ViT-S/B/L，A100，224–1536px（N = 197–9217），量推論與訓練</li><li>GPT2-S/M/L，拆成 prefill 與 auto-regressive generation</li><li>每組 100 次平均、warm-up 後 CUDA-sync 計時、peak memory 讀 <code>max_memory_allocated</code></li></ul>
+      <div class="cite">§4, p.4–5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Finding 1 · 訓練</div>
+      <h2 class="head">訓練時 FlashAttention 時間與記憶體全勝</h2>
+      <table class="bench"><thead><tr><th>設定</th><th class="num">FlashAttention</th><th class="num">最佳 kernelized</th></tr></thead><tbody><tr class="win"><td>ViT-S 1536px 訓練</td><td class="num best">144.9 ms / 2,830 MB</td><td class="num">157.0 ms / 4,085 MB（DiJiang）</td></tr><tr class="win"><td>GPT2-S N=16K</td><td class="num best">488.6 ms / 11,767 MB</td><td class="num">565.8 ms / 15,423 MB（DiJiang-FLA）</td></tr><tr class="win"><td>GPT2-S train @4K</td><td class="num best">111.6 ms / 3,264 MB</td><td class="num">130.6 / 4,930（Hh-FLA）· 131.0 / 4,201（DJ-FLA）</td></tr><tr class="win"><td>GPT2-L train @4K</td><td class="num best">716.6 ms / 16,850 MB</td><td class="num">808.9 / 25,179（Hh-FLA）· 838.7 / 21,630（DJ-FLA）</td></tr></tbody></table>
+      <ul class="bullets"><li>ViT 記憶體優勢從 S 到 L 都維持約 <b>1.4×</b>；速度差距隨模型變大收窄但不反轉</li><li>GPT2 N=4K：Flash 快 1.1–1.2×、省 1.3× 記憶體；GPT2-L 16K 時 Hedgehog-FLA 直接 OOM</li></ul>
+      <div class="cite">§4 Finding 1, p.5；Table 5–6, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Finding 2 · ViT</div>
+      <h2 class="head">本該最有利的 non-causal ViT，linear attention 也沒贏</h2>
+      <figure class="full" style="max-height:38vh; margin-top:.4rem;"><img src="figures/figure1_p5.jpg" alt=""><figcaption>Figure 1：ViT-S 在 A100 上各解析度的推論 / 訓練時間與記憶體（p.5）</figcaption></figure>
+      <ul class="bullets"><li>ViT-S 1536px 推論：Flash <b>69.0 ms / 302 MB</b>，Hedgehog 82.5 ms / 347 MB；naive softmax 要 4,294 MB</li><li>Table 5 六個 model/phase 組合 Flash 全部最快且最省；推論時間領先 1.19× / 1.12× / 1.07×（ViT-S/B/L）</li></ul>
+      <div class="cite">§4 Finding 2, p.5；Fig.1, p.5；Table 5, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Finding 3 · Causal LM 推論</div>
+      <h2 class="head">唯一明確的贏面：生成與 prefill 的記憶體</h2>
+      <figure class="full" style="max-height:40vh; margin-top:.4rem;"><img src="figures/figure2_p6.jpg" alt=""><figcaption>Figure 2：GPT2-S 在 A100 上 prefill / 生成的時間與記憶體；虛線為 16K 以外或 OOM 後的 log 外插（p.6）</figcaption></figure>
+      <ul class="bullets"><li>生成：Hedgehog ~533 MB、DiJiang ~560 MB 恆定；Flash 的 KV cache 從 578 MB（N=128）長到 <b>2,991 MB</b>（16K）</li><li>生成 16K 後 Hedgehog 省 <b>5.6× / 5.8× / 5.0×</b>（GPT2-S/M/L）；Prefill@16K DiJiang 省 2.6–3.1×，但 Flash 仍是最快的 prefill</li></ul>
+      <div class="cite">§4 Finding 3, p.5–6；Fig.2, p.6；Table 6, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Finding 3 · 數字</div>
+      <h2 class="head">GPT2 三個尺寸、三種階段（time ms / peak MB）</h2>
+      <table class="bench"><thead><tr><th>GPT2</th><th class="num">Flash</th><th class="num">Hedgehog-FLA</th><th class="num">DiJiang-FLA</th></tr></thead><tbody><tr><td>S prefill @16K</td><td class="num best">215.2 / 2,886</td><td class="num">304.0 / 1,583</td><td class="num">304.8 / 1,256</td></tr><tr><td>L prefill @16K</td><td class="num best">1,413.9 / 13,180</td><td class="num">1,719.8 / 4,984</td><td class="num">1,761.0 / 4,621</td></tr><tr><td>S gen 16K</td><td class="num">90,041 / 2,991</td><td class="num">90,952 / 481</td><td class="num">103,023 / 507</td></tr><tr><td>L gen 16K</td><td class="num">221,969 / 15,576</td><td class="num">199,232 / 3,144</td><td class="num">234,094 / 3,368</td></tr></tbody></table>
+      <ul class="bullets"><li>Prefill：Flash <b>時間</b>最快，但 linear 方法的<b>記憶體</b>小 2–3×</li><li>生成：記憶體差距隨模型放大（GPT2-L 15,576 vs 3,144 MB）；naive Hedgehog 在 GPT2-L 生成時間 186,529 ms 也勝過 Flash</li></ul>
+      <p class="note">作者提醒：Flash 在 16K 生成仍 &lt;3 GB（A100、單一輸入），這個優勢在部署資源吃緊或超長生成時才關鍵。</p>
+      <div class="cite">Table 6, p.16；§4 Finding 3, p.5</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Finding 4 · 重現</div>
+      <h2 class="head">原論文的效率宣稱，換上現代 baseline 就不成立</h2>
+      <div class="two-col"><div><p class="col-hint">DiJiang：「生成吞吐恆定」</p><ul class="bullets"><li>重現成功：~174 tokens/s，N ∈ [128, 16384]</li><li>但<b>帶 KV cache 的 Flash 也幾乎平的</b>：193 → 182 tokens/s</li><li>原因：這個長度下延遲由 model weight streaming 主導</li><li>和不帶 KV cache 的 vanilla Transformer 比是誤導</li></ul></div><div><p class="col-hint">Hedgehog：「32K 時比 FA 快近 5×」</p><ul class="bullets"><li>原實驗：FlashAttention <b>v1</b>、單一 attention 層</li><li>GPT2-S + FA2：Hedgehog prefill 在 N=8192 <b>反而慢 3.5×</b></li><li>換 FLA Triton kernel 仍慢 1.4×</li><li>GPT2-L：慢 2.4×（FLA 1.3×）</li></ul></div></div>
+      <div class="takeaway">兩個落差都對應前面點名的評測斷層：baseline 過時、benchmark 太窄。</div>
+      <div class="cite">§4 Finding 4, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Hybrid 方法</div>
+      <h2 class="head">GLA 與 BASED 為什麼能贏 FA2？實作很重要</h2>
+      <ul class="bullets"><li>把 naive kernel 換成 FLA Triton kernel：Hedgehog prefill@16K 快 2.6× / 2.1× / 1.9×，<b>補上 82–85%</b> 與 FA2 的差距，但仍殘留 1.2–1.4× 慢</li><li>BASED 360M（官方 checkpoint + CUDA kernel）：Flash 訓練記憶體少 1.66×、prefill 記憶體少 2.6×；BASED 保住生成記憶體優勢</li><li>GLA、BASED 是 linear global + exact local、<b>從頭訓練</b>，不在本文的 drop-in 替換範圍</li></ul>
+      <p class="note">作者坦承：剩下的 gap 要歸因於機制本身還是實作，需要 roofline 分析才能定論。</p>
+      <div class="cite">§4 Relation to GLA and BASED, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">從效率到品質</div>
+      <h2 class="head">統一蒸餾協定：只換 attention operator</h2>
+      <ul class="bullets"><li>從頭訓 foundation model 學界負擔不起 → 把預訓練 Transformer 的 attention 層<b>轉成 kernelized 版本</b>，量品質掉多少</li><li>架構、資料固定，<b>只有 attention 改變</b>；也對應實務上壓縮既有模型的情境</li><li>監督分類：DeiT-S/224、DeiT-B/224、DeiT-B/384 on ImageNet（N ∈ {197, 577}）</li><li>自監督：DINOv2 S/B/L/g（最大 1.1B、N=257），用 YFCC15M 蒸餾，評 IN1K、VOC2012、ADE20K</li></ul>
+      <div class="cite">§5, p.6</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">品質結果</div>
+      <h2 class="head">SOTA kernelized 方法掉 2–10 點，而且不隨規模收斂</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">DeiT-S/224</th><th class="num">DeiT-B/224</th><th class="num">DeiT-B/384</th></tr></thead><tbody><tr><td>Softmax</td><td class="num">79.8</td><td class="num">81.8</td><td class="num">82.9</td></tr><tr><td>Hedgehog</td><td class="num">77.7（−2.1）</td><td class="num">79.7（−2.1）</td><td class="num">80.4（−2.5）</td></tr><tr><td>DiJiang</td><td class="num">71.9（−7.9）</td><td class="num">74.5（−7.3）</td><td class="num">72.8（−10.1）</td></tr><tr><td>LARA</td><td class="num">77.4（−2.4）</td><td class="num">80.0（−1.8）</td><td class="num">81.0（−1.9）</td></tr><tr class="win"><td>LARA++</td><td class="num best">78.5（−1.3）</td><td class="num best">80.8（−1.0）</td><td class="num best">82.1（−0.8）</td></tr></tbody></table>
+      <ul class="bullets"><li>不是種子噪音：三個 seed 標準差 ≤ 0.15（Table 4）；baseline 都調到最穩定配方</li><li>可重現性問題本身就是發現：DiJiang 照原配方訓不起來；Hedgehog 第二階段 LR 要比原文小很多</li></ul>
+      <div class="cite">§6, Table 1, p.7–8；Table 4, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · LARA 回顧</div>
+      <h2 class="head">把 softmax attention 寫成期望值，再用 importance sampling 估</h2>
+      <div class="formula">SoftmaxAttn(q<sub>n</sub>, K, V) = E<sub>ω∼p<sub>n</sub>(ω)</sub>[ f<sub>n</sub>(ω) ], &nbsp; p<sub>n</sub>(ω) = Σ<sub>i</sub> π<sub>i</sub> N(ω; q<sub>n</sub>+k<sub>i</sub>, I), &nbsp; π<sub>i</sub> ∝ exp(q<sub>n</sub><sup>T</sup>k<sub>i</sub>)</div>
+      <div class="formula">E<sub>p<sub>n</sub></sub>[f<sub>n</sub>(ω)] ≈ Σ<sub>s</sub> w<sub>s</sub> f<sub>n</sub>(ω<sub>s</sub>) / Σ<sub>s</sub> w<sub>s</sub>, &nbsp; w<sub>s</sub> = p<sub>n</sub>(ω<sub>s</sub>) / q(ω<sub>s</sub>)</div>
+      <ul class="bullets"><li>p<sub>n</sub> 有 N 個成分（每個 key 一個）→ 無法直接取樣，改用 self-normalized IS</li><li>估計品質取決於 proposal q(ω) 有多接近 p<sub>n</sub>(ω)</li><li>LARA 的 proposal：序列切成 C 個連續 chunk，chunk 內 query 平均當 landmark，同一 landmark 的 query 共用 proposal</li></ul>
+      <p class="note">為何選 LARA 當起點：三個方法中最有原理（Hedgehog、DiJiang 是對 feature map 的 ad-hoc 修改）。</p>
+      <div class="cite">§7, Eq.6–8, p.8</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · LARA++</div>
+      <h2 class="head">兩個改動：確定性 feature + 依相似度分群</h2>
+      <div class="two-col"><div><figure class="full" style="max-height:58vh;"><img src="figures/figure3_p9.jpg" alt=""><figcaption>Figure 3：上 LARA 依位置分組；下 LARA++ 依相似度分組，★ 為 landmark（p.9）</figcaption></figure></div><div><ul class="bullets"><li><b>改動 1：確定性 feature map</b>——不再取樣 ω<sub>s</sub>，直接用 proposal 的平均當 feature，去掉取樣變異</li><li><b>改動 2：clustering-based proposal</b>——連續 chunk 假設鄰近 query 注意力相似，但影像中語意相關 patch 可能相隔很遠；chunk 平均可能誰都不像</li><li>用 greedy <b>k-center</b>（cosine 距離）：從隨機 query 起，反覆挑離現有中心最遠者，選滿 C 個後分派、群內平均</li><li>成本 O(NC)；實際用 C = N/k、k ∈ {8, 16} → <b>Θ(N²/k)</b></li></ul></div></div>
+      <div class="cite">§7 Improvement 1–2, p.8–9；Fig.3, p.9；Algorithm 1, p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">方法 · 蒸餾配方</div>
+      <h2 class="head">兩階段：先逐層替換，再整體微調</h2>
+      <ol class="numbered"><li><b>Stage 1</b>：從第一層開始依序把 attention 換成 LARA++（保留預訓練 Q/K/V 與投影），每層訓 1 epoch、分類 head 凍結；loss = 各層 attention 輸出對齊的蒸餾 loss + 任務 loss</li><li><b>Stage 2</b>：所有參數只用任務 loss 微調 5 epochs，讓模型適應累積的近似誤差</li><li>任務 loss：DeiT 用 feature cosine similarity + 對 teacher 預測的 cross-entropy；DINOv2 對齊最後幾層 CLS 輸出與 patch feature 平均</li></ol>
+      <p class="note">公平性：Section 6 的 baseline 都在同一框架蒸餾；有官方配方的保留其客製化，learning rate 各自調到最穩定。</p>
+      <div class="cite">§7 Distillation recipe, p.9；App. E.1, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">LARA++ 結果 · DINOv2</div>
+      <h2 class="head">品質缺口可以補起來，而且越大的模型越接近</h2>
+      <figure class="full" style="max-height:34vh; margin-top:.4rem;"><img src="figures/figure4_p10.jpg" alt=""><figcaption>Figure 4：DINOv2 S/B/L 的 IN1K、VOC2012、ADE20K 與記憶體（p.10）</figcaption></figure>
+      <ul class="bullets"><li>DeiT-B/384：82.1 vs 82.9，回收 <b>99%</b> softmax 準確率；對 LARA 的增益 0.8–1.1 點</li><li>DINOv2-L：IN1K 只低 0.9；VOC2012、ADE20K mIoU 打平；記憶體約省 2×</li><li>DINOv2-g（1.1B、40 層）：IN1K −0.5、VOC2012 −0.71 mIoU</li></ul>
+      <div class="cite">§7 DeiT / DINOv2 results, p.9–10；Fig.4, p.10；Table 17, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">代價</div>
+      <h2 class="head">品質追上了，但 LARA++ 是最慢的 kernelized 方法</h2>
+      <table class="bench"><thead><tr><th>方法</th><th class="num">DeiT-S/224 acc / mem</th><th class="num">DeiT-B/384 acc / mem</th><th class="num">DeiT-S train ms/step</th></tr></thead><tbody><tr><td>Softmax</td><td class="num">79.8 / 1.00</td><td class="num">82.9 / 1.00</td><td class="num">—</td></tr><tr><td>Hedgehog</td><td class="num">77.7 / 0.41</td><td class="num">80.4 / 0.52</td><td class="num">294.6</td></tr><tr><td>DiJiang</td><td class="num">71.9 / 0.31</td><td class="num">72.8 / 0.48</td><td class="num best">274.8</td></tr><tr><td>LARA</td><td class="num">77.4 / 0.35</td><td class="num">81.0 / 0.58</td><td class="num">289.6</td></tr><tr class="win"><td>LARA++</td><td class="num best">78.5 / 0.35</td><td class="num best">82.1 / 0.58</td><td class="num">352.1</td></tr></tbody></table>
+      <ul class="bullets"><li>記憶體為 softmax teacher 的 0.35–0.58×，同記憶體下準確率勝 LARA</li><li>訓練每步比其他 baseline 慢 1.2–1.3×；在 DINOv2 上 clustering 佔 forward 時間 <b>43–60%</b></li></ul>
+      <div class="cite">§7, Table 2, p.10；App. C, p.15</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">機制 ★</div>
+      <h2 class="head">為什麼 FLOPs 更少卻更慢：卡在 kernel launch 與 DRAM，不是算術</h2>
+      <ul class="bullets"><li>DINOv2-L（N=257、batch 8、A100）：LARA++ FLOPs 只有 softmax 的 <b>0.94×</b></li><li>但它發出約 <b>340 個 kernel</b>，softmax 只有 <b>3 個</b>；DRAM 流量約 <b>12×</b></li><li>Clustering 佔約 83% 的 kernel launch、68% 的 DRAM 流量（32 landmarks），卻只佔約 2% 的 FLOPs——一串無法融合的小 gather / argmax / scatter</li><li>landmark 32 → 16：clustering kernel 少約三分之一、DRAM 流量少約 35%</li></ul>
+      <div class="takeaway">和 Finding 1–2 同一個根因：漸近複雜度、FLOPs 都不是現代硬體上效率的好預測指標；資料搬移與 kernel 融合才是。</div>
+      <div class="cite">App. C Cost of LARA++, p.15；Table 10, p.19</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">效率牆</div>
+      <h2 class="head">LARA++ 要到 64K 以上才省記憶體，省時間還要更多 landmark</h2>
+      <figure class="full" style="max-height:32vh; margin-top:.4rem;"><img src="figures/figure8_p20.jpg" alt=""><figcaption>Figure 8：LARA++ 不同 landmark 比例（1/64–1/8）vs softmax 的時間與記憶體；計時含 clustering（p.20）</figcaption></figure>
+      <ul class="bullets"><li>landmark 比例越低越省記憶體，但計算時間反而增加</li><li>64K 以上所有配置都省記憶體；時間優勢只在較高 landmark 比例才出現</li><li>landmark 數隨 N 成長 → O(NC) clustering 在這個掃描裡是 N 的二次方</li></ul>
+      <div class="cite">§7 The two halves of the picture, p.10；Fig.8, p.20</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">Ablation</div>
+      <h2 class="head">兩個改動各自有效，landmark 少時優雅退化</h2>
+      <table class="bench"><thead><tr><th>變體（DeiT-S）</th><th class="num"># landmarks</th><th class="num">Top-1 (%)</th></tr></thead><tbody><tr><td>Softmax</td><td class="num">—</td><td class="num">79.8</td></tr><tr><td>LARA（連續 chunk）</td><td class="num">28</td><td class="num">77.4</td></tr><tr><td>LARA（隨機選 landmark）</td><td class="num">28</td><td class="num">76.4</td></tr><tr><td>LARA++（取樣 feature）</td><td class="num">28</td><td class="num">78.2</td></tr><tr class="win"><td>LARA++</td><td class="num">28</td><td class="num best">78.5</td></tr><tr><td>LARA++</td><td class="num">20</td><td class="num">78.0</td></tr><tr><td>LARA++</td><td class="num">14</td><td class="num">77.5</td></tr></tbody></table>
+      <ul class="bullets"><li>隨機分組比連續 chunk 還差 → 任意切分不如位置局部性；依相似度分群才勝出</li><li>確定性 vs 取樣：三個 seed 全勝（+0.3 / +0.6 / +0.5），78.33±0.15 vs 77.87±0.29，paired t-test p = 0.034（作者註明 n=3 證據有限）</li></ul>
+      <div class="cite">App. A, Table 3–4, p.14</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">局限</div>
+      <h2 class="head">作者自己點出的範圍與失敗模式</h2>
+      <ul class="bullets"><li>規模：最大 GPT2-L 774M、ViT-L 304M，單張 A100；<b>不宣稱</b>可直接外推到數十億參數或其他硬體（但測過的規模內沒有趨勢反轉）</li><li>LARA++ 只在<b>視覺</b>驗證，沒做 causal LM，也沒測超長 context</li><li>ADE20K（150 類）最難：LARA++(32) 在 Small / Base 落後 6.7 / 5.2 mIoU</li><li>landmark 32 → 16：ImageNet 掉 0.8–1.7，ADE20K 掉 3.4–6.7 mIoU，<b>退化不優雅</b></li><li>LARA++ 調參比 baseline 少；baseline 本身的配方問題也讓 gap 不能全歸因於表達力</li></ul>
+      <div class="cite">§4 Summary, p.7；§6, p.8；App. D, p.15–16</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="slide__inner">
+      <div class="kicker">解讀</div>
+      <h2 class="head">對做推論 / 訓練系統的工程師（編者解讀，非論文結論）</h2>
+      <ul class="bullets"><li>評估「換成 linear attention」時，對照組至少要是 <b>FA2 + 帶 KV cache</b>；和 naive softmax 或無 cache 的 baseline 比，數字沒有參考價值</li><li>真正值得考慮 linear / recurrent state 的情境是<b>長生成、記憶體受限的 causal 推論</b>，而不是訓練或 ViT</li><li>LARA++ 的 profile 示範了一個通則：一串小 kernel 的方法，FLOPs 再低也會被 launch 與 DRAM 拖垮——方法設計要一開始就考慮能不能融合成少數 kernel</li><li>作者的方向判斷：linear global + exact local 的 hybrid（BASED、GLA、LOLCATS）比完全取代 softmax 更有前景</li></ul>
+      <p class="note">前三點為編者推論，第四點為作者結論（§8）。</p>
+      <div class="cite">綜合 §4、§8、App. C</div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · 原文對照</div>
+      <h2 class="head">關鍵段落（英文原文 + 中譯）</h2>
+      <div class="hl"><p class="hl__en">The clear wins for linear attention are <b>confined to inference in CLMs: memory during prefill and auto-regressive generation</b>.</p><p class="hl__zh">Linear attention 明確的優勢<b>只限於 causal LM 推論：prefill 與自回歸生成的記憶體</b>。<span class="hl__src">§1, p.2</span></p></div>
+      <div class="hl"><p class="hl__en">Comparing against a vanilla Transformer <b>without KV cache is therefore misleading</b>.</p><p class="hl__zh">因此拿<b>不帶 KV cache</b> 的 vanilla Transformer 來比較<b>是誤導</b>。<span class="hl__src">§4 Finding 4, p.6</span></p></div>
+      <div class="hl"><p class="hl__en">Its cost is therefore <b>bound by memory traffic and kernel launches, not by arithmetic</b>.</p><p class="hl__zh">因此它的成本<b>受記憶體流量與 kernel launch 限制，而非算術</b>。<span class="hl__src">App. C, p.15</span></p></div>
+      <div class="hl"><p class="hl__en">The central challenge for efficient attention is no longer obtaining linear asymptotic complexity, but <b>designing computations that map efficiently onto modern hardware</b> while preserving softmax quality.</p><p class="hl__zh">高效 attention 的核心挑戰不再是取得線性漸近複雜度，而是<b>設計能有效對應到現代硬體的計算</b>，同時保住 softmax 品質。<span class="hl__src">§8, p.10</span></p></div>
+    </div>
+  </section>
+
+  <section class="slide slide--appendix">
+    <div class="slide__inner">
+      <div class="kicker">附錄 · ViT 全尺寸</div>
+      <h2 class="head">Table 5：1536px（N = 9217），time ms / peak MB</h2>
+      <table class="bench"><thead><tr><th></th><th class="num">Softmax</th><th class="num">Flash</th><th class="num">Hedgehog</th><th class="num">DiJiang</th><th class="num">Hedgehog-FLA</th><th class="num">DiJiang-FLA</th></tr></thead><tbody><tr><td>ViT-S inf</td><td class="num">269.7 / 4294</td><td class="num best">69.0 / 302</td><td class="num">82.5 / 347</td><td class="num">82.0 / 327</td><td class="num">82.2 / 421</td><td class="num">82.4 / 342</td></tr><tr><td>ViT-B inf</td><td class="num">499.5 / 8740</td><td class="num best">115.2 / 754</td><td class="num">128.7 / 841</td><td class="num">131.7 / 816</td><td class="num">131.3 / 983</td><td class="num">133.2 / 846</td></tr><tr><td>ViT-L inf</td><td class="num">1351.5 / 12398</td><td class="num best">363.7 / 1748</td><td class="num">390.0 / 1826</td><td class="num">402.9 / 1887</td><td class="num">396.5 / 2015</td><td class="num">407.0 / 1926</td></tr><tr><td>ViT-S train</td><td class="num">1205.7 / 33341</td><td class="num best">144.9 / 2830</td><td class="num">156.6 / 4935</td><td class="num">157.0 / 4085</td><td class="num">158.5 / 4960</td><td class="num">158.4 / 4085</td></tr><tr><td>ViT-B train</td><td class="num">2445.3 / 66843</td><td class="num best">357.4 / 5844</td><td class="num">366.4 / 9996</td><td class="num">381.0 / 8323</td><td class="num">369.7 / 9972</td><td class="num">382.6 / 8323</td></tr><tr><td>ViT-L train</td><td class="num">OOM</td><td class="num best">1134.0 / 15261</td><td class="num">1143.7 / 26162</td><td class="num">1194.6 / 21727</td><td class="num">1150.4 / 26162</td><td class="num">1199.0 / 21727</td></tr></tbody></table>
+      <p class="note">Flash 在每一列都是最快且最省記憶體。</p>
+      <div class="cite">App. B, Table 5, p.16</div>
+    </div>
+  </section>
+
+  <section class="slide slide--cover slide--end">
+    <div class="slide__inner slide__inner--center">
+      <h2 class="end__title">Kernel Reality Check：O(N) 不等於快，硬體映射才是關鍵</h2>
+      <p class="end__sub">來源：<i>The Kernel Reality Check: Benchmarking and Distilling Efficient Attention at Scale</i> · arXiv 2611.22947 · NeurIPS 2026 · github.com/firatoncel/KernelRealityCheckNeurIPS2026</p>
+      <div class="end__next">明日預告：週五 · 模型壓縮 / 效率（量化、蒸餾、Pruning）</div>
+    </div>
+  </section>
+</div><!-- /.deck -->
+<div class="deck__foot"><div class="deck__bar" id="bar"></div></div>
+<div class="deck__no" id="pageno">1 / 1</div>
+<div class="deck__hint">&larr; &rarr; / Space 切頁</div>
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.deck .slide'));
+  let i = slides.findIndex(s => s.classList.contains('active'));
+  if (i < 0) i = 0;
+  const bar = document.getElementById('bar');
+  const no  = document.getElementById('pageno');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    no.textContent = (i + 1) + ' / ' + slides.length;
+    if (window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([slides[i]]).catch(()=>{}); }
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End')  { e.preventDefault(); show(slides.length - 1); }
+  });
+  document.getElementById('deck').addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    (e.clientX > window.innerWidth / 2) ? next() : prev();
+  });
+  const fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+  show(Number.isFinite(fromHash) && fromHash >= 1 ? fromHash - 1 : 0);
+})();
+</script>
+</body>
+</html>
